@@ -1,0 +1,33 @@
+# Dependencies
+frontend/node_modules/
+backend/.venv/
+backend/.uv_cache/
+
+# Environment
+.env
+.env.local
+credentials
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+
+# Database
+*.db
+*.db-journal
+
+# Logs
+*.log
+frontend/logs/
+backend/logs/

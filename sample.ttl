@@ -1,0 +1,122 @@
+@prefix p2p:  <http://example.com/p2p#> .
+@prefix org:  <http://example.com/org#> .
+@prefix fin:  <http://example.com/fin#> .
+@prefix mat:  <http://example.com/material#> .
+@prefix bp:   <http://example.com/bp#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+
+#################################################################
+#    Classes (类)
+#################################################################
+
+p2p:BusinessObject rdf:type owl:Class .
+p2p:Event          rdf:type owl:Class .
+p2p:Status         rdf:type owl:Class .
+
+p2p:MasterData     rdf:type owl:Class ; rdfs:subClassOf p2p:BusinessObject .
+p2p:BusinessDoc    rdf:type owl:Class ; rdfs:subClassOf p2p:BusinessObject .
+
+# 组织与供应商
+org:LegalEntity    rdf:type owl:Class ; rdfs:subClassOf p2p:MasterData .
+org:OrgUnit        rdf:type owl:Class ; rdfs:subClassOf p2p:MasterData .
+bp:BusinessPartner rdf:type owl:Class ; rdfs:subClassOf p2p:MasterData .
+bp:Supplier        rdf:type owl:Class ; rdfs:subClassOf bp:BusinessPartner .
+
+# 物料与规则
+mat:Material       rdf:type owl:Class ; rdfs:subClassOf p2p:MasterData .
+p2p:PurchasingCategory rdf:type owl:Class ; rdfs:subClassOf p2p:MasterData .
+p2p:Incoterm       rdf:type owl:Class ; rdfs:subClassOf p2p:MasterData .
+
+# 业务单据
+p2p:PurchaseContract    rdf:type owl:Class ; rdfs:subClassOf p2p:BusinessObject .
+p2p:PurchaseRequisition rdf:type owl:Class ; rdfs:subClassOf p2p:BusinessDoc .
+p2p:PurchaseOrder       rdf:type owl:Class ; rdfs:subClassOf p2p:BusinessDoc .
+p2p:GoodsReceipt        rdf:type owl:Class ; rdfs:subClassOf p2p:BusinessDoc .
+fin:SupplierInvoice     rdf:type owl:Class ; rdfs:subClassOf p2p:BusinessDoc .
+fin:Payment             rdf:type owl:Class ; rdfs:subClassOf p2p:BusinessObject .
+
+# 事件与状态
+p2p:BusinessEvent       rdf:type owl:Class ; rdfs:subClassOf p2p:Event .
+p2p:DocumentStatus      rdf:type owl:Class ; rdfs:subClassOf p2p:Status .
+
+#################################################################
+#    Object Properties (对象属性)
+#################################################################
+
+org:belongsToLegalEntity rdf:type owl:ObjectProperty ;
+    rdfs:domain org:OrgUnit ;
+    rdfs:range  org:LegalEntity .
+
+p2p:classifiedAs rdf:type owl:ObjectProperty ;
+    rdfs:domain mat:Material ;
+    rdfs:range  p2p:PurchasingCategory .
+
+p2p:signedWith rdf:type owl:ObjectProperty ;
+    rdfs:domain p2p:PurchaseContract ;
+    rdfs:range  bp:BusinessPartner .
+
+p2p:createdFrom rdf:type owl:ObjectProperty ;
+    rdfs:domain p2p:PurchaseOrder ;
+    rdfs:range  p2p:PurchaseRequisition .
+
+p2p:orderedFrom rdf:type owl:ObjectProperty ;
+    rdfs:domain p2p:PurchaseOrder ;
+    rdfs:range  bp:Supplier .
+
+p2p:referencesContract rdf:type owl:ObjectProperty ;
+    rdfs:domain p2p:PurchaseOrder ;
+    rdfs:range  p2p:PurchaseContract .
+
+p2p:fulfills rdf:type owl:ObjectProperty ;
+    rdfs:domain p2p:GoodsReceipt ;
+    rdfs:range  p2p:PurchaseOrder .
+
+fin:billedFor rdf:type owl:ObjectProperty ;
+    rdfs:domain fin:SupplierInvoice ;
+    rdfs:range  p2p:PurchaseOrder .
+
+fin:clears rdf:type owl:ObjectProperty ;
+    rdfs:domain fin:Payment ;
+    rdfs:range  fin:SupplierInvoice .
+
+p2p:changesStatus rdf:type owl:ObjectProperty ;
+    rdfs:domain p2p:BusinessEvent ;
+    rdfs:range  p2p:DocumentStatus .
+
+p2p:appliesTo rdf:type owl:ObjectProperty ;
+    rdfs:domain p2p:DocumentStatus ;
+    rdfs:range  p2p:BusinessDoc .
+
+#################################################################
+#    Data Properties (数据属性)
+#################################################################
+
+bp:hasPaymentTerm rdf:type owl:DatatypeProperty ;
+    rdfs:domain bp:BusinessPartner ;
+    rdfs:range  xsd:string .
+
+mat:baseUnit rdf:type owl:DatatypeProperty ;
+    rdfs:domain mat:Material ;
+    rdfs:range  xsd:string .
+
+p2p:code rdf:type owl:DatatypeProperty ;
+    rdfs:domain p2p:Incoterm ;
+    rdfs:range  xsd:string .
+
+p2p:validFrom rdf:type owl:DatatypeProperty ;
+    rdfs:domain p2p:PurchaseContract ;
+    rdfs:range  xsd:date .
+
+#################################################################
+#    Instances (实例数据)
+#################################################################
+
+p2p:PO_2024_001 rdf:type p2p:PurchaseOrder ;
+    p2p:orderedFrom bp:BP_10001 ;
+    p2p:referencesContract p2p:PC_2024_001 .
+
+p2p:GR_0001 rdf:type p2p:GoodsReceipt ;
+    p2p:fulfills p2p:PO_2024_001 .

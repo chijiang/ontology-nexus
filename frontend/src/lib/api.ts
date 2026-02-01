@@ -55,18 +55,21 @@ export const graphApi = {
   import: (file: File, token: string) => {
     const formData = new FormData()
     formData.append('file', file)
-    return axios.post('/graph/import', formData, {
+    return api.post('/graph/import', formData, {
       headers: {
-        Authorization: `Bearer ${token}`,
         'Content-Type': 'multipart/form-data',
       },
     })
   },
+
   getNode: (uri: string, token: string) =>
     api.get(`/graph/node/${encodeURIComponent(uri)}`),
-  getNeighbors: (uri: string, hops: number, token: string) =>
-    api.get(`/graph/neighbors?uri=${encodeURIComponent(uri)}&hops=${hops}`),
+  getNeighbors: (name: string, hops: number, token: string) =>
+    api.get(`/graph/neighbors?name=${encodeURIComponent(name)}&hops=${hops}`),
   findPath: (start: string, end: string, token: string) =>
     api.post('/graph/path', { start_uri: start, end_uri: end }),
+  getNodesByLabel: (label: string, limit: number, token: string) =>
+    api.get(`/graph/nodes?label=${encodeURIComponent(label)}&limit=${limit}`),
   getStatistics: (token: string) => api.get('/graph/statistics'),
+  getSchema: (token: string) => api.get('/graph/schema'),
 }

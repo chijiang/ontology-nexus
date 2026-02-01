@@ -3,9 +3,8 @@ import asyncio
 from sqlalchemy import select
 from app.core.database import async_session, engine, Base
 from app.core.security import hash_password
-from app.models.user import User
-from app.models.llm_config import LLMConfig
-from app.models.neo4j_config import Neo4jConfig
+# Import all models to register them with Base
+from app.models import User, LLMConfig, Neo4jConfig
 
 
 async def init_db():

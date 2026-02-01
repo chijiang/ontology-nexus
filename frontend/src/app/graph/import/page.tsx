@@ -1,7 +1,7 @@
 // frontend/src/app/graph/import/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
@@ -17,9 +17,19 @@ export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
+  const [isHydrated, setIsHydrated] = useState(false)
 
-  if (!token) {
-    router.push('/')
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (isHydrated && !token) {
+      router.push('/')
+    }
+  }, [isHydrated, token, router])
+
+  if (!isHydrated || !token) {
     return null
   }
 

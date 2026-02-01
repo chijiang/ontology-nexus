@@ -46,13 +46,15 @@ async def update_llm_config(
     result = await db.execute(select(LLMConfig).where(LLMConfig.user_id == current_user.id))
     config = result.scalar_one_or_none()
 
-    encrypted_key = encrypt_data(req.api_key)
-
     if config:
-        config.api_key_encrypted = encrypted_key
+        if req.api_key != "************":
+            config.api_key_encrypted = encrypt_data(req.api_key)
         config.base_url = req.base_url
         config.model = req.model
     else:
+        if req.api_key == "************":
+            raise HTTPException(status_code=400, detail="Cannot use placeholder for new configuration")
+        encrypted_key = encrypt_data(req.api_key)
         config = LLMConfig(
             user_id=current_user.id,
             api_key_encrypted=encrypted_key,
@@ -68,11 +70,20 @@ async def update_llm_config(
 @router.post("/test/llm", response_model=TestConnectionResponse)
 async def test_llm_connection(
     req: LLMConfigRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     try:
+        api_key = req.api_key
+        if api_key == "************":
+            result = await db.execute(select(LLMConfig).where(LLMConfig.user_id == current_user.id))
+            config = result.scalar_one_or_none()
+            if not config:
+                return TestConnectionResponse(success=False, message="No saved API key found")
+            api_key = decrypt_data(config.api_key_encrypted)
+
         llm = ChatOpenAI(
-            api_key=req.api_key,
+            api_key=api_key,
             base_url=req.base_url,
             model=req.model,
             max_tokens=10
@@ -114,9 +125,12 @@ async def update_neo4j_config(
     if config:
         config.uri_encrypted = encrypt_data(req.uri)
         config.username_encrypted = encrypt_data(req.username)
-        config.password_encrypted = encrypt_data(req.password)
+        if req.password != "************":
+            config.password_encrypted = encrypt_data(req.password)
         config.database = req.database
     else:
+        if req.password == "************":
+            raise HTTPException(status_code=400, detail="Cannot use placeholder for new configuration")
         config = Neo4jConfig(
             user_id=current_user.id,
             uri_encrypted=encrypt_data(req.uri),
@@ -133,13 +147,22 @@ async def update_neo4j_config(
 @router.post("/test/neo4j", response_model=TestConnectionResponse)
 async def test_neo4j_connection(
     req: Neo4jConfigRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     try:
+        password = req.password
+        if password == "************":
+            result = await db.execute(select(Neo4jConfig).where(Neo4jConfig.user_id == current_user.id))
+            config = result.scalar_one_or_none()
+            if not config:
+                return TestConnectionResponse(success=False, message="No saved password found")
+            password = decrypt_data(config.password_encrypted)
+
         driver = await get_neo4j_driver(
             uri=req.uri,
             username=req.username,
-            password=req.password,
+            password=password,
             database=req.database
         )
         async with driver.session(database=req.database) as session:

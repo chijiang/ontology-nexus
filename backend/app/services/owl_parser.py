@@ -15,14 +15,22 @@ class OWLParser:
     """OWL/TTL 文件解析器"""
 
     SCHEMA_PREDICATES = {
-        RDF.type, RDFS.subClassOf, RDFS.domain, RDFS.range,
-        RDFS.subPropertyOf, OWL.equivalentClass, OWL.disjointWith,
-        OWL.equivalentProperty, OWL.inverseOf
+        RDF.type,
+        RDFS.subClassOf,
+        RDFS.domain,
+        RDFS.range,
+        RDFS.subPropertyOf,
+        OWL.equivalentClass,
+        OWL.disjointWith,
+        OWL.equivalentProperty,
+        OWL.inverseOf,
     }
 
     SCHEMA_TYPES = {
-        OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty,
-        OWL.AnnotationProperty
+        OWL.Class,
+        OWL.ObjectProperty,
+        OWL.DatatypeProperty,
+        OWL.AnnotationProperty,
     }
 
     def __init__(self, graph: Graph | None = None):
@@ -62,15 +70,19 @@ class OWLParser:
 
     def _is_schema_triple(self, s, p, o) -> bool:
         """判断是否为 Schema 三元组"""
-        # 检查谓词
+        # 类型声明：rdf:type
+        if p == RDF.type:
+            # 如果对象是 Schema 类型（owl:Class, owl:ObjectProperty 等），则是 Schema 三元组
+            if o in self.SCHEMA_TYPES:
+                return True
+            # 如果对象是一个用户定义的类（实例的类型声明），则是 Instance 三元组
+            return False
+
+        # 检查 Schema 谓词（subClassOf, domain, range 等）
         if p in self.SCHEMA_PREDICATES:
             return True
 
-        # 检查类型声明
-        if p == RDF.type and o in self.SCHEMA_TYPES:
-            return True
-
-        # 检查主体是否是 Schema 实体
+        # 检查主体是否是 Schema 实体（类或属性定义）
         if s in self._schema_entities:
             return True
 
@@ -80,11 +92,13 @@ class OWLParser:
         """提取所有类定义"""
         classes = []
         for s, _, o in self.graph.triples((None, RDF.type, OWL.Class)):
-            classes.append({
-                "uri": str(s),
-                "name": s.split("#")[-1].split("/")[-1],
-                "label": self._get_label(s)
-            })
+            classes.append(
+                {
+                    "uri": str(s),
+                    "name": s.split("#")[-1].split("/")[-1],
+                    "label": self._get_label(s),
+                }
+            )
         return classes
 
     def extract_properties(self) -> List[dict]:
@@ -92,24 +106,28 @@ class OWLParser:
         properties = []
 
         for s, _, o in self.graph.triples((None, RDF.type, OWL.ObjectProperty)):
-            properties.append({
-                "uri": str(s),
-                "name": s.split("#")[-1].split("/")[-1],
-                "label": self._get_label(s),
-                "type": "object",
-                "domain": self._get_domain(s),
-                "range": self._get_range(s)
-            })
+            properties.append(
+                {
+                    "uri": str(s),
+                    "name": s.split("#")[-1].split("/")[-1],
+                    "label": self._get_label(s),
+                    "type": "object",
+                    "domain": self._get_domain(s),
+                    "range": self._get_range(s),
+                }
+            )
 
         for s, _, o in self.graph.triples((None, RDF.type, OWL.DatatypeProperty)):
-            properties.append({
-                "uri": str(s),
-                "name": s.split("#")[-1].split("/")[-1],
-                "label": self._get_label(s),
-                "type": "data",
-                "domain": self._get_domain(s),
-                "range": self._get_range(s)
-            })
+            properties.append(
+                {
+                    "uri": str(s),
+                    "name": s.split("#")[-1].split("/")[-1],
+                    "label": self._get_label(s),
+                    "type": "data",
+                    "domain": self._get_domain(s),
+                    "range": self._get_range(s),
+                }
+            )
 
         return properties
 
@@ -119,11 +137,11 @@ class OWLParser:
         return None
 
     def _get_domain(self, uri) -> str | None:
-        for _, domain in self.graph.triples((uri, RDFS.domain, None)):
+        for _, _, domain in self.graph.triples((uri, RDFS.domain, None)):
             return str(domain)
         return None
 
     def _get_range(self, uri) -> str | None:
-        for _, range_val in self.graph.triples((uri, RDFS.range, None)):
+        for _, _, range_val in self.graph.triples((uri, RDFS.range, None)):
             return str(range_val)
         return None

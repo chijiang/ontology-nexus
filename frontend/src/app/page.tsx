@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
 import { toast } from 'sonner'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -18,6 +19,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,25 +53,41 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               placeholder="用户名"
+              name="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
               required
             />
             {!isLogin && (
               <Input
                 placeholder="邮箱（可选）"
                 type="email"
+                name="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
               />
             )}
-            <Input
-              placeholder="密码"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <Input
+                placeholder="密码"
+                type={showPassword ? "text" : "password"}
+                name="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={isLogin ? "current-password" : "new-password"}
+                className="pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? '处理中...' : isLogin ? '登录' : '注册'}
             </Button>

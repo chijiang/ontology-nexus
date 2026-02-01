@@ -1,7 +1,7 @@
 // frontend/src/app/dashboard/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout'
 import { Chat } from '@/components/chat'
@@ -12,9 +12,27 @@ export default function DashboardPage() {
   const router = useRouter()
   const token = useAuthStore((state) => state.token)
   const [graphData, setGraphData] = useState<any>(null)
+  const [isHydrated, setIsHydrated] = useState(false)
 
+  // Wait for zustand to hydrate from localStorage
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  // Redirect only after hydration is complete
+  useEffect(() => {
+    if (isHydrated && !token) {
+      router.push('/')
+    }
+  }, [isHydrated, token, router])
+
+  // Show nothing until hydration is complete
+  if (!isHydrated) {
+    return null
+  }
+
+  // Show nothing if not authenticated (will redirect)
   if (!token) {
-    router.push('/')
     return null
   }
 

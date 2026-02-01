@@ -19,6 +19,10 @@ dependencies = [
     "cryptography>=44.0.0",
     "sqlalchemy>=2.0.36",
     "aiosqlite>=0.20.0",
+    "greenlet>=3.3.1",
+    "jieba>=0.42.1",
+    "httpx[socks]>=0.28.1",
+    "httpcore[socks]>=1.0.9",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +33,10 @@ dev = [
     "httpx>=0.28.0",
     "ruff>=0.8.0",
 ]
+
+[[tool.uv.index]]
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+default = true
 
 [tool.uv]
 dev-dependencies = [

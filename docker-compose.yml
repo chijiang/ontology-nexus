@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - SECRET_KEY=default-secret-key-change-me
+      - CORS_ORIGINS=["http://localhost:3000"]
+      - DATABASE_URL=sqlite:///./kg_qa.db
+    volumes:
+      - ./backend/kg_qa.db:/app/kg_qa.db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:3000/api
+    depends_on:
+      - backend

@@ -39,16 +39,60 @@ export const configApi = {
 }
 
 export const chatApi = {
-  stream: (query: string, token: string) => {
+  stream: (query: string, token: string, conversationId?: number) => {
     return fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/chat/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, conversation_id: conversationId }),
     })
   },
+}
+
+export interface Conversation {
+  id: number
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Message {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  extra_metadata?: {
+    thinking?: string
+    graph_data?: {
+      nodes: any[]
+      edges: any[]
+    }
+  }
+  created_at: string
+}
+
+export interface ConversationWithMessages extends Conversation {
+  messages: Message[]
+}
+
+export const conversationApi = {
+  list: () => api.get<Conversation[]>('/conversations'),
+
+  create: (title?: string) =>
+    api.post<Conversation>('/conversations', { title }),
+
+  get: (id: number) =>
+    api.get<ConversationWithMessages>(`/conversations/${id}`),
+
+  delete: (id: number) =>
+    api.delete(`/conversations/${id}`),
+
+  addMessage: (id: number, role: string, content: string, extra_metadata?: any) =>
+    api.post(`/conversations/${id}/messages`, { role, content, extra_metadata }),
+
+  generateTitle: (id: number) =>
+    api.post<{ title: string }>(`/conversations/${id}/generate-title`),
 }
 
 export const graphApi = {

@@ -1,19 +1,24 @@
 // frontend/src/app/dashboard/page.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout'
 import { Chat } from '@/components/chat'
 import { GraphPreview } from '@/components/graph-preview'
+import { ConversationSidebar } from '@/components/conversation-sidebar'
 import { useAuthStore } from '@/lib/auth'
-import { MessageSquare, Network } from 'lucide-react'
+import { conversationApi, Message } from '@/lib/api'
+import { MessageSquare, Network, PanelLeftClose, PanelLeft } from 'lucide-react'
 
 export default function DashboardPage() {
   const router = useRouter()
   const token = useAuthStore((state) => state.token)
   const [graphData, setGraphData] = useState<any>(null)
   const [isHydrated, setIsHydrated] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
+  const [initialMessages, setInitialMessages] = useState<Message[]>([])
 
   useEffect(() => {
     setIsHydrated(true)
@@ -25,37 +30,102 @@ export default function DashboardPage() {
     }
   }, [isHydrated, token, router])
 
+  // 加载对话消息
+  const loadConversation = useCallback(async (id: number | null) => {
+    setActiveConversationId(id)
+    setGraphData(null)
+
+    if (id) {
+      try {
+        const res = await conversationApi.get(id)
+        setInitialMessages(res.data.messages)
+
+        // 如果有 graph_data，显示最后一个
+        const lastWithGraph = [...res.data.messages]
+          .reverse()
+          .find(m => m.extra_metadata?.graph_data)
+        if (lastWithGraph?.extra_metadata?.graph_data) {
+          setGraphData(lastWithGraph.extra_metadata.graph_data)
+        }
+      } catch (err) {
+        console.error('Failed to load conversation:', err)
+        setInitialMessages([])
+      }
+    } else {
+      setInitialMessages([])
+    }
+  }, [])
+
+  const handleNewChat = () => {
+    setActiveConversationId(null)
+    setInitialMessages([])
+    setGraphData(null)
+  }
+
+  const handleConversationCreated = (id: number) => {
+    setActiveConversationId(id)
+  }
+
   if (!isHydrated || !token) {
     return null
   }
 
   return (
-    <AppLayout>
-      <div className="h-[calc(100vh-100px)] p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
-          {/* 问答区域 */}
-          <div className="flex flex-col bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-slate-50">
-              <div className="p-2 rounded-lg bg-indigo-600">
-                <MessageSquare className="h-5 w-5 text-white" />
-              </div>
-              <h2 className="text-lg font-semibold text-slate-800">智能问答</h2>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <Chat onGraphData={setGraphData} />
-            </div>
-          </div>
+    <AppLayout noPadding>
+      <div className="flex flex-1 h-full overflow-hidden relative">
+        {/* Toggle sidebar button (Floating when closed) */}
+        {!sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="absolute left-4 top-4 z-20 p-2.5 bg-white border border-slate-200 rounded-lg shadow-md hover:bg-slate-50 transition-all text-slate-500 hover:text-indigo-600"
+            title="显示侧边栏"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </button>
+        )}
 
-          {/* 图谱区域 */}
-          <div className="flex flex-col bg-slate-900 rounded-2xl shadow-lg overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-700">
-              <div className="p-2 rounded-lg bg-emerald-600">
-                <Network className="h-5 w-5 text-white" />
+        {/* Sidebar */}
+        <div className={`transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-64' : 'w-0'} flex-shrink-0 overflow-hidden h-full`}>
+          <ConversationSidebar
+            activeId={activeConversationId}
+            onSelect={loadConversation}
+            onNewChat={handleNewChat}
+            onToggle={() => setSidebarOpen(false)}
+          />
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 min-h-0 bg-slate-50 p-4 lg:p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-hidden">
+            {/* 问答区域 */}
+            <div className="flex flex-col bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden h-full min-h-0">
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-slate-50 flex-shrink-0">
+                <div className="p-2 rounded-lg bg-indigo-600">
+                  <MessageSquare className="h-5 w-5 text-white" />
+                </div>
+                <h2 className="text-lg font-semibold text-slate-800">智能问答</h2>
               </div>
-              <h2 className="text-lg font-semibold text-white">知识图谱</h2>
+              <div className="flex-1 min-h-0">
+                <Chat
+                  onGraphData={setGraphData}
+                  conversationId={activeConversationId}
+                  initialMessages={initialMessages}
+                  onConversationCreated={handleConversationCreated}
+                />
+              </div>
             </div>
-            <div className="flex-1 overflow-hidden">
-              <GraphPreview data={graphData} />
+
+            {/* 图谱区域 */}
+            <div className="flex flex-col bg-slate-900 rounded-2xl shadow-lg overflow-hidden h-full min-h-0">
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-700 flex-shrink-0">
+                <div className="p-2 rounded-lg bg-emerald-600">
+                  <Network className="h-5 w-5 text-white" />
+                </div>
+                <h2 className="text-lg font-semibold text-white">知识图谱</h2>
+              </div>
+              <div className="flex-1 min-h-0">
+                <GraphPreview data={graphData} />
+              </div>
             </div>
           </div>
         </div>

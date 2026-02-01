@@ -1,1 +1,1 @@
-# KG QA Backend Application
+from app import models

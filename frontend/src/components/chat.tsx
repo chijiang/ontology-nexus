@@ -3,9 +3,11 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { chatApi } from '@/lib/api'
+import { chatApi, conversationApi, Message as ApiMessage } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
 import { Send, Bot, User, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -14,13 +16,40 @@ interface Message {
   graphData?: any
 }
 
-export function Chat({ onGraphData }: { onGraphData: (data: any) => void }) {
+interface ChatProps {
+  onGraphData: (data: any) => void
+  conversationId: number | null
+  initialMessages: ApiMessage[]
+  onConversationCreated: (id: number) => void
+}
+
+export function Chat({ onGraphData, conversationId, initialMessages, onConversationCreated }: ChatProps) {
   const token = useAuthStore((state) => state.token)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [expandedThinking, setExpandedThinking] = useState<number | null>(null)
+  const [currentConversationId, setCurrentConversationId] = useState<number | null>(conversationId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const hasGeneratedTitle = useRef(false)
+
+  // 初始化消息
+  useEffect(() => {
+    // 如果当前的 ID 已经匹配且消息不为空，说明是刚创建的对话并正在流式传输，不要重置
+    if (conversationId !== null && conversationId === currentConversationId && messages.length > 0) {
+      return
+    }
+
+    const msgs: Message[] = initialMessages.map(m => ({
+      role: m.role,
+      content: m.content,
+      thinking: m.extra_metadata?.thinking,
+      graphData: m.extra_metadata?.graph_data
+    }))
+    setMessages(msgs)
+    setCurrentConversationId(conversationId)
+    hasGeneratedTitle.current = conversationId !== null
+  }, [initialMessages, conversationId])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -40,12 +69,13 @@ export function Chat({ onGraphData }: { onGraphData: (data: any) => void }) {
     setLoading(true)
 
     try {
-      const response = await chatApi.stream(userMessage, token!)
+      const response = await chatApi.stream(userMessage, token!, currentConversationId || undefined)
       const reader = response.body!.getReader()
       const decoder = new TextDecoder()
 
       let assistantMessage = ''
       let thinking = ''
+      let newConversationId = currentConversationId
 
       while (true) {
         const { done, value } = await reader.read()
@@ -61,6 +91,10 @@ export function Chat({ onGraphData }: { onGraphData: (data: any) => void }) {
 
             if (data.type === 'thinking') {
               thinking = data.content
+              if (data.conversation_id) {
+                newConversationId = data.conversation_id
+                setCurrentConversationId(data.conversation_id)
+              }
               setMessages((prev) => {
                 const newMsgs = [...prev]
                 const last = newMsgs[newMsgs.length - 1]
@@ -94,9 +128,27 @@ export function Chat({ onGraphData }: { onGraphData: (data: any) => void }) {
                 }
                 return newMsgs
               })
+            } else if (data.type === 'conversation_id') {
+              newConversationId = data.id
             }
           } catch (e) {
             console.error('Failed to parse SSE data:', e)
+          }
+        }
+      }
+
+      // 更新对话 ID
+      if (newConversationId && newConversationId !== currentConversationId) {
+        setCurrentConversationId(newConversationId)
+        onConversationCreated(newConversationId)
+
+        // 生成标题
+        if (!hasGeneratedTitle.current) {
+          hasGeneratedTitle.current = true
+          try {
+            await conversationApi.generateTitle(newConversationId)
+          } catch (err) {
+            console.error('Failed to generate title:', err)
           }
         }
       }
@@ -178,10 +230,18 @@ export function Chat({ onGraphData }: { onGraphData: (data: any) => void }) {
 
               {/* Main content */}
               <div className={`px-4 py-3 rounded-2xl ${msg.role === 'user'
-                  ? 'bg-indigo-600 text-white rounded-tr-md'
-                  : 'bg-slate-100 text-slate-700 rounded-tl-md'
+                ? 'bg-indigo-600 text-white rounded-tr-md'
+                : 'bg-slate-100 text-slate-700 rounded-tl-md'
                 }`}>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content || '...'}</p>
+                {msg.role === 'user' ? (
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
+                ) : (
+                  <div className="prose prose-sm max-w-none text-slate-700 prose-slate prose-headings:font-semibold prose-headings:text-slate-800 prose-p:leading-relaxed prose-li:my-1 prose-table:border prose-table:border-slate-200 prose-th:bg-slate-50 prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.content || '...'}
+                    </ReactMarkdown>
+                  </div>
+                )}
               </div>
 
               {/* Graph indicator */}

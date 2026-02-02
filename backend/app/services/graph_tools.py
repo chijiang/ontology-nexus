@@ -1,7 +1,11 @@
 # backend/app/services/graph_tools.py
-from typing import List, Any
+from typing import TYPE_CHECKING, List, Any
 from neo4j import AsyncSession
 from langchain_core.tools import tool
+
+if TYPE_CHECKING:
+    from app.rule_engine.event_emitter import GraphEventEmitter
+    from app.rule_engine.models import UpdateEvent
 
 
 class GraphTools:
@@ -12,12 +16,69 @@ class GraphTools:
     - Instance: 查询实际数据
     """
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, event_emitter: "GraphEventEmitter | None" = None):
         self.session = session
+        self.event_emitter = event_emitter
 
     async def clear_graph(self):
         """清除全部图谱数据"""
         await self.session.run("MATCH (n) DETACH DELETE n")
+
+    # ==================== Event Emission ====================
+
+    async def _get_entity_raw(
+        self, entity_type: str, entity_id: str
+    ) -> dict[str, Any] | None:
+        """Get raw entity data by type and ID.
+
+        Args:
+            entity_type: The type/label of the entity (e.g., "Supplier")
+            entity_id: The unique identifier (name property) of the entity
+
+        Returns:
+            Dictionary with entity properties, or None if not found
+        """
+        query = f"""
+            MATCH (n:`{entity_type}` {{name: $id}})
+            RETURN properties(n) AS props
+        """
+        result = await self.session.run(query, id=entity_id)
+        record = await result.single()
+        if record:
+            return record["props"]
+        return None
+
+    async def _emit_update_event(
+        self,
+        entity_type: str,
+        entity_id: str,
+        property: str,
+        old_value: Any,
+        new_value: Any,
+    ) -> None:
+        """Emit an update event if an event_emitter is configured.
+
+        Args:
+            entity_type: The type/label of the entity being updated
+            entity_id: The unique identifier of the entity
+            property: The property name being updated
+            old_value: The previous value
+            new_value: The new value
+        """
+        if self.event_emitter is None:
+            return
+
+        # Import here to avoid circular dependency
+        from app.rule_engine.models import UpdateEvent
+
+        event = UpdateEvent(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            property=property,
+            old_value=old_value,
+            new_value=new_value,
+        )
+        self.event_emitter.emit(event)
 
     # ==================== Ontology 查询 ====================
 

@@ -23,6 +23,7 @@ dependencies = [
     "jieba>=0.42.1",
     "httpx[socks]>=0.28.1",
     "httpcore[socks]>=1.0.9",
+    "lark>=1.1",
 ]
 
 [project.optional-dependencies]

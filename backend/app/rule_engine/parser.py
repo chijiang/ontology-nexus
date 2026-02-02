@@ -49,6 +49,58 @@ class ASTTransformer(Transformer):
     def SCAN(self, token: Token) -> str:
         return "SCAN"
 
+    # Comparison operator token handlers
+    def EQ(self, token: Token) -> str:
+        return "=="
+
+    def NEQ(self, token: Token) -> str:
+        return "!="
+
+    def LT(self, token: Token) -> str:
+        return "<"
+
+    def GT(self, token: Token) -> str:
+        return ">"
+
+    def LTE(self, token: Token) -> str:
+        return "<="
+
+    def GTE(self, token: Token) -> str:
+        return ">="
+
+    def IN(self, token: Token) -> str:
+        return "IN"
+
+    def IS(self, token: Token) -> str:
+        return "IS"
+
+    def NOT(self, token: Token) -> str:
+        return "NOT"
+
+    def NULL(self, token: Token) -> None:
+        return None
+
+    def MATCHES(self, token: Token) -> str:
+        return "MATCHES"
+
+    def CHANGED(self, token: Token) -> str:
+        return "CHANGED"
+
+    def FROM(self, token: Token) -> str:
+        return "FROM"
+
+    def TO(self, token: Token) -> str:
+        return "TO"
+
+    def EXISTS(self, token: Token) -> str:
+        return "EXISTS"
+
+    def AND(self, token: Token) -> str:
+        return "AND"
+
+    def OR(self, token: Token) -> str:
+        return "OR"
+
     # Rule handlers
     def start(self, items):
         # Return items as a list
@@ -241,41 +293,81 @@ class ASTTransformer(Transformer):
         return items[0]
 
     def or_expr(self, items):
-        if len(items) == 1:
-            return items[0]
+        # Filter out the "OR" terminals and keep only the expressions
+        expressions = [item for item in items if item != "OR"]
+        if len(expressions) == 1:
+            return expressions[0]
         # Build left-associative OR chain
-        result = items[0]
-        for i in range(1, len(items)):
-            result = ("or", result, items[i])
+        result = expressions[0]
+        for i in range(1, len(expressions)):
+            result = ("or", result, expressions[i])
         return result
 
     def and_expr(self, items):
-        if len(items) == 1:
-            return items[0]
+        # Filter out the "AND" terminals and keep only the expressions
+        expressions = [item for item in items if item != "AND"]
+        if len(expressions) == 1:
+            return expressions[0]
         # Build left-associative AND chain
-        result = items[0]
-        for i in range(1, len(items)):
-            result = ("and", result, items[i])
+        result = expressions[0]
+        for i in range(1, len(expressions)):
+            result = ("and", result, expressions[i])
         return result
 
     def not_expr(self, items):
+        # When NOT is optional [NOT], Lark passes:
+        # - 1 item if NOT is not present: [comparison]
+        # - 2 items if NOT is present: ["NOT", comparison]
+        # But it can also pass 2 items with None: [None, comparison]
         if len(items) == 1:
             return items[0]
-        return ("not", items[0])
+        # Check if NOT is actually present (not None)
+        if items[0] == "NOT":
+            return ("not", items[1])
+        # NOT is not present (items[0] is None)
+        return items[1]
 
     def comparison(self, items):
+        """Handle comparison expressions.
+
+        The grammar has several forms:
+        - term [comp_op term] - binary comparison with optional operator
+        - term IN "[" [value_list] "]" - IN operator
+        - term IS [NOT] NULL - IS NULL check
+        - term MATCHES STRING - regex match
+        - term CHANGED [FROM value TO value] - change detection
+        - EXISTS "(" pattern ")" - existence check
+        - term relationship term - relationship check
+
+        When the comparison is just a single term (no operator), items has 1 element.
+        When there's an IN/IS NULL/MATCHES/CHANGED/EXISTS/relationship, items has 2-4 elements.
+        When there's a binary comparison (term op term), items has 3 elements.
+        """
         if len(items) == 1:
             return items[0]
         if len(items) == 2:
-            return items[0]
+            # Check if this is an IS NULL or IS NOT NULL case
+            # items could be: [term, None] for "term IS NULL" -> handled by ternary
+            # or it could be the result of a special operator
+            return items[1]
         # ternary comparison: term op term
-        return ("op", items[1], items[0], items[2])
+        # items[0] is left term, items[1] is operator, items[2] is right term
+        op = items[1]
+        if op == "IS":
+            # IS NULL or IS NOT NULL
+            # For "term IS NULL": items = [term, "IS", None, None] or [term, "IS", None]
+            # For "term IS NOT NULL": items = [term, "IS", "NOT", None] or [term, "IS", "NOT"]
+            # The last item is always None (the NULL token)
+            is_not = (len(items) > 2 and items[2] == "NOT") or (len(items) > 3 and items[2] == "NOT")
+            return ("is_null", items[0], is_not)
+        return ("op", op, items[0], items[2])
 
     def comp_op(self, items):
-        # items can be empty when the comparison uses IN, MATCHES, etc.
-        # which are not part of the comp_op rule
+        """Extract comparison operator from token."""
+        # items[0] is a Token with type like '__ANON_0' or similar
+        # We need to extract the string value
         if items:
-            return str(items[0])
+            return str(items[0].value) if hasattr(items[0], 'value') else str(items[0])
         return None
 
     def term(self, items):

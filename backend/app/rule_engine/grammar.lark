@@ -42,21 +42,21 @@ trigger_stmt: "TRIGGER" entity_action "ON" CNAME ["WITH" object] ";"
 // Expressions
 expression: or_expr
 
-or_expr: and_expr ("OR" and_expr)*
+or_expr: and_expr (OR and_expr)*
 
-and_expr: not_expr ("AND" not_expr)*
+and_expr: not_expr (AND not_expr)*
 
-not_expr: ["NOT"] comparison
+not_expr: [NOT] comparison
 
 comparison: term [comp_op term]
-    | term "IN" "[" [value_list] "]"
-    | term "IS" ["NOT"] "NULL"
-    | term "MATCHES" STRING
-    | term "CHANGED" ["FROM" value "TO" value]
-    | "EXISTS" "(" pattern ")"
+    | term IN "[" [value_list] "]"
+    | term IS [NOT] NULL
+    | term MATCHES STRING
+    | term CHANGED [FROM value TO value]
+    | EXISTS "(" pattern ")"
     | term relationship term
 
-comp_op: "==" | "!=" | "<" | ">" | "<=" | ">="
+comp_op: EQ | NEQ | LT | GT | LTE | GTE
 
 term: path
     | value
@@ -69,7 +69,6 @@ value: STRING
     | NUMBER
     | "true"
     | "false"
-    | "NULL"
 
 value_list: value ("," value)*
 
@@ -92,6 +91,28 @@ member: CNAME ":" expression
 STRING: /"[^"]*"/
 NUMBER: /[0-9]+(\.[0-9]+)?/
 CNAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+
+// Logical operators
+AND: "AND"
+OR: "OR"
+
+// Comparison operators (must be defined before %import to avoid conflicts)
+EQ: "==" | "="
+NEQ: "!="
+LT: "<"
+GT: ">"
+LTE: "<="
+GTE: ">="
+
+IN: "IN"
+IS: "IS"
+NOT: "NOT"
+NULL: "NULL"
+MATCHES: "MATCHES"
+CHANGED: "CHANGED"
+FROM: "FROM"
+TO: "TO"
+EXISTS: "EXISTS"
 
 %import common.WS
 %ignore WS

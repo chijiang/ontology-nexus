@@ -90,12 +90,20 @@ p2p:appliesTo rdf:type owl:ObjectProperty ;
     rdfs:domain p2p:DocumentStatus ;
     rdfs:range  p2p:BusinessDoc .
 
+p2p:status rdf:type owl:DatatypeProperty ;
+    rdfs:domain p2p:BusinessObject ;
+    rdfs:range  xsd:string .
+
 #################################################################
 #    Data Properties (数据属性)
 #################################################################
 
 bp:hasPaymentTerm rdf:type owl:DatatypeProperty ;
     rdfs:domain bp:BusinessPartner ;
+    rdfs:range  xsd:string .
+
+bp:creditLevel rdf:type owl:DatatypeProperty ;
+    rdfs:domain bp:Supplier ;
     rdfs:range  xsd:string .
 
 mat:baseUnit rdf:type owl:DatatypeProperty ;
@@ -110,12 +118,26 @@ p2p:validFrom rdf:type owl:DatatypeProperty ;
     rdfs:domain p2p:PurchaseContract ;
     rdfs:range  xsd:date .
 
+p2p:approvalLevel rdf:type owl:DatatypeProperty ;
+    rdfs:domain p2p:PurchaseOrder ;
+    rdfs:range  xsd:string .
+
+org:mainBankAccount rdf:type owl:DatatypeProperty ;
+    rdfs:domain org:LegalEntity ;
+    rdfs:range  xsd:string .
+
 #################################################################
 #    Instances (实例数据)
 #################################################################
 
 # 供应商实例
-bp:BP_10001 rdf:type bp:Supplier .
+bp:BP_10001 rdf:type bp:Supplier ;
+    bp:creditLevel "A" ;
+    p2p:status "Suspended" .
+
+# 组织实例
+org:LE_001 rdf:type org:LegalEntity ;
+    org:mainBankAccount "1234-5678-9012" .
 
 # 采购合同实例
 p2p:PC_2024_001 rdf:type p2p:PurchaseContract ;
@@ -124,17 +146,22 @@ p2p:PC_2024_001 rdf:type p2p:PurchaseContract ;
 # 采购订单实例
 p2p:PO_2024_001 rdf:type p2p:PurchaseOrder ;
     p2p:orderedFrom bp:BP_10001 ;
-    p2p:referencesContract p2p:PC_2024_001 .
+    p2p:referencesContract p2p:PC_2024_001 ;
+    p2p:approvalLevel "L2" ;
+    p2p:status "RiskLocked" .
 
 p2p:PO_2024_002 rdf:type p2p:PurchaseOrder ;
-    p2p:orderedFrom bp:BP_10001 .
+    p2p:orderedFrom bp:BP_10001 ;
+    p2p:status "Open" .
 
 # 收货单实例
 p2p:GR_0001 rdf:type p2p:GoodsReceipt ;
     p2p:fulfills p2p:PO_2024_001 .
 
 # 物料实例
-mat:MAT_001 rdf:type mat:Material .
+mat:MAT_001 rdf:type mat:Material ;
+    p2p:status "Frozen" .
 
 # 采购申请实例
-p2p:PR_2024_001 rdf:type p2p:PurchaseRequisition .
+p2p:PR_2024_001 rdf:type p2p:PurchaseRequisition ;
+    p2p:status "Open" .

@@ -24,6 +24,7 @@ dependencies = [
     "httpx[socks]>=0.28.1",
     "httpcore[socks]>=1.0.9",
     "lark>=1.1",
+    "alembic>=1.18.0",
 ]
 
 [project.optional-dependencies]

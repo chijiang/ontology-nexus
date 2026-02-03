@@ -1,18 +1,50 @@
 """Tests for actions API endpoints."""
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.pool import StaticPool
+
 from app.main import app
+from app.core.database import Base
 from app.rule_engine.action_registry import ActionRegistry
 from app.rule_engine.action_executor import ActionExecutor
 from app.api import actions
 from app.api.deps import get_current_user
+from app.core.database import get_db
 from app.models.user import User
 
 
+# Test database URL
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+
 @pytest.fixture
-def client_with_actions():
+async def test_engine():
+    """Create a test database engine."""
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    await engine.dispose()
+
+
+@pytest.fixture
+def temp_rules_dir():
+    """Create a temporary directory for rule storage."""
+    import tempfile
+    import shutil
+    temp_dir = tempfile.mkdtemp()
+    yield temp_dir
+    shutil.rmtree(temp_dir)
+
+
+@pytest.fixture
+def client_with_actions(test_engine, temp_rules_dir):
     """Create a test client with initialized actions API."""
     # Initialize registries
     registry = ActionRegistry()
@@ -21,14 +53,25 @@ def client_with_actions():
     # Initialize the API
     actions.init_actions_api(registry, executor)
 
-    # Create test client
-    client = TestClient(app)
+    # Override database dependency
+    async_session = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    async def get_test_db():
+        async with async_session() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = get_test_db
 
     # Mock user for authentication
     def mock_get_current_user():
         return User(id=1, username="test", email="test@example.com", password_hash="hash")
 
     app.dependency_overrides[get_current_user] = mock_get_current_user
+
+    # Create test client
+    client = TestClient(app)
 
     yield client
 
@@ -194,3 +237,126 @@ def test_list_actions_multiple_actions(client_with_actions):
     action_names = [a["action_name"] for a in data["actions"]]
     assert "submit" in action_names
     assert "cancel" in action_names
+
+
+def test_upload_action_definition(client_with_actions, sample_action_dsl):
+    """Test uploading an action definition via API."""
+    response = client_with_actions.post(
+        "/api/actions/",
+        json={
+            "name": "PurchaseOrder.submit",
+            "entity_type": "PurchaseOrder",
+            "dsl_content": sample_action_dsl,
+            "is_active": True
+        }
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "Action uploaded successfully"
+    assert "action" in data
+    assert data["action"]["name"] == "PurchaseOrder.submit"
+    assert data["action"]["entity_type"] == "PurchaseOrder"
+
+
+def test_upload_action_duplicate(client_with_actions, sample_action_dsl):
+    """Test uploading a duplicate action."""
+    # Upload first time
+    client_with_actions.post(
+        "/api/actions/",
+        json={
+            "name": "PurchaseOrder.submit",
+            "entity_type": "PurchaseOrder",
+            "dsl_content": sample_action_dsl
+        }
+    )
+
+    # Try to upload again with same name
+    response = client_with_actions.post(
+        "/api/actions/",
+        json={
+            "name": "PurchaseOrder.submit",
+            "entity_type": "PurchaseOrder",
+            "dsl_content": sample_action_dsl
+        }
+    )
+
+    assert response.status_code == 400
+    data = response.json()
+    assert "detail" in data
+    assert "already exists" in data["detail"]
+
+
+def test_list_action_definitions(client_with_actions, sample_action_dsl):
+    """Test listing action definitions from database."""
+    # Upload an action
+    client_with_actions.post(
+        "/api/actions/",
+        json={
+            "name": "PurchaseOrder.submit",
+            "entity_type": "PurchaseOrder",
+            "dsl_content": sample_action_dsl
+        }
+    )
+
+    # List definitions
+    response = client_with_actions.get("/api/actions/definitions")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] >= 1
+
+    # Find our action
+    actions = [a for a in data["actions"] if a["name"] == "PurchaseOrder.submit"]
+    assert len(actions) == 1
+    assert actions[0]["entity_type"] == "PurchaseOrder"
+    assert actions[0]["is_active"] is True
+
+
+def test_get_action_definition(client_with_actions, sample_action_dsl):
+    """Test getting an action definition by name."""
+    # Upload an action
+    client_with_actions.post(
+        "/api/actions/",
+        json={
+            "name": "PurchaseOrder.submit",
+            "entity_type": "PurchaseOrder",
+            "dsl_content": sample_action_dsl
+        }
+    )
+
+    # Get the definition
+    response = client_with_actions.get("/api/actions/definitions/PurchaseOrder.submit")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "PurchaseOrder.submit"
+    assert data["entity_type"] == "PurchaseOrder"
+    assert "dsl_content" in data
+
+
+def test_get_action_definition_not_found(client_with_actions):
+    """Test getting a non-existent action definition."""
+    response = client_with_actions.get("/api/actions/definitions/NonExistent")
+    assert response.status_code == 404
+
+
+def test_delete_action_definition(client_with_actions, sample_action_dsl):
+    """Test deleting an action definition."""
+    # Upload an action
+    client_with_actions.post(
+        "/api/actions/",
+        json={
+            "name": "PurchaseOrder.submit",
+            "entity_type": "PurchaseOrder",
+            "dsl_content": sample_action_dsl
+        }
+    )
+
+    # Delete the action
+    response = client_with_actions.delete("/api/actions/definitions/PurchaseOrder.submit")
+    assert response.status_code == 200
+    data = response.json()
+    assert "deleted successfully" in data["message"]
+
+    # Verify it's gone
+    get_response = client_with_actions.get("/api/actions/definitions/PurchaseOrder.submit")
+    assert get_response.status_code == 404

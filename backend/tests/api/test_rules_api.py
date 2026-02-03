@@ -5,12 +5,46 @@ import tempfile
 import shutil
 from pathlib import Path
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.pool import StaticPool
+
 from app.main import app
+from app.core.database import Base
 from app.rule_engine.rule_registry import RuleRegistry
 from app.services.rule_storage import RuleStorage
 from app.api import rules
 from app.api.deps import get_current_user
+from app.core.database import get_db
 from app.models.user import User
+
+
+# Test database URL
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+
+@pytest.fixture
+async def test_engine():
+    """Create a test database engine."""
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    await engine.dispose()
+
+
+@pytest.fixture
+async def test_session(test_engine):
+    """Create a test database session."""
+    async_session = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    async with async_session() as session:
+        yield session
 
 
 @pytest.fixture
@@ -22,7 +56,7 @@ def temp_rules_dir():
 
 
 @pytest.fixture
-def client_with_rules(temp_rules_dir):
+def client_with_rules(test_engine, temp_rules_dir):
     """Create a test client with initialized rules API."""
     # Initialize registry and storage
     registry = RuleRegistry()
@@ -31,14 +65,25 @@ def client_with_rules(temp_rules_dir):
     # Initialize the API
     rules.init_rules_api(registry, storage)
 
-    # Create test client
-    client = TestClient(app)
+    # Override database dependency
+    async_session = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    async def get_test_db():
+        async with async_session() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = get_test_db
 
     # Mock user for authentication
     def mock_get_current_user():
         return User(id=1, username="test", email="test@example.com", password_hash="hash")
 
     app.dependency_overrides[get_current_user] = mock_get_current_user
+
+    # Create test client
+    client = TestClient(app)
 
     yield client
 
@@ -77,7 +122,7 @@ def test_upload_rule_success(client_with_rules, sample_rule_dsl):
         json={
             "name": "AutoApproveLowValue",
             "dsl_content": sample_rule_dsl,
-            "metadata": {"description": "Auto-approve low value orders"}
+            "priority": 100
         }
     )
 
@@ -95,7 +140,8 @@ def test_upload_rule_duplicate(client_with_rules, sample_rule_dsl):
         "/api/rules/",
         json={
             "name": "AutoApproveLowValue",
-            "dsl_content": sample_rule_dsl
+            "dsl_content": sample_rule_dsl,
+            "priority": 100
         }
     )
 
@@ -104,7 +150,8 @@ def test_upload_rule_duplicate(client_with_rules, sample_rule_dsl):
         "/api/rules/",
         json={
             "name": "AutoApproveLowValue",
-            "dsl_content": sample_rule_dsl
+            "dsl_content": sample_rule_dsl,
+            "priority": 100
         }
     )
 
@@ -135,7 +182,7 @@ def test_get_rule_success(client_with_rules, sample_rule_dsl):
         json={
             "name": "AutoApproveLowValue",
             "dsl_content": sample_rule_dsl,
-            "metadata": {"author": "test"}
+            "priority": 100
         }
     )
 
@@ -144,9 +191,8 @@ def test_get_rule_success(client_with_rules, sample_rule_dsl):
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "AutoApproveLowValue"
-    assert data["metadata"]["author"] == "test"
     assert "dsl_content" in data
-    assert "rule_info" in data
+    assert "trigger" in data
 
 
 def test_get_rule_not_found(client_with_rules):
@@ -165,7 +211,8 @@ def test_delete_rule_success(client_with_rules, sample_rule_dsl):
         "/api/rules/",
         json={
             "name": "AutoApproveLowValue",
-            "dsl_content": sample_rule_dsl
+            "dsl_content": sample_rule_dsl,
+            "priority": 100
         }
     )
 
@@ -226,8 +273,8 @@ def test_list_rules_multiple(client_with_rules):
     assert "RuleTwo" in rule_names
 
 
-def test_upload_rule_with_metadata(client_with_rules):
-    """Test uploading a rule with custom metadata."""
+def test_upload_rule_with_priority(client_with_rules):
+    """Test uploading a rule with custom priority."""
     dsl = """
     RULE TestRule PRIORITY 50 {
         ON UPDATE (Test.prop)
@@ -236,28 +283,81 @@ def test_upload_rule_with_metadata(client_with_rules):
     }
     """
 
-    metadata = {
-        "author": "test-user",
-        "description": "A test rule",
-        "tags": ["test", "sample"]
-    }
-
     response = client_with_rules.post(
         "/api/rules/",
         json={
             "name": "TestRule",
             "dsl_content": dsl,
-            "metadata": metadata
+            "priority": 50,
+            "is_active": True
         }
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["rule"]["metadata"] == metadata
+    assert data["rule"]["priority"] == 50
 
-    # Verify metadata is preserved
+    # Verify priority is preserved
     get_response = client_with_rules.get("/api/rules/TestRule")
     assert get_response.status_code == 200
     rule_data = get_response.json()
-    assert rule_data["metadata"]["author"] == "test-user"
-    assert rule_data["metadata"]["tags"] == ["test", "sample"]
+    assert rule_data["priority"] == 50
+
+
+def test_reload_rules(client_with_rules, sample_rule_dsl):
+    """Test reloading rules from database."""
+    # Upload a rule
+    client_with_rules.post(
+        "/api/rules/",
+        json={
+            "name": "AutoApproveLowValue",
+            "dsl_content": sample_rule_dsl,
+            "priority": 100
+        }
+    )
+
+    # Reload rules
+    response = client_with_rules.post("/api/rules/reload")
+    assert response.status_code == 200
+    data = response.json()
+    assert "loaded" in data
+    assert data["loaded"] >= 0
+
+
+def test_migrate_rules_from_files(client_with_rules, temp_rules_dir):
+    """Test migrating rules from file storage."""
+    # Create a rule file in the storage directory
+    import json
+    rule_file = Path(temp_rules_dir) / "FileRule.json"
+    rule_data = {
+        "name": "FileRule",
+        "dsl_content": """
+        RULE FileRule PRIORITY 75 {
+            ON UPDATE (Entity.prop)
+            FOR (e: Entity) {
+            }
+        }
+        """,
+        "metadata": {"source": "file"},
+        "rule_info": {
+            "priority": 75,
+            "trigger": {
+                "type": "UPDATE",
+                "entity_type": "Entity",
+                "property": "prop"
+            }
+        }
+    }
+    with open(rule_file, "w") as f:
+        json.dump(rule_data, f)
+
+    # Migrate
+    response = client_with_rules.post("/api/rules/migrate")
+    assert response.status_code == 200
+    data = response.json()
+    assert "migrated" in data
+    assert data["migrated"] >= 1
+
+    # Verify rule was migrated
+    get_response = client_with_rules.get("/api/rules/FileRule")
+    assert get_response.status_code == 200

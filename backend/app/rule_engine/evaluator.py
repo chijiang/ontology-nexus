@@ -90,17 +90,23 @@ class ExpressionEvaluator:
 
         raise ValueError(f"Unknown AST node type: {op}")
 
-    def _evaluate_comparison(self, operator: str, left: Any, right: Any) -> bool:
+    def _evaluate_comparison(self, operator: str | None, left: Any, right: Any) -> bool | Any:
         """Evaluate a comparison operation.
 
         Args:
-            operator: Comparison operator (==, !=, <, >, <=, >=, IN)
+            operator: Comparison operator (==, !=, <, >, <=, >=, IN) or None for simple value
             left: Left operand (AST node or value)
             right: Right operand (AST node or value)
 
         Returns:
-            Boolean result of comparison
+            Boolean result of comparison, or the value itself if operator is None
         """
+        # If operator is None, this is just a simple value (not a comparison)
+        # This happens in SET statements where we assign a value
+        if operator is None:
+            # Just resolve and return the left value
+            return self._resolve_value(left)
+
         left_val = self._resolve_value(left)
         right_val = self.evaluate(right)
 

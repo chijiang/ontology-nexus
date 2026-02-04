@@ -6,10 +6,11 @@ from app.rule_engine.context import EvaluationContext
 from app.rule_engine.evaluator import ExpressionEvaluator
 
 
+@pytest.mark.asyncio
 class TestExpressionEvaluator:
     """Test the ExpressionEvaluator class."""
 
-    def test_evaluate_simple_comparison(self):
+    async def test_evaluate_simple_comparison(self):
         """Test evaluating simple comparison expressions."""
         ctx = EvaluationContext(
             entity={"status": "Active", "amount": 100},
@@ -19,34 +20,34 @@ class TestExpressionEvaluator:
         evaluator = ExpressionEvaluator(ctx)
 
         # Equality
-        assert evaluator.evaluate(("op", "==", "this.status", "Active")) is True
-        assert evaluator.evaluate(("op", "==", "this.status", "Inactive")) is False
+        assert await evaluator.evaluate(("op", "==", ("id", "this.status"), "Active")) is True
+        assert await evaluator.evaluate(("op", "==", ("id", "this.status"), "Inactive")) is False
 
         # Inequality
-        assert evaluator.evaluate(("op", "!=", "this.status", "Active")) is False
-        assert evaluator.evaluate(("op", "!=", "this.status", "Inactive")) is True
+        assert await evaluator.evaluate(("op", "!=", ("id", "this.status"), "Active")) is False
+        assert await evaluator.evaluate(("op", "!=", ("id", "this.status"), "Inactive")) is True
 
         # Greater than
-        assert evaluator.evaluate(("op", ">", "this.amount", 50)) is True
-        assert evaluator.evaluate(("op", ">", "this.amount", 100)) is False
-        assert evaluator.evaluate(("op", ">", "this.amount", 150)) is False
+        assert await evaluator.evaluate(("op", ">", ("id", "this.amount"), 50)) is True
+        assert await evaluator.evaluate(("op", ">", ("id", "this.amount"), 100)) is False
+        assert await evaluator.evaluate(("op", ">", ("id", "this.amount"), 150)) is False
 
         # Less than
-        assert evaluator.evaluate(("op", "<", "this.amount", 150)) is True
-        assert evaluator.evaluate(("op", "<", "this.amount", 100)) is False
-        assert evaluator.evaluate(("op", "<", "this.amount", 50)) is False
+        assert await evaluator.evaluate(("op", "<", ("id", "this.amount"), 150)) is True
+        assert await evaluator.evaluate(("op", "<", ("id", "this.amount"), 100)) is False
+        assert await evaluator.evaluate(("op", "<", ("id", "this.amount"), 50)) is False
 
         # Greater than or equal
-        assert evaluator.evaluate(("op", ">=", "this.amount", 100)) is True
-        assert evaluator.evaluate(("op", ">=", "this.amount", 50)) is True
-        assert evaluator.evaluate(("op", ">=", "this.amount", 150)) is False
+        assert await evaluator.evaluate(("op", ">=", ("id", "this.amount"), 100)) is True
+        assert await evaluator.evaluate(("op", ">=", ("id", "this.amount"), 50)) is True
+        assert await evaluator.evaluate(("op", ">=", ("id", "this.amount"), 150)) is False
 
         # Less than or equal
-        assert evaluator.evaluate(("op", "<=", "this.amount", 100)) is True
-        assert evaluator.evaluate(("op", "<=", "this.amount", 150)) is True
-        assert evaluator.evaluate(("op", "<=", "this.amount", 50)) is False
+        assert await evaluator.evaluate(("op", "<=", ("id", "this.amount"), 100)) is True
+        assert await evaluator.evaluate(("op", "<=", ("id", "this.amount"), 150)) is True
+        assert await evaluator.evaluate(("op", "<=", ("id", "this.amount"), 50)) is False
 
-    def test_evaluate_in_operator(self):
+    async def test_evaluate_in_operator(self):
         """Test evaluating IN operator."""
         ctx = EvaluationContext(
             entity={"status": "Active"},
@@ -56,13 +57,13 @@ class TestExpressionEvaluator:
         evaluator = ExpressionEvaluator(ctx)
 
         # Value in list
-        assert evaluator.evaluate(("op", "IN", "this.status", ["Active", "Pending"])) is True
-        assert evaluator.evaluate(("op", "IN", "this.status", ["Pending", "Expired"])) is False
+        assert await evaluator.evaluate(("op", "IN", ("id", "this.status"), ["Active", "Pending"])) is True
+        assert await evaluator.evaluate(("op", "IN", ("id", "this.status"), ["Pending", "Expired"])) is False
 
         # Empty list
-        assert evaluator.evaluate(("op", "IN", "this.status", [])) is False
+        assert await evaluator.evaluate(("op", "IN", ("id", "this.status"), [])) is False
 
-    def test_evaluate_and_expression(self):
+    async def test_evaluate_and_expression(self):
         """Test evaluating AND expressions."""
         ctx = EvaluationContext(
             entity={"status": "Active", "amount": 100},
@@ -72,30 +73,30 @@ class TestExpressionEvaluator:
         evaluator = ExpressionEvaluator(ctx)
 
         # Both true
-        assert evaluator.evaluate(("and",
-            ("op", "==", "this.status", "Active"),
-            ("op", ">", "this.amount", 50)
+        assert await evaluator.evaluate(("and",
+            ("op", "==", ("id", "this.status"), "Active"),
+            ("op", ">", ("id", "this.amount"), 50)
         )) is True
 
         # First true, second false
-        assert evaluator.evaluate(("and",
-            ("op", "==", "this.status", "Active"),
-            ("op", ">", "this.amount", 150)
+        assert await evaluator.evaluate(("and",
+            ("op", "==", ("id", "this.status"), "Active"),
+            ("op", ">", ("id", "this.amount"), 150)
         )) is False
 
         # First false, second true
-        assert evaluator.evaluate(("and",
-            ("op", "==", "this.status", "Inactive"),
-            ("op", ">", "this.amount", 50)
+        assert await evaluator.evaluate(("and",
+            ("op", "==", ("id", "this.status"), "Inactive"),
+            ("op", ">", ("id", "this.amount"), 50)
         )) is False
 
         # Both false
-        assert evaluator.evaluate(("and",
-            ("op", "==", "this.status", "Inactive"),
-            ("op", ">", "this.amount", 150)
+        assert await evaluator.evaluate(("and",
+            ("op", "==", ("id", "this.status"), "Inactive"),
+            ("op", ">", ("id", "this.amount"), 150)
         )) is False
 
-    def test_evaluate_or_expression(self):
+    async def test_evaluate_or_expression(self):
         """Test evaluating OR expressions."""
         ctx = EvaluationContext(
             entity={"status": "Active", "amount": 100},
@@ -105,30 +106,30 @@ class TestExpressionEvaluator:
         evaluator = ExpressionEvaluator(ctx)
 
         # Both true
-        assert evaluator.evaluate(("or",
-            ("op", "==", "this.status", "Active"),
-            ("op", "==", "this.status", "Pending")
+        assert await evaluator.evaluate(("or",
+            ("op", "==", ("id", "this.status"), "Active"),
+            ("op", "==", ("id", "this.status"), "Pending")
         )) is True
 
         # First true, second false
-        assert evaluator.evaluate(("or",
-            ("op", "==", "this.status", "Active"),
-            ("op", "==", "this.status", "Inactive")
+        assert await evaluator.evaluate(("or",
+            ("op", "==", ("id", "this.status"), "Active"),
+            ("op", "==", ("id", "this.status"), "Inactive")
         )) is True
 
         # First false, second true
-        assert evaluator.evaluate(("or",
-            ("op", "==", "this.status", "Pending"),
-            ("op", "==", "this.status", "Active")
+        assert await evaluator.evaluate(("or",
+            ("op", "==", ("id", "this.status"), "Pending"),
+            ("op", "==", ("id", "this.status"), "Active")
         )) is True
 
         # Both false
-        assert evaluator.evaluate(("or",
-            ("op", "==", "this.status", "Pending"),
-            ("op", "==", "this.status", "Inactive")
+        assert await evaluator.evaluate(("or",
+            ("op", "==", ("id", "this.status"), "Pending"),
+            ("op", "==", ("id", "this.status"), "Inactive")
         )) is False
 
-    def test_evaluate_not_expression(self):
+    async def test_evaluate_not_expression(self):
         """Test evaluating NOT expressions."""
         ctx = EvaluationContext(
             entity={"status": "Active"},
@@ -138,12 +139,12 @@ class TestExpressionEvaluator:
         evaluator = ExpressionEvaluator(ctx)
 
         # NOT true = false
-        assert evaluator.evaluate(("not", ("op", "==", "this.status", "Active"))) is False
+        assert await evaluator.evaluate(("not", ("op", "==", ("id", "this.status"), "Active"))) is False
 
         # NOT false = true
-        assert evaluator.evaluate(("not", ("op", "==", "this.status", "Inactive"))) is True
+        assert await evaluator.evaluate(("not", ("op", "==", ("id", "this.status"), "Inactive"))) is True
 
-    def test_evaluate_is_null(self):
+    async def test_evaluate_is_null(self):
         """Test evaluating IS NULL expressions."""
         ctx = EvaluationContext(
             entity={"status": "Active", "deletedAt": None},
@@ -153,35 +154,35 @@ class TestExpressionEvaluator:
         evaluator = ExpressionEvaluator(ctx)
 
         # IS NULL - true
-        assert evaluator.evaluate(("is_null", "this.deletedAt", False)) is True
+        assert await evaluator.evaluate(("is_null", ("id", "this.deletedAt"), False)) is True
 
         # IS NULL - false
-        assert evaluator.evaluate(("is_null", "this.status", False)) is False
+        assert await evaluator.evaluate(("is_null", ("id", "this.status"), False)) is False
 
         # IS NOT NULL - true
-        assert evaluator.evaluate(("is_null", "this.status", True)) is True
+        assert await evaluator.evaluate(("is_null", ("id", "this.status"), True)) is True
 
         # IS NOT NULL - false
-        assert evaluator.evaluate(("is_null", "this.deletedAt", True)) is False
+        assert await evaluator.evaluate(("is_null", ("id", "this.deletedAt"), True)) is False
 
-    def test_now_function(self):
+    async def test_now_function(self):
         """Test evaluating NOW() function."""
         ctx = EvaluationContext(
-            entity={"createdAt": datetime.now()},
+            entity={"createdAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S")},
             old_values={},
             session=None
         )
         evaluator = ExpressionEvaluator(ctx)
 
-        # NOW() should return a datetime
-        now_result = evaluator.evaluate(("call", "NOW", None))
-        assert isinstance(now_result, datetime)
+        # NOW() should return a string
+        now_result = await evaluator.evaluate(("call", "NOW", None))
+        assert isinstance(now_result, str)
 
-        # Can compare with datetime
-        comparison = evaluator.evaluate(("op", "<=", "this.createdAt", ("call", "NOW", None)))
+        # Can compare with datetime (implicitly handled by functions if strings are used)
+        comparison = await evaluator.evaluate(("op", "<=", ("id", "this.createdAt"), ("call", "NOW", None)))
         assert comparison is True
 
-    def test_concat_function(self):
+    async def test_concat_function(self):
         """Test evaluating CONCAT() function."""
         ctx = EvaluationContext(
             entity={"firstName": "John", "lastName": "Doe"},
@@ -191,18 +192,18 @@ class TestExpressionEvaluator:
         evaluator = ExpressionEvaluator(ctx)
 
         # CONCAT with multiple arguments
-        result = evaluator.evaluate(("call", "CONCAT", ["this.firstName", " ", "this.lastName"]))
+        result = await evaluator.evaluate(("call", "CONCAT", [("id", "this.firstName"), " ", ("id", "this.lastName")]))
         assert result == "John Doe"
 
         # CONCAT with two arguments
-        result = evaluator.evaluate(("call", "CONCAT", ["this.firstName", "this.lastName"]))
+        result = await evaluator.evaluate(("call", "CONCAT", [("id", "this.firstName"), ("id", "this.lastName")]))
         assert result == "JohnDoe"
 
         # CONCAT with literals
-        result = evaluator.evaluate(("call", "CONCAT", ["Hello", " ", "World"]))
+        result = await evaluator.evaluate(("call", "CONCAT", ["Hello", " ", "World"]))
         assert result == "Hello World"
 
-    def test_resolve_path(self):
+    async def test_resolve_path(self):
         """Test resolving property paths."""
         ctx = EvaluationContext(
             entity={"name": "Test", "nested": {"value": 42}},
@@ -212,11 +213,11 @@ class TestExpressionEvaluator:
         evaluator = ExpressionEvaluator(ctx)
 
         # Simple path
-        assert evaluator._resolve_value("this.name") == "Test"
+        assert await evaluator._resolve_value("this.name") == "Test"
 
         # Nested path
-        assert evaluator._resolve_value("this.nested.value") == 42
+        assert await evaluator._resolve_value("this.nested.value") == 42
 
         # Missing path
-        assert evaluator._resolve_value("this.missing") is None
-        assert evaluator._resolve_value("this.nested.missing") is None
+        assert await evaluator._resolve_value("this.missing") is None
+        assert await evaluator._resolve_value("this.nested.missing") is None

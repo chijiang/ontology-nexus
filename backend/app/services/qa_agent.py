@@ -251,11 +251,12 @@ class QAAgent:
                         )
 
                         for rel in n.get("relationships", []):
+                            rel_label = rel["type"] if isinstance(rel, dict) else rel
                             graph_edges.append(
                                 {
                                     "source": node["id"],
                                     "target": neighbor_name,
-                                    "label": rel,
+                                    "label": rel_label,
                                 }
                             )
             except Exception:

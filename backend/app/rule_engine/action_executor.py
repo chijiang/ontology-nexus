@@ -38,7 +38,7 @@ class ActionExecutor:
         """
         self.registry = registry
 
-    def execute(
+    async def execute(
         self,
         entity_type: str,
         action_name: str,
@@ -72,7 +72,7 @@ class ActionExecutor:
 
         # Check all preconditions
         for precondition in action.preconditions:
-            result = evaluator.evaluate(precondition.condition)
+            result = await evaluator.evaluate(precondition.condition)
             if not result:
                 return ExecutionResult(
                     success=False,
@@ -82,11 +82,11 @@ class ActionExecutor:
         # All preconditions passed - apply effect if present
         changes = {}
         if action.effect is not None:
-            changes = self._apply_effect(action.effect, evaluator, context)
+            changes = await self._apply_effect(action.effect, evaluator, context)
 
         return ExecutionResult(success=True, error=None, changes=changes)
 
-    def _apply_effect(
+    async def _apply_effect(
         self,
         effect: Any,
         evaluator: ExpressionEvaluator,
@@ -113,12 +113,12 @@ class ActionExecutor:
 
         for statement in statements:
             if isinstance(statement, SetStatement):
-                change = self._apply_set_statement(statement, evaluator)
+                change = await self._apply_set_statement(statement, evaluator)
                 changes.update(change)
 
         return changes
 
-    def _apply_set_statement(
+    async def _apply_set_statement(
         self,
         statement: SetStatement,
         evaluator: ExpressionEvaluator
@@ -133,7 +133,7 @@ class ActionExecutor:
             Dictionary with the property change
         """
         # Evaluate the value
-        value = evaluator.evaluate(statement.value)
+        value = await evaluator.evaluate(statement.value)
 
         # Extract the property name from the target path
         # e.g., "this.status" -> "status"

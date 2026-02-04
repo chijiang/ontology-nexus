@@ -398,8 +398,8 @@ export function GraphPreview({ data }: { data: GraphData | null }) {
                             }`}>
                             {conn.direction === 'out' ? '→' : '←'}
                           </span>
-                          <span className="text-slate-400">{conn.label}</span>
-                          <span className="text-slate-300 truncate">{conn.node}</span>
+                          <span className="text-slate-400">{String(conn.label)}</span>
+                          <span className="text-slate-300 truncate">{String(conn.node)}</span>
                         </div>
                       ))}
                     </div>

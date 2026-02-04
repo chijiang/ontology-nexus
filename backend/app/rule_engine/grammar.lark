@@ -5,7 +5,7 @@ action_def: "ACTION" entity_action "{" precondition+ effect? "}"
 
 entity_action: CNAME "." CNAME ["(" param_list? ")"]
 
-param_list: param ["," param]
+param_list: param ("," param)*
 param: CNAME ":" CNAME ["?"]
 
 precondition: "PRECONDITION" [CNAME] ":" expression "ON_FAILURE" ":" STRING
@@ -35,7 +35,7 @@ binding: CNAME ":" CNAME ["WHERE" expression]
 
 statement: set_stmt | trigger_stmt | for_clause
 
-set_stmt: "SET" path "=" expression ";"
+set_stmt: "SET" path EQ expression ";"
 
 trigger_stmt: "TRIGGER" entity_action "ON" CNAME ["WITH" object] ";"
 
@@ -58,10 +58,12 @@ comparison: term [comp_op term]
 
 comp_op: EQ | NEQ | LT | GT | LTE | GTE
 
-term: path
+term: identifier
     | value
     | function_call
     | "(" expression ")"
+
+identifier: path
 
 path: CNAME ("." CNAME)*
 
@@ -73,17 +75,17 @@ value: STRING
 value_list: value ("," value)*
 
 // Pattern Matching for EXISTS
-pattern: CNAME [relationship CNAME] ["WHERE" expression]
+pattern: node_pattern (relationship node_pattern)* [WHERE expression]
+node_pattern: CNAME [":" CNAME]
 
-relationship: "-" ["[" CNAME "]"] "->"
 
 // Functions
 function_call: CNAME "(" [arg_list] ")"
 
-arg_list: expression ["," expression]
+arg_list: expression ("," expression)*
 
 // Objects
-object: "{" [member ["," member]] "}"
+object: "{" [member ("," member)*] "}"
 
 member: CNAME ":" expression
 
@@ -112,6 +114,11 @@ MATCHES: "MATCHES"
 CHANGED: "CHANGED"
 FROM: "FROM"
 TO: "TO"
+REL_START: "-" | "<-"
+REL_END: "->" | "-"
+WHERE: "WHERE"
+relationship: REL_START ["[" CNAME "]"] REL_END
+
 EXISTS: "EXISTS"
 
 %import common.WS

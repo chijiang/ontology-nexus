@@ -148,6 +148,20 @@ export interface RuleDetail extends RuleInfo {
   dsl_content: string
 }
 
+export interface ActionParameter {
+  name: string
+  type: string
+  optional: boolean
+}
+
+export interface ActionRuntimeInfo {
+  entity_type: string
+  action_name: string
+  parameters: ActionParameter[]
+  precondition_count: number
+  has_effect: boolean
+}
+
 export interface ActionInfo {
   id: number
   name: string
@@ -199,7 +213,7 @@ export const actionsApi = {
     api.delete(`/api/actions/definitions/${encodeURIComponent(name)}`),
 
   listByEntityType: (entityType: string) =>
-    api.get<{ actions: ActionInfo[]; entity_type: string }>(`/api/actions/${encodeURIComponent(entityType)}`),
+    api.get<{ actions: ActionRuntimeInfo[]; entity_type: string }>(`/api/actions/${encodeURIComponent(entityType)}`),
 
   execute: (entityType: string, actionName: string, entityId: string, entityData: any, params: any = {}) =>
     api.post(`/api/actions/${encodeURIComponent(entityType)}/${encodeURIComponent(actionName)}`, {

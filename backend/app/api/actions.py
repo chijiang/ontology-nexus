@@ -132,12 +132,23 @@ async def execute_action(
     # Build entity dict with id and data
     entity = {"id": request.entity_id, **request.entity_data}
 
-    context = EvaluationContext(
-        entity=entity, old_values={}, session=None, variables=request.params
-    )
+    # Get Neo4j driver from app state
+    driver = fastapi_request.app.state.neo4j_driver
+    session = None
+    if driver:
+        # Use a session for graph-based preconditions
+        session = driver.session()
 
-    # Execute the action
-    result = executor.execute(entity_type, action_name, context)
+    try:
+        context = EvaluationContext(
+            entity=entity, old_values={}, session=session, variables=request.params
+        )
+
+        # Execute the action
+        result = await executor.execute(entity_type, action_name, context)
+    finally:
+        if session:
+            await session.close()
 
     import logging
 
@@ -293,7 +304,7 @@ async def list_actions(
                 action_name=action.action_name,
                 parameters=[
                     {"name": p.name, "type": p.param_type, "optional": p.optional}
-                    for p in (action.parameters or [])
+                    for p in (action.parameters or []) if p is not None
                 ],
                 precondition_count=len(action.preconditions or []),
                 has_effect=action.effect is not None,
@@ -506,7 +517,7 @@ async def list_entity_actions(
                 action_name=action.action_name,
                 parameters=[
                     {"name": p.name, "type": p.param_type, "optional": p.optional}
-                    for p in (action.parameters or [])
+                    for p in (action.parameters or []) if p is not None
                 ],
                 precondition_count=len(action.preconditions or []),
                 has_effect=action.effect is not None,

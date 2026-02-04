@@ -3,6 +3,7 @@
 from typing import Any
 from app.rule_engine.context import EvaluationContext
 from app.rule_engine.functions import evaluate_function
+from app.rule_engine.cypher_translator import CypherTranslator
 
 
 class ExpressionEvaluator:
@@ -19,8 +20,9 @@ class ExpressionEvaluator:
             context: Evaluation context containing entity data and variables
         """
         self.ctx = context
+        self.translator = CypherTranslator()
 
-    def evaluate(self, ast: Any) -> Any:
+    async def evaluate(self, ast: Any) -> Any:
         """Evaluate an AST node to a value.
 
         Args:
@@ -39,14 +41,14 @@ class ExpressionEvaluator:
             return ast
 
         if isinstance(ast, tuple):
-            return self._evaluate_tuple(ast)
+            return await self._evaluate_tuple(ast)
 
         if isinstance(ast, list):
-            return [self.evaluate(item) for item in ast]
+            return [await self.evaluate(item) for item in ast]
 
         return ast
 
-    def _evaluate_tuple(self, ast: tuple) -> Any:
+    async def _evaluate_tuple(self, ast: tuple) -> Any:
         """Evaluate a tuple AST node.
 
         Args:
@@ -65,32 +67,40 @@ class ExpressionEvaluator:
 
         # Comparison operations: (op, operator, left, right)
         if op == "op":
-            return self._evaluate_comparison(ast[1], ast[2], ast[3])
+            return await self._evaluate_comparison(ast[1], ast[2], ast[3])
 
         # Logical AND: (and, left, right)
         if op == "and":
-            return self._evaluate_and(ast[1], ast[2])
+            return await self._evaluate_and(ast[1], ast[2])
 
         # Logical OR: (or, left, right)
         if op == "or":
-            return self._evaluate_or(ast[1], ast[2])
+            return await self._evaluate_or(ast[1], ast[2])
 
         # Logical NOT: (not, operand)
         if op == "not":
-            return self._evaluate_not(ast[1])
+            return await self._evaluate_not(ast[1])
 
         # IS NULL check: (is_null, path, is_not)
         if op == "is_null":
-            return self._evaluate_is_null(ast[1], ast[2])
+            return await self._evaluate_is_null(ast[1], ast[2])
 
         # Function call: (call, name, args)
         if op == "call":
             args = ast[2] if ast[2] is not None else []
-            return self._evaluate_function_call(ast[1], args)
+            return await self._evaluate_function_call(ast[1], args)
+
+        # Identifier resolution: (id, path)
+        if op == "id":
+            return await self._resolve_value(ast[1])
+
+        # Existence check: (exists, pattern)
+        if op == "exists":
+            return await self._evaluate_exists(ast[1])
 
         raise ValueError(f"Unknown AST node type: {op}")
 
-    def _evaluate_comparison(self, operator: str | None, left: Any, right: Any) -> bool | Any:
+    async def _evaluate_comparison(self, operator: str | None, left: Any, right: Any) -> bool | Any:
         """Evaluate a comparison operation.
 
         Args:
@@ -101,14 +111,11 @@ class ExpressionEvaluator:
         Returns:
             Boolean result of comparison, or the value itself if operator is None
         """
-        # If operator is None, this is just a simple value (not a comparison)
-        # This happens in SET statements where we assign a value
         if operator is None:
-            # Just resolve and return the left value
-            return self._resolve_value(left)
+            return await self._resolve_value(left)
 
-        left_val = self._resolve_value(left)
-        right_val = self.evaluate(right)
+        left_val = await self._resolve_value(left)
+        right_val = await self.evaluate(right)
 
         if operator == "==":
             return left_val == right_val
@@ -123,104 +130,74 @@ class ExpressionEvaluator:
         elif operator == ">=":
             return left_val >= right_val
         elif operator == "IN":
-            # Right side should be a list
             if not isinstance(right_val, list):
                 right_val = [right_val]
             return left_val in right_val
         else:
             raise ValueError(f"Unknown comparison operator: {operator}")
 
-    def _evaluate_and(self, left: Any, right: Any) -> bool:
-        """Evaluate logical AND.
-
-        Args:
-            left: Left operand (AST node)
-            right: Right operand (AST node)
-
-        Returns:
-            Boolean result
-        """
-        left_val = self.evaluate(left)
-        right_val = self.evaluate(right)
+    async def _evaluate_and(self, left: Any, right: Any) -> bool:
+        """Evaluate logical AND."""
+        left_val = await self.evaluate(left)
+        right_val = await self.evaluate(right)
         return bool(left_val and right_val)
 
-    def _evaluate_or(self, left: Any, right: Any) -> bool:
-        """Evaluate logical OR.
-
-        Args:
-            left: Left operand (AST node)
-            right: Right operand (AST node)
-
-        Returns:
-            Boolean result
-        """
-        left_val = self.evaluate(left)
-        right_val = self.evaluate(right)
+    async def _evaluate_or(self, left: Any, right: Any) -> bool:
+        """Evaluate logical OR."""
+        left_val = await self.evaluate(left)
+        right_val = await self.evaluate(right)
         return bool(left_val or right_val)
 
-    def _evaluate_not(self, operand: Any) -> bool:
-        """Evaluate logical NOT.
-
-        Args:
-            operand: Operand to negate (AST node)
-
-        Returns:
-            Boolean result
-        """
-        val = self.evaluate(operand)
+    async def _evaluate_not(self, operand: Any) -> bool:
+        """Evaluate logical NOT."""
+        val = await self.evaluate(operand)
         return not val
 
-    def _evaluate_is_null(self, path: str, is_not: bool) -> bool:
-        """Evaluate IS NULL or IS NOT NULL check.
-
-        Args:
-            path: Property path to check
-            is_not: If True, check IS NOT NULL; if False, check IS NULL
-
-        Returns:
-            Boolean result
-        """
-        val = self._resolve_value(path)
+    async def _evaluate_is_null(self, path: str, is_not: bool) -> bool:
+        """Evaluate IS NULL or IS NOT NULL check."""
+        val = await self._resolve_value(path)
         is_null = val is None
+        return not is_null if is_not else is_null
 
-        if is_not:
-            return not is_null
-        return is_null
-
-    def _evaluate_function_call(self, name: str, args: list) -> Any:
-        """Evaluate a function call.
-
-        Args:
-            name: Function name
-            args: Function arguments (AST nodes)
-
-        Returns:
-            Function result
-
-        Raises:
-            AttributeError: If function is not found
-        """
-        # Evaluate arguments
-        evaluated_args = []
-        for arg in args:
-            if isinstance(arg, str) and arg.startswith("this."):
-                # Property path
-                evaluated_args.append(self._resolve_value(arg))
-            else:
-                evaluated_args.append(self.evaluate(arg))
-
-        # Call the function
+    async def _evaluate_function_call(self, name: str, args: list) -> Any:
+        """Evaluate a function call."""
+        evaluated_args = [await self.evaluate(arg) for arg in args]
         return evaluate_function(name, evaluated_args)
 
-    def _resolve_value(self, path: Any) -> Any:
-        """Resolve a value from a property path or return the value directly.
+    async def _evaluate_exists(self, pattern: Any) -> bool:
+        """Evaluate EXISTS check via Neo4j.
 
         Args:
-            path: Property path (string starting with "this.") or direct value
+            pattern: Graph pattern AST node
 
         Returns:
-            Resolved value
+            True if pattern exists, False otherwise
         """
+        if not self.ctx.session:
+            # If no session, we can't check the graph
+            # This might happen in dry-runs or local-only evaluations
+            return False
+
+        # Bind 'this' context for the query
+        entity_id = self.ctx.entity.get("id") or self.ctx.entity.get("name")
+        entity_type = self.ctx.entity.get("__type__")
+        if entity_id:
+            self.translator.bind_variable("this", entity_type, entity_id)
+
+        try:
+            # Translate pattern to Cypher
+            pattern_cypher = self.translator._translate_pattern(pattern)
+            query = f"MATCH {pattern_cypher} RETURN count(*) > 0 as exists"
+
+            # Execute query
+            result = await self.ctx.session.run(query, this_id=entity_id)
+            record = await result.single()
+            return record["exists"] if record else False
+        finally:
+            self.translator.unbind_variable("this")
+
+    async def _resolve_value(self, path: Any) -> Any:
+        """Resolve a value from a property path or return the value directly."""
         if isinstance(path, str) and path.startswith("this."):
             return self.ctx.resolve_path(path)
-        return self.evaluate(path)
+        return await self.evaluate(path)

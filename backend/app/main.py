@@ -15,6 +15,7 @@ from app.rule_engine.rule_engine import RuleEngine
 from app.rule_engine.event_emitter import GraphEventEmitter
 from app.services.rule_storage import RuleStorage
 from app.core.neo4j_pool import get_neo4j_driver
+from app.core.init_db import init_db
 
 app = FastAPI(title="Knowledge Graph QA API")
 
@@ -29,8 +30,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    await init_db()
 
     # Initialize rule engine components
     action_registry = ActionRegistry()

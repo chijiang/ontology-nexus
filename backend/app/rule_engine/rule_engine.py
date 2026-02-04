@@ -432,7 +432,8 @@ class RuleEngine:
             return None
 
         # Handle AND expressions
-        if isinstance(condition, tuple) and len(condition) >= 3:
+        # Handle tuples (AST nodes)
+        if isinstance(condition, tuple):
             if condition[0] == "and":
                 # Check left and right parts
                 left_result = self._extract_relationship_pattern(
@@ -442,21 +443,44 @@ class RuleEngine:
                     return left_result
                 return self._extract_relationship_pattern(condition[2], var, parent_var)
 
-            # Check for relationship pattern in comparison
-            # Pattern: (var, ['-', 'relType', '->'], parent_var)
-            # or similar structures from parser
+            if condition[0] == "op":
+                op = condition[1]
+                left = condition[2]
+                right = condition[3]
+                
+                # Check for relationship pattern in comparison
+                # left and right could be ("id", "varname")
+                left_var = left[1] if isinstance(left, tuple) and left[0] == "id" else left
+                right_var = right[1] if isinstance(right, tuple) and right[0] == "id" else right
 
-        # Check if it's a list (relationship pattern from parser)
-        if isinstance(condition, list):
-            # Try to extract relationship info
-            # Format could be like: ['po', ['-', 'orderedFrom', '->'], 's']
-            if len(condition) >= 3:
-                rel_info = condition[1] if len(condition) > 1 else None
-                if isinstance(rel_info, list) and len(rel_info) >= 2:
-                    rel_type = rel_info[1] if len(rel_info) > 1 else None
-                    direction = rel_info[2] if len(rel_info) > 2 else "->"
-                    if rel_type:
+                if isinstance(op, list) and len(op) >= 2:
+                    rel_type = op[1]
+                    direction = op[2] if len(op) > 2 else "->"
+                    
+                    # Check if this comparison is our relationship between var and parent_var
+                    if (left_var == var and right_var == parent_var):
                         return (rel_type, direction)
+                    if (left_var == parent_var and right_var == var):
+                        # Swap direction if it's the other way
+                        new_dir = "<-" if direction == "->" else "->"
+                        return (rel_type, new_dir)
+
+        # Check if it's a list (legacy relationship pattern or direct list)
+        if isinstance(condition, list):
+            if len(condition) >= 3:
+                left_var = condition[0][1] if isinstance(condition[0], tuple) and condition[0][0] == "id" else condition[0]
+                right_var = condition[2][1] if isinstance(condition[2], tuple) and condition[2][0] == "id" else condition[2]
+                rel_info = condition[1]
+                
+                if isinstance(rel_info, list) and len(rel_info) >= 2:
+                    rel_type = rel_info[1]
+                    direction = rel_info[2] if len(rel_info) > 2 else "->"
+                    
+                    if (left_var == var and right_var == parent_var):
+                        return (rel_type, direction)
+                    if (left_var == parent_var and right_var == var):
+                        new_dir = "<-" if direction == "->" else "->"
+                        return (rel_type, new_dir)
 
         return None
 
@@ -505,12 +529,19 @@ class RuleEngine:
                 left = condition[2]
                 right = condition[3]
 
-                # Skip if operator is not a string (might be a nested structure)
+                # Skip if operator is not a string (might be a relationship list)
+                if isinstance(op, list):
+                    return None
+                
                 if not isinstance(op, str):
                     return None
 
-                # Skip if left or right is a list (relationship pattern)
-                if isinstance(left, list) or isinstance(right, list):
+                # Skip if left or right is also a list (relationship pattern)
+                # Account for wrap
+                left_val = left[1] if isinstance(left, tuple) and left[0] == "id" else left
+                right_val = right[1] if isinstance(right, tuple) and right[0] == "id" else right
+
+                if isinstance(left_val, list) or isinstance(right_val, list):
                     return None
 
                 # Translate to cypher
@@ -521,7 +552,7 @@ class RuleEngine:
 
                 # Map operator
                 op_map = {"==": "=", "!=": "<>"}
-                cypher_op = op_map.get(op, op)
+                cypher_op = op_map.get(str(op), str(op))
 
                 return f"{left_cypher} {cypher_op} {right_cypher}"
 
@@ -545,6 +576,10 @@ class RuleEngine:
         Returns:
             Cypher representation of the value
         """
+        # Handle identifier wrap
+        if isinstance(value, tuple) and len(value) > 0 and value[0] == "id":
+            value = value[1]
+
         if isinstance(value, str):
             # Check if it's a property reference
             if "." in value:
@@ -710,18 +745,34 @@ class RuleEngine:
             logger.debug(f"Value is plain string: {value}")
             return value
 
-        # Handle function calls (tuples like ("call", "NOW", []))
+        # Handle function calls or identifiers (tuples like ("call", "NOW", []) or ("id", "var.prop"))
         if isinstance(value, tuple):
-            if len(value) > 0 and value[0] == "call":
-                func_name = value[1] if len(value) > 1 else ""
-                args = value[2] if len(value) > 2 else []
-                logger.debug(f"Value is function call: {func_name}({args})")
+            if len(value) > 0:
+                if value[0] == "call":
+                    func_name = value[1] if len(value) > 1 else ""
+                    args = value[2] if len(value) > 2 else []
+                    logger.debug(f"Value is function call: {func_name}({args})")
 
-                if func_name.upper() == "NOW":
-                    from datetime import datetime
-
-                    return datetime.utcnow().isoformat()
-                # Add more built-in functions as needed
+                    if func_name.upper() == "NOW":
+                        from datetime import datetime
+                        return datetime.utcnow().isoformat()
+                    # Add more built-in functions as needed
+                
+                elif value[0] == "id":
+                    path = value[1]
+                    # Direct reuse of string logic for simple resolution
+                    if "." in path:
+                        parts = path.split(".")
+                        if len(parts) == 2 and parts[0] in ("this", "e") or any(parts[0] == var for var in ("this", "e", "s", "po")):
+                            # We might need better variable awareness here, 
+                            # but for now let's just use entity_props if it's the right prefix
+                            # Wait, RuleEngine handles nested FORs by passing entity_props
+                            # but it doesn't have a full scope stack.
+                            # For now, let's just try to resolve it.
+                            prop_value = entity_props.get(parts[1])
+                            logger.debug(f"Value is identifier: {path} -> {prop_value}")
+                            return prop_value
+                    return path
 
             # Handle other tuple types (AST nodes)
             logger.debug(f"Value is unknown tuple: {value}")

@@ -93,15 +93,16 @@ class CypherTranslator:
                     return f"{expr_cypher} IS NOT NULL"
                 return f"{expr_cypher} IS NULL"
 
-            elif op == "path":
-                # Property path: ("path", "var.prop")
+            elif op == "id":
+                # Identifier/Path: ("id", path)
                 _, path = condition
                 return self._translate_path(path)
 
-            elif op == "pattern":
-                # Relationship pattern: ("pattern", (var, rel_type, target_var))
+            elif op == "exists":
+                # Existence check: ("exists", pattern)
                 _, pattern = condition
-                return self._translate_pattern(pattern)
+                pattern_cypher = self._translate_pattern(pattern)
+                return f"EXISTS {{ {pattern_cypher} }}"
 
             elif op == "call":
                 # Function call: ("call", function_name, args)
@@ -153,11 +154,26 @@ class CypherTranslator:
 
         # Handle IN operator specially
         if operator == "IN":
-            if isinstance(right, list):
+            if isinstance(right, list) or isinstance(right, tuple):
                 # Convert list to Cypher list literal
                 items = [self._translate_value(item) for item in right]
                 right_cypher = "[" + ", ".join(items) + "]"
             return f"{left_cypher} IN {right_cypher}"
+
+        # Handle relationship operator (list from parser)
+        # e.g. ["-", "relName", "->"]
+        if isinstance(operator, list) and len(operator) >= 2:
+            rel_name = operator[1] if len(operator) > 1 else ""
+            direction = operator[2] if len(operator) > 2 else (operator[0] if len(operator) > 0 else "->")
+            label = f":{rel_name}" if rel_name else ""
+            
+            # po -[orderedFrom]-> s
+            if direction == "->":
+                return f"({left_cypher})-[{label}]->({right_cypher})"
+            elif direction == "<-":
+                return f"({left_cypher})<-[{label}]-({right_cypher})"
+            else:
+                return f"({left_cypher})-[{label}]-({right_cypher})"
 
         # Map operators to Cypher
         op_map = {
@@ -169,7 +185,7 @@ class CypherTranslator:
             ">=": ">=",
         }
 
-        cypher_op = op_map.get(operator, operator)
+        cypher_op = op_map.get(str(operator), str(operator))
         return f"{left_cypher} {cypher_op} {right_cypher}"
 
     def _translate_path(self, path: str) -> str:
@@ -194,27 +210,60 @@ class CypherTranslator:
         return f"{'.'.join(parts)}"
 
     def _translate_pattern(self, pattern: Any) -> str:
-        """Translate a relationship pattern to Cypher.
+        """Translate a graph pattern to Cypher.
 
         Args:
-            pattern: Pattern tuple (var, rel_type, target_var)
+            pattern: Pattern list [node1, rel1, node2, ..., WHERE expr]
 
         Returns:
             Cypher relationship pattern
         """
-        if isinstance(pattern, tuple) and len(pattern) == 3:
-            var, rel_type, target_var = pattern
+        if not isinstance(pattern, (list, tuple)):
+            return ""
 
-            # Check if target is a bound variable
-            if target_var in self._bound_vars:
-                # Use the bound variable directly
-                target_entity_type, _ = self._bound_vars[target_var]
-                return f"({var})-[:{rel_type}]->({target_var}:{target_entity_type})"
+        parts = []
+        where_expr = None
 
-            # Otherwise, reference the variable directly
-            return f"({var})-[:{rel_type}]->({target_var})"
+        # Check for WHERE at the end
+        if len(pattern) >= 2 and pattern[-2] == "WHERE":
+            where_expr = pattern[-1]
+            pattern_core = pattern[:-2]
+        else:
+            pattern_core = pattern
 
-        return ""
+        # Translate nodes and relationships
+        for item in pattern_core:
+            if isinstance(item, tuple) and item[0] == "node":
+                # node: ("node", var, type)
+                _, var, type_name = item
+                # Ensure type_name is not "None" string or None object
+                if type_name and str(type_name) != "None":
+                    label = f":{type_name}"
+                else:
+                    label = ""
+                parts.append(f"({var}{label})")
+            elif isinstance(item, list) and len(item) >= 2:
+                # rel: ["-", "orderedFrom", "->"]
+                # item[0] is "-", item[1] is name, item[2] is "->"
+                rel_name = item[1] if len(item) > 1 else ""
+                direction = item[2] if len(item) > 2 else "->"
+                label = f":{rel_name}" if rel_name else ""
+                if direction == "->":
+                    parts.append(f"-[{label}]->")
+                elif direction == "<-":
+                    parts.append(f"<-[{label}]-")
+                else:
+                    parts.append(f"-[{label}]-")
+            elif isinstance(item, str):
+                parts.append(item)
+
+        cypher = "".join(parts)
+        if where_expr:
+            where_cypher = self.translate_condition(where_expr)
+            if where_cypher:
+                cypher += f" WHERE {where_cypher}"
+
+        return cypher
 
     def _translate_function_call(self, func_name: str, args: list[Any]) -> str:
         """Translate a function call to Cypher.
@@ -261,7 +310,7 @@ class CypherTranslator:
         if isinstance(value, tuple):
             # Handle nested tuples (AST nodes)
             op = value[0] if value else ""
-            if op == "path":
+            if op == "path" or op == "id":
                 return self._translate_path(value[1])
             elif op == "call":
                 return self._translate_function_call(value[1], value[2])

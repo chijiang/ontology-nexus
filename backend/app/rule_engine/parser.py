@@ -155,7 +155,7 @@ class ASTTransformer(Transformer):
         return (entity_type, action_name, params)
 
     def param_list(self, items):
-        return items
+        return [i for i in items if i is not None]
 
     def param(self, items):
         # items: [CNAME, CNAME] or [CNAME, CNAME, "?"]
@@ -257,9 +257,9 @@ class ASTTransformer(Transformer):
         return items[0]
 
     def set_stmt(self, items):
-        # items: [path, expression]
+        # items: [path, EQ, expression]
         target = items[0]
-        value = items[1]
+        value = items[2]
         return SetStatement(target=target, value=value)
 
     def trigger_stmt(self, items):
@@ -279,8 +279,11 @@ class ASTTransformer(Transformer):
     def path(self, items):
         return ".".join(items)
 
+    def identifier(self, items):
+        return ("id", items[0])
+
     def object(self, items):
-        return dict(items) if items else {}
+        return dict([i for i in items if i is not None]) if items else {}
 
     def member(self, items):
         return (items[0], items[1])
@@ -359,11 +362,14 @@ class ASTTransformer(Transformer):
             return non_none_items[0]
 
         if len(items) == 2:
+            # Check for EXISTS ( pattern )
+            if str(items[0]) == "EXISTS":
+                pattern = items[1]
+                return ("exists", pattern)
+
             # Check if this is an IS NULL or IS NOT NULL case
-            # items could be: [term, None] for "term IS NULL" -> handled by ternary
-            # or it could be the result of a special operator
             if items[1] is None:
-                return items[0]  # Just a term, no operator
+                return items[0]
             return items[1]
 
         # Check if we have a valid comparison operator
@@ -374,9 +380,6 @@ class ASTTransformer(Transformer):
 
         if op == "IS":
             # IS NULL or IS NOT NULL
-            # For "term IS NULL": items = [term, "IS", None, None] or [term, "IS", None]
-            # For "term IS NOT NULL": items = [term, "IS", "NOT", None] or [term, "IS", "NOT"]
-            # The last item is always None (the NULL token)
             is_not = (len(items) > 2 and items[2] == "NOT") or (
                 len(items) > 3 and items[2] == "NOT"
             )
@@ -409,13 +412,26 @@ class ASTTransformer(Transformer):
         return items[0]
 
     def pattern(self, items):
+        """Handle graph patterns: node_pattern (relationship node_pattern)* [WHERE expr]"""
+        # items contains interleaved nodes, relationships, and optional WHERE expr
         return items
 
+    def node_pattern(self, items):
+        """Handle node patterns: var[:Type]"""
+        # items: [var, Type] or [var]
+        var = str(items[0])
+        type_name = str(items[1]) if len(items) > 1 else None
+        return ("node", var, type_name)
+
     def relationship(self, items):
+        """Handle relationship: - [ [relName] ] -> | <- [ [relName] ] -"""
+        # items: [relName] or []
+        # We need to know the structure to distinguish direction if we wanted to
+        # But for now, we'll return the items and possibly direction
         return items
 
     def arg_list(self, items):
-        return items
+        return [i for i in items if i is not None]
 
 
 class RuleParser:

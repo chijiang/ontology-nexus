@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { graphApi, actionsApi } from '@/lib/api'
+import { graphApi, actionsApi, ActionRuntimeInfo } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,8 +30,9 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
     const [editedProperties, setEditedProperties] = useState<Record<string, any>>({})
     const [saving, setSaving] = useState(false)
     const [expandedProps, setExpandedProps] = useState<Record<string, any>>({})
-    const [actions, setActions] = useState<any[]>([])
+    const [actions, setActions] = useState<ActionRuntimeInfo[]>([])
     const [executingAction, setExecutingAction] = useState<string | null>(null)
+    const [actionParams, setActionParams] = useState<Record<string, Record<string, any>>>({})
 
     useEffect(() => {
         if (node) {
@@ -131,7 +132,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             }
 
             // 去重
-            const uniqueActions = Array.from(new Map(allActions.map(a => [`${a.entity_type}.${a.action_name}`, a])).values())
+            const uniqueActions = Array.from(new Map(allActions.map(a => [`${a.entity_type}.${a.action_name}`, a])).values()) as ActionRuntimeInfo[]
             setActions(uniqueActions)
         } catch (err) {
             console.error('Failed to load actions:', err)
@@ -146,11 +147,13 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
         setExecutingAction(actionKey)
 
         try {
+            const params = actionParams[actionKey] || {}
             const res = await actionsApi.execute(
                 action.entity_type,
                 action.action_name,
                 node.name,
-                expandedProps
+                expandedProps,
+                params
             )
 
             if (res.data?.success) {
@@ -256,27 +259,53 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                 {actions.length > 0 && (
                     <div className="mt-6 pt-6 border-t">
                         <h4 className="text-sm font-semibold text-gray-700 mb-3">可用操作</h4>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-col gap-3">
                             {actions.map((action) => {
                                 const actionKey = `${action.entity_type}.${action.action_name}`
                                 const isExecuting = executingAction === actionKey
 
                                 return (
-                                    <Button
-                                        key={actionKey}
-                                        variant="outline"
-                                        size="sm"
-                                        className="gap-2 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
-                                        onClick={() => handleExecuteAction(action)}
-                                        disabled={!!executingAction}
-                                    >
-                                        {isExecuting ? (
-                                            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-                                        ) : (
-                                            <Play className="h-3 w-3 text-emerald-600 fill-emerald-600" />
+                                    <div key={actionKey} className="flex flex-col gap-2 p-3 border rounded-lg bg-white shadow-sm hover:border-emerald-200 transition-colors">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <span className="text-sm font-medium text-gray-700">{action.action_name}</span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="gap-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+                                                onClick={() => handleExecuteAction(action)}
+                                                disabled={!!executingAction}
+                                            >
+                                                {isExecuting ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                                                ) : (
+                                                    <Play className="h-3 w-3 text-emerald-600 fill-emerald-600" />
+                                                )}
+                                                执行
+                                            </Button>
+                                        </div>
+
+                                        {action.parameters && action.parameters.length > 0 && (
+                                            <div className="space-y-2 mt-1 px-2 py-2 bg-gray-50 rounded-md">
+                                                {action.parameters.map((param) => (
+                                                    <div key={param.name} className="flex items-center gap-2">
+                                                        <label className="text-[10px] text-gray-400 font-medium min-w-[60px] uppercase">{param.name}:</label>
+                                                        <Input
+                                                            className="h-7 text-xs bg-white"
+                                                            placeholder={`${param.type}${param.optional ? ' (可选)' : ''}`}
+                                                            value={actionParams[actionKey]?.[param.name] ?? ''}
+                                                            onChange={(e) => setActionParams({
+                                                                ...actionParams,
+                                                                [actionKey]: {
+                                                                    ...(actionParams[actionKey] || {}),
+                                                                    [param.name]: param.type === 'number' ? Number(e.target.value) : e.target.value
+                                                                }
+                                                            })}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
                                         )}
-                                        {action.action_name}
-                                    </Button>
+                                    </div>
                                 )
                             })}
                         </div>

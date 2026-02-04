@@ -40,7 +40,7 @@ export const configApi = {
 
 export const chatApi = {
   stream: (query: string, token: string, conversationId?: number) => {
-    return fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/chat/stream`, {
+    return fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/chat/v2/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

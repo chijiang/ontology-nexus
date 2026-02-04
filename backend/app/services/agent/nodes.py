@@ -123,6 +123,8 @@ class AgentNodes:
         This node uses tool calling with the LLM to execute
         the appropriate query tools based on the user's question.
 
+        Supports multi-turn tool execution for complex queries.
+
         Args:
             state: Current agent state
 
@@ -134,16 +136,23 @@ class AgentNodes:
         # Prepare messages with system prompt
         messages_with_prompt = await self.query_prompt.ainvoke({"messages": state["messages"]})
 
-        # Get response with tool calls
-        response = await self.query_llm_with_tools.ainvoke(messages_with_prompt)
+        # Track current messages for multi-turn conversation
+        current_messages = list(messages_with_prompt)
 
-        # Add the response to state
-        state["messages"].append(response)
+        # Multi-turn tool execution loop
+        max_iterations = 10  # Prevent infinite loops
+        for iteration in range(max_iterations):
+            # Get response from LLM
+            response = await self.query_llm_with_tools.ainvoke(current_messages)
+            current_messages.append(response)
 
-        # If there are tool calls, execute them
-        if hasattr(response, "tool_calls") and response.tool_calls:
+            # Check if there are tool calls
+            if not (hasattr(response, "tool_calls") and response.tool_calls):
+                # No more tool calls, exit loop
+                break
+
+            # Execute all tool calls in this round
             tool_messages = []
-
             for tool_call in response.tool_calls:
                 tool_name = tool_call.get("name", "")
                 tool_args = tool_call.get("args", {})
@@ -153,6 +162,7 @@ class AgentNodes:
                 tool = next((t for t in self.query_tools if t.name == tool_name), None)
                 if tool:
                     try:
+                        logger.info(f"Executing query tool: {tool_name} with args: {tool_args}")
                         result = await tool.ainvoke(tool_args)
                         tool_messages.append(ToolMessage(
                             content=str(result),
@@ -167,12 +177,12 @@ class AgentNodes:
                             name=tool_name
                         ))
 
-            # Add tool messages to state
-            state["messages"].extend(tool_messages)
+            # Add tool messages to conversation
+            current_messages.extend(tool_messages)
+            logger.info(f"Query iteration {iteration + 1}, executed {len(tool_messages)} tools")
 
-            # Get final response from LLM
-            final_response = await self.llm.ainvoke(state["messages"] + tool_messages)
-            state["messages"].append(final_response)
+        # Update state with all messages (except the system prompt)
+        state["messages"].extend(current_messages[1:])
 
         state["current_step"] = "queried"
 
@@ -203,14 +213,23 @@ class AgentNodes:
         # Prepare messages with system prompt
         messages_with_prompt = await self.action_prompt.ainvoke({"messages": state["messages"]})
 
-        # Get response with tool calls
-        response = await llm_with_all_tools.ainvoke(messages_with_prompt)
-        state["messages"].append(response)
+        # Track current messages for multi-turn conversation
+        current_messages = list(messages_with_prompt)
 
-        # If there are tool calls, execute them
-        if hasattr(response, "tool_calls") and response.tool_calls:
+        # Multi-turn tool execution loop
+        max_iterations = 10  # Prevent infinite loops
+        for iteration in range(max_iterations):
+            # Get response from LLM
+            response = await llm_with_all_tools.ainvoke(current_messages)
+            current_messages.append(response)
+
+            # Check if there are tool calls
+            if not (hasattr(response, "tool_calls") and response.tool_calls):
+                # No more tool calls, exit loop
+                break
+
+            # Execute all tool calls in this round
             tool_messages = []
-
             for tool_call in response.tool_calls:
                 tool_name = tool_call.get("name", "")
                 tool_args = tool_call.get("args", {})
@@ -220,6 +239,7 @@ class AgentNodes:
                 tool = next((t for t in all_tools if t.name == tool_name), None)
                 if tool:
                     try:
+                        logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
                         result = await tool.ainvoke(tool_args)
                         tool_messages.append(ToolMessage(
                             content=str(result),
@@ -233,12 +253,20 @@ class AgentNodes:
                             tool_call_id=tool_id,
                             name=tool_name
                         ))
+                else:
+                    logger.warning(f"Tool not found: {tool_name}")
+                    tool_messages.append(ToolMessage(
+                        content=f"Error: Tool '{tool_name}' not found",
+                        tool_call_id=tool_id,
+                        name=tool_name
+                    ))
 
-            state["messages"].extend(tool_messages)
+            # Add tool messages to conversation
+            current_messages.extend(tool_messages)
+            logger.info(f"Completed iteration {iteration + 1}, executed {len(tool_messages)} tools")
 
-            # Get final response from LLM
-            final_response = await self.llm.ainvoke(state["messages"] + tool_messages)
-            state["messages"].append(final_response)
+        # Update state with all messages
+        state["messages"].extend(current_messages[1:])  # Skip the system prompt message
 
         state["current_step"] = "action_executed"
 

@@ -91,11 +91,12 @@ class EnhancedAgentService:
                 )
                 action_tools = action_registry.tools
 
-            # Create the graph
+            # Create the graph without memory (conversation history is managed in database)
             self._graph = create_agent_graph(
                 llm=self.llm,
                 query_tools=query_tools,
                 action_tools=action_tools,
+                with_memory=False,  # Disable checkpointer since we manage history in database
             )
 
         return self._graph

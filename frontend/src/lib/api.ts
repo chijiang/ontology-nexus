@@ -176,7 +176,7 @@ export interface ActionDetail extends ActionInfo {
 }
 
 export const rulesApi = {
-  list: () => api.get<{ rules: RuleInfo[]; count: number }>('/api/rules/'),
+  list: () => api.get<{ rules: RuleInfo[]; count: number }>('/api/rules'),
 
   get: (name: string) =>
     api.get<RuleDetail>(`/api/rules/${encodeURIComponent(name)}`),
@@ -198,7 +198,7 @@ export const rulesApi = {
 }
 
 export const actionsApi = {
-  list: () => api.get<{ actions: ActionInfo[]; count: number }>('/api/actions/definitions/'),
+  list: () => api.get<{ actions: ActionInfo[]; count: number }>('/api/actions/definitions'),
 
   get: (name: string) =>
     api.get<ActionDetail>(`/api/actions/definitions/${encodeURIComponent(name)}`),

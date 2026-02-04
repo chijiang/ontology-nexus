@@ -153,9 +153,9 @@ async def chat_completion(
 @router.post("/v2/stream")
 async def chat_stream_v2(
     req: ChatRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    request: Request,
 ):
     """Enhanced streaming chat using LangGraph-based agent (Phase 1+).
 

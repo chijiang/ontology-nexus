@@ -23,7 +23,6 @@ class GetInstancesByClassInput(BaseModel):
     """Input for get_instances_by_class tool."""
 
     class_name: str = Field(description="类名，如 PurchaseOrder, Supplier 等")
-    filters: dict[str, Any] | None = Field(None, description="可选的过滤条件，如 {\"status\": \"pending\"}")
     limit: int = Field(20, description="返回结果数量，默认20")
 
 
@@ -154,27 +153,26 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
 
     async def get_instances_by_class(
         class_name: str,
-        filters: dict[str, Any] | None = None,
         limit: int = 20
     ) -> str:
-        """获取指定类型的所有实例。
+        """获取指定类型的所有实例（不包含过滤条件）。
 
-        当用户想要查看某个特定类型的所有实体时使用此工具。
+        注意：如果需要按名称或ID搜索特定实例，请使用 search_instances 工具。
+        如果需要按属性过滤，请在获取结果后手动筛选，或使用 search_instances 配合关键词。
 
         Args:
-            class_name: 类名
-            filters: 可选的过滤条件
-            limit: 返回结果数量
+            class_name: 类名，如 PurchaseOrder, Supplier 等
+            limit: 返回结果数量，默认20
 
         Returns:
             该类型的实例列表
         """
         async def _execute(tools: GraphTools) -> str:
-            results = await tools.get_instances_by_class(class_name, filters, limit)
+            # 不传递 filters，使用 None
+            results = await tools.get_instances_by_class(class_name, None, limit)
 
             if not results:
-                filter_desc = f" with filters {filters}" if filters else ""
-                return f"未找到类型为 '{class_name}'{filter_desc} 的实例"
+                return f"未找到类型为 '{class_name}' 的实例。提示：如果需要搜索特定实例，请使用 search_instances 工具。"
 
             output = [f"找到 {len(results)} 个 '{class_name}' 类型的实例:\n"]
             for r in results[:15]:

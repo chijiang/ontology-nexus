@@ -67,8 +67,8 @@ path: CNAME ("." CNAME)*
 
 value: STRING
     | NUMBER
-    | "true"
-    | "false"
+    | "true" -> true_lit
+    | "false" -> false_lit
 
 value_list: value ("," value)*
 

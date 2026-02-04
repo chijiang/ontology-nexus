@@ -819,7 +819,7 @@ export default function RulesPage() {
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                             <Settings className="h-6 w-6 text-indigo-600" />
-                            规则管理
+                            业务逻辑管理器
                         </h1>
                         <p className="text-slate-600 mt-1">
                             管理知识图谱的业务规则和可执行动作

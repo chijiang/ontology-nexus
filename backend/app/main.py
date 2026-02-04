@@ -148,6 +148,31 @@ async def startup():
 
     logger.info(f"Rule registry has {len(rule_registry)} rules loaded")
 
+    # Load actions from database
+    async with async_session() as session:
+        from app.models.rule import ActionDefinition
+        from app.rule_engine.models import ActionDef
+
+        result = await session.execute(
+            select(ActionDefinition).where(ActionDefinition.is_active == True)
+        )
+        db_actions = result.scalars().all()
+
+        logger.info(f"Loading {len(db_actions)} actions from database")
+
+        from app.rule_engine.parser import RuleParser
+
+        parser = RuleParser()
+        for db_action in db_actions:
+            try:
+                parsed = parser.parse(db_action.dsl_content)
+                for item in parsed:
+                    if isinstance(item, ActionDef):
+                        action_registry.register(item)
+                logger.info(f"Loaded action '{db_action.name}' from database")
+            except Exception as e:
+                logger.warning(f"Failed to load action '{db_action.name}': {e}")
+
     # Initialize API modules
     actions.init_actions_api(action_registry, action_executor)
     rules.init_rules_api(rule_registry, rule_storage)

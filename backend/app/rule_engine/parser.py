@@ -396,6 +396,12 @@ class ASTTransformer(Transformer):
     def term(self, items):
         return items[0]
 
+    def true_lit(self, items):
+        return True
+
+    def false_lit(self, items):
+        return False
+
     def value(self, items):
         # items can be empty for boolean/NULL literals that are matched directly
         if not items:

@@ -1,9 +1,10 @@
 """REST API endpoints for action management."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Any
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.rule_engine.action_registry import ActionRegistry
 from app.rule_engine.action_executor import ActionExecutor
@@ -107,8 +108,10 @@ async def execute_action(
     entity_type: str,
     action_name: str,
     request: ActionExecutionRequest,
+    fastapi_request: Request,
     current_user: User = Depends(get_current_user),
     executor: ActionExecutor = Depends(get_action_executor),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Execute an action on an entity.
 
@@ -136,8 +139,50 @@ async def execute_action(
     # Execute the action
     result = executor.execute(entity_type, action_name, context)
 
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     if not result.success:
-        raise HTTPException(status_code=400, detail=result.error)
+        logger.warning(f"Action {entity_type}.{action_name} failed: {result.error}")
+        return {
+            "success": False,
+            "message": result.error,
+            "error": result.error,
+            "changes": {},
+        }
+
+    logger.info(f"Action {entity_type}.{action_name} succeeded on {request.entity_id}")
+
+    # Success! Now persist changes if any
+    if result.changes:
+        from app.models.neo4j_config import Neo4jConfig
+        from app.core.security import decrypt_data
+        from app.core.neo4j_pool import get_neo4j_driver
+        from app.services.graph_tools import GraphTools
+
+        # 1. Get Neo4j config
+        stmt = select(Neo4jConfig).limit(1)
+        res = await db.execute(stmt)
+        neo4j_config = res.scalar_one_or_none()
+
+        if neo4j_config:
+            driver = await get_neo4j_driver(
+                uri=decrypt_data(neo4j_config.uri_encrypted),
+                username=decrypt_data(neo4j_config.username_encrypted),
+                password=decrypt_data(neo4j_config.password_encrypted),
+                database=neo4j_config.database,
+            )
+
+            # 2. Get event emitter
+            event_emitter = getattr(fastapi_request.app.state, "event_emitter", None)
+
+            # 3. Apply updates via GraphTools to trigger rules
+            async with driver.session(database=neo4j_config.database) as session:
+                tools = GraphTools(session, event_emitter=event_emitter)
+                await tools.update_entity(
+                    entity_type, request.entity_id, result.changes
+                )
 
     return {
         "success": True,

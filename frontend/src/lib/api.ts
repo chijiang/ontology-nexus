@@ -197,5 +197,15 @@ export const actionsApi = {
 
   delete: (name: string) =>
     api.delete(`/api/actions/definitions/${encodeURIComponent(name)}`),
+
+  listByEntityType: (entityType: string) =>
+    api.get<{ actions: ActionInfo[]; entity_type: string }>(`/api/actions/${encodeURIComponent(entityType)}`),
+
+  execute: (entityType: string, actionName: string, entityId: string, entityData: any, params: any = {}) =>
+    api.post(`/api/actions/${encodeURIComponent(entityType)}/${encodeURIComponent(actionName)}`, {
+      entity_id: entityId,
+      entity_data: entityData,
+      params: params
+    }),
 }
 

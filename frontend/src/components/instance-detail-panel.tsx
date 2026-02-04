@@ -2,11 +2,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { graphApi } from '@/lib/api'
+import { graphApi, actionsApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { X, Save, Edit2, Check, XCircle } from 'lucide-react'
+import { X, Save, Edit2, Check, XCircle, Play, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface InstanceNode {
@@ -14,6 +14,7 @@ interface InstanceNode {
     name: string
     label: string
     nodeLabel: string
+    labels?: string[]
     properties?: Record<string, any>
 }
 
@@ -29,11 +30,15 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
     const [editedProperties, setEditedProperties] = useState<Record<string, any>>({})
     const [saving, setSaving] = useState(false)
     const [expandedProps, setExpandedProps] = useState<Record<string, any>>({})
+    const [actions, setActions] = useState<any[]>([])
+    const [executingAction, setExecutingAction] = useState<string | null>(null)
 
     useEffect(() => {
         if (node) {
             // 加载完整的属性
             loadNodeDetails()
+            // 加载可用操作
+            loadActions()
         }
     }, [node])
 
@@ -107,6 +112,61 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             toast.error(err.response?.data?.detail || '更新失败')
         } finally {
             setSaving(false)
+        }
+    }
+
+    const loadActions = async () => {
+        if (!node || !token) return
+
+        try {
+            // 获取所有标签对应的操作
+            const labels = node.labels || [node.nodeLabel]
+            const allActions: any[] = []
+
+            for (const label of labels) {
+                const res = await actionsApi.listByEntityType(label)
+                if (res.data?.actions) {
+                    allActions.push(...res.data.actions)
+                }
+            }
+
+            // 去重
+            const uniqueActions = Array.from(new Map(allActions.map(a => [`${a.entity_type}.${a.action_name}`, a])).values())
+            setActions(uniqueActions)
+        } catch (err) {
+            console.error('Failed to load actions:', err)
+            setActions([])
+        }
+    }
+
+    const handleExecuteAction = async (action: any) => {
+        if (!node || !token) return
+
+        const actionKey = `${action.entity_type}.${action.action_name}`
+        setExecutingAction(actionKey)
+
+        try {
+            const res = await actionsApi.execute(
+                action.entity_type,
+                action.action_name,
+                node.name,
+                expandedProps
+            )
+
+            if (res.data?.success) {
+                toast.success(res.data.message || '操作执行成功')
+                // 刷新数据
+                loadNodeDetails()
+                onUpdate?.()
+            } else {
+                toast.warning(res.data?.message || res.data?.detail || '操作失败')
+            }
+        } catch (err: any) {
+            // 只在非业务逻辑错误时记录详细日志
+            const errorMessage = err.response?.data?.detail || err.message || '操作执行失败'
+            toast.error(errorMessage)
+        } finally {
+            setExecutingAction(null)
         }
     }
 
@@ -189,6 +249,37 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                                 )}
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {/* 可用操作 */}
+                {actions.length > 0 && (
+                    <div className="mt-6 pt-6 border-t">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">可用操作</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {actions.map((action) => {
+                                const actionKey = `${action.entity_type}.${action.action_name}`
+                                const isExecuting = executingAction === actionKey
+
+                                return (
+                                    <Button
+                                        key={actionKey}
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+                                        onClick={() => handleExecuteAction(action)}
+                                        disabled={!!executingAction}
+                                    >
+                                        {isExecuting ? (
+                                            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                                        ) : (
+                                            <Play className="h-3 w-3 text-emerald-600 fill-emerald-600" />
+                                        )}
+                                        {action.action_name}
+                                    </Button>
+                                )
+                            })}
+                        </div>
                     </div>
                 )}
             </div>

@@ -8,13 +8,13 @@ class BuiltinFunctions:
     """Built-in functions available in rule expressions."""
 
     @staticmethod
-    def NOW() -> datetime:
-        """Get the current datetime.
+    def NOW() -> str:
+        """Get the current datetime as a formatted string.
 
         Returns:
-            Current datetime as datetime object
+            Current datetime as "yyyy-mm-dd HH:MM:SS"
         """
-        return datetime.now()
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     @staticmethod
     def CONCAT(*args: Any) -> str:
@@ -29,51 +29,70 @@ class BuiltinFunctions:
         return "".join(str(a) for a in args)
 
     @staticmethod
-    def TODAY() -> datetime:
-        """Get the current date (time set to midnight).
+    def TODAY() -> str:
+        """Get the current date as a formatted string (time set to midnight).
 
         Returns:
-            Current date as datetime object with time set to 00:00:00
+            Current date as "yyyy-mm-dd 00:00:00"
         """
-        now = datetime.now()
-        return datetime(now.year, now.month, now.day)
+        return datetime.now().strftime("%Y-%m-%d 00:00:00")
 
     @staticmethod
-    def DATETIME_ADD(dt: datetime, amount: int, unit: str = "days") -> datetime:
+    def DATETIME_ADD(dt: Any, amount: int, unit: str = "days") -> str:
         """Add a time interval to a datetime.
 
         Args:
-            dt: Base datetime
+            dt: Base datetime (object or string)
             amount: Amount to add (can be negative)
             unit: Time unit - "days", "hours", "minutes", "seconds"
 
         Returns:
-            New datetime with interval added
+            New datetime string with interval added
         """
+        if isinstance(dt, str):
+            try:
+                dt = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                # Handle YYYY-MM-DD
+                dt = datetime.strptime(dt, "%Y-%m-%d")
+
         if unit == "days":
-            return dt + timedelta(days=amount)
+            res = dt + timedelta(days=amount)
         elif unit == "hours":
-            return dt + timedelta(hours=amount)
+            res = dt + timedelta(hours=amount)
         elif unit == "minutes":
-            return dt + timedelta(minutes=amount)
+            res = dt + timedelta(minutes=amount)
         elif unit == "seconds":
-            return dt + timedelta(seconds=amount)
+            res = dt + timedelta(seconds=amount)
         else:
             raise ValueError(f"Unknown time unit: {unit}")
 
+        return res.strftime("%Y-%m-%d %H:%M:%S")
+
     @staticmethod
-    def DATETIME_DIFF(dt1: datetime, dt2: datetime, unit: str = "seconds") -> int:
+    def DATETIME_DIFF(dt1: Any, dt2: Any, unit: str = "seconds") -> int:
         """Calculate the difference between two datetimes.
 
         Args:
-            dt1: First datetime
-            dt2: Second datetime
+            dt1: First datetime (object or string)
+            dt2: Second datetime (object or string)
             unit: Time unit - "days", "hours", "minutes", "seconds"
 
         Returns:
             Difference as integer in specified unit
         """
-        diff = dt1 - dt2
+
+        def to_dt(val):
+            if isinstance(val, str):
+                try:
+                    return datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    return datetime.strptime(val, "%Y-%m-%d")
+            return val
+
+        d1 = to_dt(dt1)
+        d2 = to_dt(dt2)
+        diff = d1 - d2
         total_seconds = diff.total_seconds()
 
         if unit == "days":
@@ -149,7 +168,7 @@ class BuiltinFunctions:
         """
         if length is None:
             return str(value)[start:]
-        return str(value)[start:start + length]
+        return str(value)[start : start + length]
 
     @staticmethod
     def ABS(value: int | float) -> int | float:

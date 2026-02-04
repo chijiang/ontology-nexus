@@ -38,6 +38,7 @@ interface InstanceNode {
     name: string
     label: string
     nodeLabel: string
+    labels?: string[]
     properties?: Record<string, any>
     color?: string
 }
@@ -153,6 +154,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                 name: nodeData.label,
                 label: nodeData.label,
                 nodeLabel: nodeData.nodeLabel,
+                labels: nodeData.labels,
                 properties: nodeData.properties,
                 color: nodeData.color,
             })
@@ -224,6 +226,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                             id: nodeName,
                             label: nodeName,
                             nodeLabel: searchParams.className,
+                            labels: instance.labels,
                             color: nodeColor,
                             borderColor: borderColor,
                             properties: instance.properties,
@@ -250,6 +253,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                                     id: n.name,
                                     label: n.name,
                                     nodeLabel: labelName,
+                                    labels: n.labels,
                                     color: nColor,
                                     borderColor: nBorderColor,
                                     properties: n.properties,
@@ -317,6 +321,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                             id: n.name,
                             label: n.name,
                             nodeLabel: labelName,
+                            labels: n.labels,
                             color: nodeColor,
                             borderColor: borderColor,
                             properties: n.properties,

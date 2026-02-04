@@ -21,7 +21,7 @@ export function AppLayout({ children, noPadding = false }: { children: React.Rea
     { href: '/graph/import', label: '导入图谱' },
     { href: '/graph/ontology', label: '本体查看' },
     { href: '/graph/instances', label: '实例图谱' },
-    { href: '/rules', label: '规则管理' },
+    { href: '/rules', label: '业务逻辑管理器' },
     { href: '/config', label: '系统配置' },
   ]
 

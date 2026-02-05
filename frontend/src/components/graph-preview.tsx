@@ -9,6 +9,7 @@ interface GraphNode {
   id: string
   label: string
   type?: string
+  properties?: Record<string, any>
 }
 
 interface GraphEdge {
@@ -104,7 +105,8 @@ export function GraphPreview({ data }: { data: GraphData | null }) {
           id: n.id,
           label: n.label,
           type: n.type || 'default',
-          color: getNodeColor(n.type || 'default')
+          color: getNodeColor(n.type || 'default'),
+          properties: n.properties || {}
         }
       })),
       ...(data.edges || []).map((e, i) => ({
@@ -226,7 +228,7 @@ export function GraphPreview({ data }: { data: GraphData | null }) {
         id: nodeData.id,
         label: nodeData.label,
         type: nodeData.type,
-        properties: { name: nodeData.label, type: nodeData.type },
+        properties: { name: nodeData.label, type: nodeData.type, ...nodeData.properties },
         connections
       })
     })
@@ -385,6 +387,22 @@ export function GraphPreview({ data }: { data: GraphData | null }) {
                   <div className="text-xs text-slate-500 mb-1">类型</div>
                   <div className="text-sm text-slate-200">{selectedNode.type}</div>
                 </div>
+
+                {Object.entries(selectedNode.properties).filter(([k]) => k !== 'name' && k !== 'type').length > 0 && (
+                  <div>
+                    <div className="text-xs text-slate-500 mb-1">属性</div>
+                    <div className="space-y-1 bg-slate-900/50 p-2 rounded-lg border border-slate-700/50 max-h-40 overflow-y-auto">
+                      {Object.entries(selectedNode.properties)
+                        .filter(([k]) => k !== 'name' && k !== 'type')
+                        .map(([k, v]) => (
+                          <div key={k} className="flex flex-col border-b border-slate-700/30 last:border-0 pb-1 mb-1 last:pb-0 last:mb-0">
+                            <span className="text-[10px] text-slate-500 uppercase tracking-wider">{k}</span>
+                            <span className="text-xs text-slate-300 break-words">{String(v)}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
 
                 {selectedNode.connections.length > 0 && (
                   <div>

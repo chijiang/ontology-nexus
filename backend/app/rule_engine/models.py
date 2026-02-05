@@ -87,3 +87,10 @@ class ActionResult:
     success: bool
     error: str | None = None
     changes: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class GraphViewEvent:
+    """Event triggered when graph data is viewed/retrieved."""
+    nodes: list[dict[str, Any]] = field(default_factory=list)
+    edges: list[dict[str, Any]] = field(default_factory=list)

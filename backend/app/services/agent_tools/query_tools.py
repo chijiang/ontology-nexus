@@ -66,27 +66,30 @@ async def _get_session(get_session_func: Callable) -> Any:
 
 async def _execute_with_session(
     get_session_func: Callable,
-    func: Callable[[GraphTools], Any]
+    func: Callable[[GraphTools], Any],
+    event_emitter: Any = None
 ) -> Any:
     """Execute a function with a GraphTools session.
 
     Args:
         get_session_func: Function that returns a session context manager
         func: Function to execute with GraphTools instance
+        event_emitter: Optional event emitter for graph updates
 
     Returns:
         Result of the function
     """
     async with await _get_session(get_session_func) as session:
-        tools = GraphTools(session)
+        tools = GraphTools(session, event_emitter)
         return await func(tools)
 
 
-def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTool]:
+def create_query_tools(get_session_func: Callable[[], Any], event_emitter: Any = None) -> list[StructuredTool]:
     """Create LangChain-compatible query tools.
 
     Args:
         get_session_func: Async function that returns a Neo4j session
+        event_emitter: Optional event emitter for graph updates
 
     Returns:
         List of StructuredTool instances
@@ -128,7 +131,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
 
             return "\n".join(output)
 
-        return await _execute_with_session(get_session_func, _execute)
+        return await _execute_with_session(get_session_func, _execute, event_emitter)
 
     async def get_instances_by_class(
         class_name: str,
@@ -165,7 +168,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
 
             return "\n".join(output)
 
-        return await _execute_with_session(get_session_func, _execute)
+        return await _execute_with_session(get_session_func, _execute, event_emitter)
 
     async def get_instance_neighbors(
         instance_name: str,
@@ -203,7 +206,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
 
             return "\n".join(output)
 
-        return await _execute_with_session(get_session_func, _execute)
+        return await _execute_with_session(get_session_func, _execute, event_emitter)
 
     async def find_path_between_instances(
         start_name: str,
@@ -241,7 +244,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
 
             return "\n".join(output)
 
-        return await _execute_with_session(get_session_func, _execute)
+        return await _execute_with_session(get_session_func, _execute, event_emitter)
 
     async def describe_class(class_name: str) -> str:
         """描述一个类的定义。
@@ -281,7 +284,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
 
             return "\n".join(output)
 
-        return await _execute_with_session(get_session_func, _execute)
+        return await _execute_with_session(get_session_func, _execute, event_emitter)
 
     async def get_ontology_classes() -> str:
         """获取知识图谱的所有类定义。
@@ -307,7 +310,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
 
             return "\n".join(output)
 
-        return await _execute_with_session(get_session_func, _execute)
+        return await _execute_with_session(get_session_func, _execute, event_emitter)
 
     async def get_ontology_relationships() -> str:
         """获取知识图谱的关系定义。
@@ -332,7 +335,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
 
             return "\n".join(output)
 
-        return await _execute_with_session(get_session_func, _execute)
+        return await _execute_with_session(get_session_func, _execute, event_emitter)
 
     async def get_node_statistics(node_label: str | None = None) -> str:
         """获取节点统计信息。
@@ -362,7 +365,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
                     output.append(f"  - {label}: {count}")
                 return "\n".join(output)
 
-        return await _execute_with_session(get_session_func, _execute)
+        return await _execute_with_session(get_session_func, _execute, event_emitter)
 
     return [
         StructuredTool.from_function(
@@ -423,20 +426,22 @@ class QueryToolRegistry:
     a convenient interface for tool creation and management.
     """
 
-    def __init__(self, get_session_func: Callable[[], Any]):
+    def __init__(self, get_session_func: Callable[[], Any], event_emitter: Any = None):
         """Initialize the query tool registry.
 
         Args:
             get_session_func: Async function that returns a Neo4j session
+            event_emitter: Optional event emitter for graph updates
         """
         self.get_session_func = get_session_func
+        self.event_emitter = event_emitter
         self._tools: list[StructuredTool] | None = None
 
     @property
     def tools(self) -> list[StructuredTool]:
         """Get the list of query tools."""
         if self._tools is None:
-            self._tools = create_query_tools(self.get_session_func)
+            self._tools = create_query_tools(self.get_session_func, self.event_emitter)
         return self._tools
 
     def get_tool_names(self) -> list[str]:

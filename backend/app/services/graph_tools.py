@@ -126,6 +126,16 @@ class GraphTools:
         )
         self.event_emitter.emit(event)
 
+    async def _emit_graph_view_event(self, nodes: List[dict], edges: List[dict]) -> None:
+        """Emit a graph view event if an event_emitter is configured."""
+        if self.event_emitter is None:
+            return
+
+        from app.rule_engine.models import GraphViewEvent
+
+        event = GraphViewEvent(nodes=nodes, edges=edges)
+        self.event_emitter.emit(event)
+
     # ==================== Ontology 查询 ====================
 
     async def get_ontology_classes(self) -> List[dict]:
@@ -183,26 +193,43 @@ class GraphTools:
                 MATCH (n:`{class_name}`)
                 WHERE n.name CONTAINS $term AND n.__is_instance = true
                 RETURN n.name AS name, labels(n) AS labels, properties(n) AS properties
-                LIMIT $limit
             """
         else:
             query = """
                 MATCH (n)
                 WHERE n.name CONTAINS $term AND n.__is_instance = true
                 RETURN n.name AS name, labels(n) AS labels, properties(n) AS properties
-                LIMIT $limit
             """
+        
+        # Add limit
+        query += f" LIMIT {limit}"
 
-        result = await self.session.run(query, term=search_term, limit=limit)
+        result = await self.session.run(query, term=search_term)
         data = await result.data()
 
-        # 清理属性，移除内部字段
+        # Clean properties and prepare nodes for event
+        nodes = []
         for item in data:
             if "properties" in item:
                 props = item["properties"]
-                item["properties"] = {
+                clean_props = {
                     k: v for k, v in props.items() if not k.startswith("__")
                 }
+                item["properties"] = clean_props
+            
+            # Prepare node for visualization
+            labels = [l for l in item.get('labels', []) if not l.startswith('__')]
+            nodes.append({
+                "id": item['name'],
+                "label": item['name'],
+                "type": labels[0] if labels else "Entity",
+                "properties": item.get('properties', {})
+            })
+            
+        # Emit event
+        if nodes:
+            await self._emit_graph_view_event(nodes=nodes, edges=[])
+            
         return data
 
     async def get_instance_neighbors(
@@ -228,20 +255,67 @@ class GraphTools:
                        type: type(rel),
                        source: startNode(rel).name,
                        target: endNode(rel).name
-                   }}] AS relationships
+                   }}] AS relationships,
+                   start.name as start_name,
+                   labels(start) as start_labels,
+                   properties(start) as start_props
             LIMIT 50
         """
 
         result = await self.session.run(query, name=instance_name)
         data = await result.data()
 
-        # 清理属性，移除内部字段
+        nodes_map = {}
+        edges_list = []
+
+        # Process results
         for item in data:
+            # Add neighbor node
             if "properties" in item:
                 props = item["properties"]
                 item["properties"] = {
                     k: v for k, v in props.items() if not k.startswith("__")
                 }
+            
+            neighbor_name = item['name']
+            neighbor_labels = [l for l in item.get('labels', []) if not l.startswith('__')]
+            nodes_map[neighbor_name] = {
+                "id": neighbor_name,
+                "label": neighbor_name,
+                "type": neighbor_labels[0] if neighbor_labels else "Entity",
+                "properties": item.get('properties', {})
+            }
+
+            # Add start node
+            start_name = item.get('start_name')
+            if start_name:
+                start_labels = [l for l in item.get('start_labels', []) if not l.startswith('__')]
+                start_props = item.get('start_props', {})
+                clean_start_props = {k: v for k, v in start_props.items() if not k.startswith("__")} if start_props else {}
+                
+                nodes_map[start_name] = {
+                    "id": start_name,
+                    "label": start_name,
+                    "type": start_labels[0] if start_labels else "Entity",
+                    "properties": clean_start_props
+                }
+
+            # Add relationships
+            if 'relationships' in item:
+                for rel in item['relationships']:
+                    edges_list.append({
+                        "source": rel['source'],
+                        "target": rel['target'],
+                        "label": rel['type']
+                    })
+        
+        # Emit event
+        if nodes_map or edges_list:
+            await self._emit_graph_view_event(
+                nodes=list(nodes_map.values()), 
+                edges=edges_list
+            )
+
         return data
 
     async def find_path_between_instances(
@@ -256,13 +330,47 @@ class GraphTools:
                 (start {{name: $start}})-[*1..{max_depth}]-(end {{name: $end}})
             )
             WHERE start.__is_instance = true AND end.__is_instance = true
-            RETURN [node IN nodes(path) | {{name: node.name, labels: labels(node)}}] AS nodes,
+            RETURN [node IN nodes(path) | {{name: node.name, labels: labels(node), properties: properties(node)}}] AS nodes,
                    [rel IN relationships(path) | {{type: type(rel), source: startNode(rel).name, target: endNode(rel).name}}] AS relationships
         """
 
         result = await self.session.run(query, start=start_name, end=end_name)
         data = await result.data()
-        return data[0] if data else None
+        
+        if data:
+            path_data = data[0]
+            
+            # Prepare event data
+            viz_nodes = []
+            for node in path_data.get('nodes', []):
+                labels = [l for l in node.get('labels', []) if not l.startswith('__')]
+                props = node.get('properties', {})
+                clean_props = {k: v for k, v in props.items() if not k.startswith("__")} if props else {}
+                
+                viz_nodes.append({
+                    "id": node['name'],
+                    "label": node['name'],
+                    "type": labels[0] if labels else "Entity",
+                    "properties": clean_props
+                })
+            
+            viz_edges = []
+            for rel in path_data.get('relationships', []):
+                 viz_edges.append({
+                        "source": rel['source'],
+                        "target": rel['target'],
+                        "label": rel['type']
+                    })
+            
+            await self._emit_graph_view_event(nodes=viz_nodes, edges=viz_edges)
+            
+            # Return simplified data for LLM to avoid context overflow
+            return {
+                "nodes": [n['name'] for n in path_data.get('nodes', [])],
+                "relationships": path_data.get('relationships', [])
+            }
+            
+        return None
 
     async def get_instances_by_class(
         self, class_name: str, filters: dict[str, Any] | None = None, limit: int = 20
@@ -281,20 +389,32 @@ class GraphTools:
         query = f"""
             MATCH (n:`{class_name}`)
             WHERE {where_clause}
-            RETURN n.name AS name, properties(n) AS properties
+            RETURN n.name AS name, labels(n) as labels, properties(n) AS properties
             LIMIT $limit
         """
 
         result = await self.session.run(query, **params)
         data = await result.data()
 
-        # 清理属性
+        nodes = []
         for item in data:
             if "properties" in item:
                 props = item["properties"]
                 item["properties"] = {
                     k: v for k, v in props.items() if not k.startswith("__")
                 }
+            
+            labels = [l for l in item.get('labels', []) if not l.startswith('__')]
+            nodes.append({
+                "id": item['name'],
+                "label": item['name'],
+                "type": labels[0] if labels else "Entity",
+                "properties": item.get('properties', {})
+            })
+            
+        if nodes:
+             await self._emit_graph_view_event(nodes=nodes, edges=[])
+
         return data
 
     # ==================== 统计查询 ====================
@@ -342,7 +462,7 @@ class GraphTools:
 
 
 # LangChain 工具定义
-def create_langchain_tools(get_session_func):
+def create_langchain_tools(get_session_func, event_emitter=None):
     """创建 LangChain 工具"""
 
     @tool
@@ -355,7 +475,7 @@ def create_langchain_tools(get_session_func):
             类定义列表，包含类名、描述和数据属性
         """
         async with await get_session_func() as session:
-            tools = GraphTools(session)
+            tools = GraphTools(session, event_emitter)
             results = await tools.get_ontology_classes()
             return f"图谱定义了 {len(results)} 个类: " + str(results)
 
@@ -369,7 +489,7 @@ def create_langchain_tools(get_session_func):
             关系定义列表，包含源类、关系类型和目标类
         """
         async with await get_session_func() as session:
-            tools = GraphTools(session)
+            tools = GraphTools(session, event_emitter)
             results = await tools.get_ontology_relationships()
             return f"图谱定义了 {len(results)} 种关系: " + str(results)
 
@@ -384,7 +504,7 @@ def create_langchain_tools(get_session_func):
             类的详细定义
         """
         async with await get_session_func() as session:
-            tools = GraphTools(session)
+            tools = GraphTools(session, event_emitter)
             result = await tools.describe_class(class_name)
             return f"类定义: {result}"
 
@@ -403,7 +523,7 @@ def create_langchain_tools(get_session_func):
             匹配的实例列表
         """
         async with await get_session_func() as session:
-            tools = GraphTools(session)
+            tools = GraphTools(session, event_emitter)
             results = await tools.search_instances(search_term, class_name, limit)
             return f"找到 {len(results)} 个实例: " + str(results)
 
@@ -422,7 +542,7 @@ def create_langchain_tools(get_session_func):
             邻居节点列表
         """
         async with await get_session_func() as session:
-            tools = GraphTools(session)
+            tools = GraphTools(session, event_emitter)
             results = await tools.get_instance_neighbors(instance_name, hops, direction)
             return f"找到 {len(results)} 个邻居: " + str(results)
 
@@ -441,11 +561,12 @@ def create_langchain_tools(get_session_func):
             路径信息（节点和关系）
         """
         async with await get_session_func() as session:
-            tools = GraphTools(session)
+            tools = GraphTools(session, event_emitter)
             result = await tools.find_path_between_instances(
                 start_name, end_name, max_depth
             )
             if result:
+                # result is simplified dict for LLM, full data emitted via event
                 return f"找到路径: {result}"
             return "未找到路径"
 
@@ -461,7 +582,7 @@ def create_langchain_tools(get_session_func):
             实例列表
         """
         async with await get_session_func() as session:
-            tools = GraphTools(session)
+            tools = GraphTools(session, event_emitter)
             results = await tools.get_instances_by_class(class_name, None, limit)
             return f"找到 {len(results)} 个 {class_name} 实例: " + str(results)
 
@@ -476,7 +597,7 @@ def create_langchain_tools(get_session_func):
             统计信息
         """
         async with await get_session_func() as session:
-            tools = GraphTools(session)
+            tools = GraphTools(session, event_emitter)
             result = await tools.get_node_statistics(node_label)
             return f"统计信息: {result}"
 
@@ -488,7 +609,7 @@ def create_langchain_tools(get_session_func):
             关系类型及其数量
         """
         async with await get_session_func() as session:
-            tools = GraphTools(session)
+            tools = GraphTools(session, event_emitter)
             results = await tools.get_relationship_statistics()
             return f"关系统计: {results}"
 

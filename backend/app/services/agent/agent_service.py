@@ -79,6 +79,10 @@ class EnhancedAgentService:
             temperature=0,
         )
 
+        # Initialize Event Emitter for Graph Data
+        from app.rule_engine.event_emitter import GraphEventEmitter
+        self.event_emitter = GraphEventEmitter()
+
         # Create Neo4j session provider
         self._neo4j_driver = None
         self._driver_lock = asyncio.Lock()
@@ -104,7 +108,7 @@ class EnhancedAgentService:
         """Get or create the LangGraph."""
         if self._graph is None:
             # Create query tools registry
-            query_registry = QueryToolRegistry(self._get_session)
+            query_registry = QueryToolRegistry(self._get_session, self.event_emitter)
             query_tools = query_registry.tools
 
             # Create action tools if action_executor and action_registry are available
@@ -140,9 +144,24 @@ class EnhancedAgentService:
             StreamEvent objects with type and content
         """
         from langchain_core.messages import HumanMessage
+        from app.rule_engine.models import GraphViewEvent
+        import asyncio
 
         logger.info(f"=== Agent astream_chat started ===")
         logger.info(f"User query: {query}")
+
+        # Queue for graph events
+        graph_events_queue = asyncio.Queue()
+
+        def on_graph_event(event: Any):
+            if isinstance(event, GraphViewEvent):
+                 try:
+                    graph_events_queue.put_nowait(event)
+                 except Exception as e:
+                     logger.error(f"Error putting event in queue: {e}")
+
+        # Subscribe to graph events
+        self.event_emitter.subscribe(on_graph_event)
 
         # Initial thinking event
         yield {
@@ -150,24 +169,33 @@ class EnhancedAgentService:
             "content": "正在分析您的请求...",
         }
 
-        # Get the graph
-        graph = self._get_graph()
-        action_count = len(self.action_registry._actions) if self.action_registry else 0
-        logger.info(f"Graph created, actions in registry: {action_count}")
-
-        # Create initial state
-        initial_state: AgentState = {
-            "messages": [HumanMessage(content=query)],
-        }
-
-        # Track intent and step
-        current_intent = None
-        content_parts = []
-        processed_messages = set()  # Track already processed messages
-
         try:
+            # Get the graph
+            graph = self._get_graph()
+            action_count = len(self.action_registry._actions) if self.action_registry else 0
+            logger.info(f"Graph created, actions in registry: {action_count}")
+
+            # Create initial state
+            initial_state: AgentState = {
+                "messages": [HumanMessage(content=query)],
+            }
+
+            # Track intent and step
+            current_intent = None
+            processed_messages = set()  # Track already processed messages
+
             # Stream the graph execution
             async for event in graph.astream(initial_state):
+                
+                # Check for graph events from queue
+                while not graph_events_queue.empty():
+                    graph_event = graph_events_queue.get_nowait()
+                    yield {
+                        "type": "graph_data",
+                        "nodes": graph_event.nodes,
+                        "edges": graph_event.edges
+                    }
+
                 # event format: {"node_name": {state_dict}}
                 for node_name, node_state in event.items():
                     if node_state is None:
@@ -206,7 +234,7 @@ class EnhancedAgentService:
                     for msg in messages:
                         msg_id = id(msg)
 
-                        # Check for tool calls
+                        # Check for tool calls (logging only)
                         if hasattr(msg, "tool_calls") and msg.tool_calls:
                             logger.info(f"Tool calls detected: {len(msg.tool_calls)}")
                             for tc in msg.tool_calls:
@@ -232,7 +260,6 @@ class EnhancedAgentService:
                                         "type": "content",
                                         "content": content,
                                     }
-                                    content_parts.append(content)
 
                         # Check for tool messages
                         if hasattr(msg, "type") and msg.type == "tool":
@@ -240,17 +267,8 @@ class EnhancedAgentService:
                             if msg.content:
                                 logger.info(f"  Result: {str(msg.content)[:200]}...")
 
-                    # Check for query results that might have graph data
-                    query_results = node_state.get("query_results", [])
-                    if query_results and current_intent == UserIntent.QUERY:
-                        # Try to extract graph data from query results
-                        graph_data = self._extract_graph_data(query_results)
-                        if graph_data and (graph_data.get("nodes") or graph_data.get("edges")):
-                            yield {
-                                "type": "graph_data",
-                                "nodes": graph_data.get("nodes", [])[:20],
-                                "edges": graph_data.get("edges", [])[:30],
-                            }
+                    # No longer need code here as tool results are processed in the loop above
+                    pass
 
         except Exception as e:
             logger.error(f"Error in astream_chat: {e}", exc_info=True)
@@ -258,67 +276,15 @@ class EnhancedAgentService:
                 "type": "content",
                 "content": f"\n\n抱歉，处理请求时发生错误: {str(e)}",
             }
+        finally:
+             try:
+                 self.event_emitter.unsubscribe(on_graph_event)
+             except Exception:
+                 pass
 
         # Final done event
         yield {"type": "done"}
 
-    def _extract_graph_data(self, query_results: list) -> dict | None:
-        """Extract graph visualization data from query results.
-
-        Args:
-            query_results: List of query execution results
-
-        Returns:
-            Dict with nodes and edges for visualization
-        """
-        nodes = []
-        edges = []
-        seen_nodes = set()
-
-        for step in query_results:
-            if len(step) >= 2:
-                tool_call, tool_result = step[0], step[1]
-
-                # Parse tool result to extract entities
-                result_str = str(tool_result)
-
-                # Try to extract instances from the result
-                # This is a simple heuristic - in production, you'd parse more carefully
-                import re
-
-                # Look for patterns like "PO_2024_001" or "Supplier_001"
-                entity_pattern = r'\b[A-Z][a-zA-Z_]*[_-]\d+[_-]?\d*\b'
-                entities = re.findall(entity_pattern, result_str)
-
-                for entity in entities:
-                    if entity not in seen_nodes:
-                        seen_nodes.add(entity)
-                        # Try to infer type from the entity name
-                        entity_type = "Unknown"
-                        for prefix in ["PO", "Invoice", "Supplier", "Customer"]:
-                            if entity.startswith(prefix):
-                                entity_type = prefix
-                                break
-
-                        nodes.append({
-                            "id": entity,
-                            "label": entity,
-                            "type": entity_type,
-                        })
-
-                # Look for relationship patterns
-                rel_pattern = r'(\w+)\s*--\[(\w+)\]\s*-->\s*(\w+)'
-                relationships = re.findall(rel_pattern, result_str)
-
-                for rel in relationships:
-                    source, rel_type, target = rel
-                    edges.append({
-                        "source": source,
-                        "target": target,
-                        "label": rel_type,
-                    })
-
-        return {"nodes": nodes, "edges": edges} if nodes or edges else None
 
     async def ainvoke(self, query: str) -> AgentState:
         """Invoke the agent and return the final state.

@@ -13,32 +13,8 @@ from app.services.agent.state import AgentState, StreamEvent, UserIntent
 from app.services.agent.graph import create_agent_graph
 from app.services.agent_tools.query_tools import QueryToolRegistry
 from app.services.agent_tools.action_tools import ActionToolRegistry
-from app.core.neo4j_pool import get_neo4j_driver
 
 logger = logging.getLogger(__name__)
-
-
-class Neo4jSessionContext:
-    """Async context manager for Neo4j sessions.
-
-    Ensures the session is properly closed after use, even if errors occur.
-    This avoids issues with async generators being garbage collected too early.
-    """
-
-    def __init__(self, get_driver_func: Callable, database: str):
-        self.get_driver_func = get_driver_func
-        self.database = database
-        self.session = None
-
-    async def __aenter__(self):
-        driver = await self.get_driver_func()
-        self.session = driver.session(database=self.database)
-        return self.session
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
-            await self.session.close()
-            self.session = None
 
 
 class EnhancedAgentService:
@@ -54,7 +30,7 @@ class EnhancedAgentService:
     def __init__(
         self,
         llm_config: dict[str, Any],
-        neo4j_config: dict[str, Any],
+        neo4j_config: dict[str, Any] | None,
         action_executor: Any = None,
         action_registry: Any = None,
     ):
@@ -62,12 +38,12 @@ class EnhancedAgentService:
 
         Args:
             llm_config: LLM configuration dict with api_key, base_url, model
-            neo4j_config: Neo4j configuration dict
+            neo4j_config: Deprecated - Neo4j has been replaced with PostgreSQL
             action_executor: Optional ActionExecutor instance for action execution
             action_registry: Optional ActionRegistry instance for looking up actions
         """
         self.llm_config = llm_config
-        self.neo4j_config = neo4j_config
+        self.neo4j_config = neo4j_config  # Kept for compatibility, now unused
         self.action_executor = action_executor
         self.action_registry = action_registry
 
@@ -79,26 +55,16 @@ class EnhancedAgentService:
             temperature=0,
         )
 
-        # Create Neo4j session provider
-        self._neo4j_driver = None
-        self._driver_lock = asyncio.Lock()
-
         # Initialize graph (lazy loading)
         self._graph = None
 
-    async def _get_driver(self):
-        """Get or create Neo4j driver with thread safety."""
-        async with self._driver_lock:
-            if self._neo4j_driver is None:
-                self._neo4j_driver = await get_neo4j_driver(**self.neo4j_config)
-            return self._neo4j_driver
-
     def _get_session(self):
-        """Get a Neo4j session context manager.
+        """Get a database session context manager.
 
-        Each call returns a new context manager to ensure proper session lifecycle.
+        Returns None since Neo4j has been removed.
+        Query tools now use PostgreSQL directly.
         """
-        return Neo4jSessionContext(self._get_driver, self.neo4j_config["database"])
+        return None
 
     def _get_graph(self):
         """Get or create the LangGraph."""
@@ -398,14 +364,13 @@ class EnhancedAgentService:
                 "reason": f"Action {entity_type}.{action_name} not found",
             }
 
-        # Check if entity exists
-        from app.services.graph_tools import GraphTools
-        from app.core.neo4j_pool import get_neo4j_driver
+        # Check if entity exists using PostgreSQL
+        from app.services.pg_graph_storage import PGGraphStorage
+        from app.core.database import async_session
 
-        driver = await get_neo4j_driver(**self.neo4j_config)
-        async with driver.session(database=self.neo4j_config["database"]) as session:
-            tools = GraphTools(session)
-            instances = await tools.search_instances(entity_id, entity_type, limit=1)
+        async with async_session() as db:
+            storage = PGGraphStorage(db)
+            instances = await storage.search_instances(entity_id, entity_type, limit=1)
 
             if not instances:
                 return {

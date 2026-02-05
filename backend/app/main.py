@@ -14,7 +14,6 @@ from app.rule_engine.rule_registry import RuleRegistry
 from app.rule_engine.rule_engine import RuleEngine
 from app.rule_engine.event_emitter import GraphEventEmitter
 from app.services.rule_storage import RuleStorage
-from app.core.neo4j_pool import get_neo4j_driver
 from app.core.init_db import init_db
 
 app = FastAPI(title="Knowledge Graph QA API")
@@ -34,77 +33,23 @@ async def startup():
 
     # Create event emitter early for dependency injection
     event_emitter = GraphEventEmitter()
-    
+
     action_registry = ActionRegistry()
     action_executor = ActionExecutor(action_registry, event_emitter=event_emitter)
     rule_registry = RuleRegistry()
 
-    # Get global Neo4j config from database
-    async with async_session() as session:
-        from app.models.neo4j_config import Neo4jConfig
-        from sqlalchemy import select
-        from app.core.security import decrypt_data
-
-        result = await session.execute(select(Neo4jConfig).limit(1))
-        db_config = result.scalar_one_or_none()
-
-        neo4j_uri = settings.NEO4J_URI
-        neo4j_user = settings.NEO4J_USERNAME
-        neo4j_pass = settings.NEO4J_PASSWORD
-
-        if db_config:
-            neo4j_uri = decrypt_data(db_config.uri_encrypted)
-            neo4j_user = decrypt_data(db_config.username_encrypted)
-            neo4j_pass = decrypt_data(db_config.password_encrypted)
-
-    # Get Neo4j driver for rule engine
-    neo4j_driver = None
-    if neo4j_uri:
-        try:
-            neo4j_driver = await get_neo4j_driver(
-                uri=neo4j_uri, username=neo4j_user, password=neo4j_pass
-            )
-        except Exception as e:
-            import logging
-
-            logging.getLogger(__name__).error(f"Failed to initialize Neo4j driver: {e}")
-    else:
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "Neo4j not configured, rule engine will start without Neo4j."
-        )
-
-    # event_emitter created earlier
-
-    # Define a driver provider for RuleEngine resilience
-    async def driver_provider():
+    # Create RuleEngine with database session provider
+    # Neo4j has been replaced with PostgreSQL
+    async def get_db_session():
+        """Provide database sessions for rule engine."""
         async with async_session() as session:
-            from app.models.neo4j_config import Neo4jConfig
-            from sqlalchemy import select
-            from app.core.security import decrypt_data
+            yield session
 
-            result = await session.execute(select(Neo4jConfig).limit(1))
-            db_config = result.scalar_one_or_none()
-
-            uri, user, pw = (
-                settings.NEO4J_URI,
-                settings.NEO4J_USERNAME,
-                settings.NEO4J_PASSWORD,
-            )
-            if db_config:
-                uri = decrypt_data(db_config.uri_encrypted)
-                user = decrypt_data(db_config.username_encrypted)
-                pw = decrypt_data(db_config.password_encrypted)
-
-            if not uri:
-                return None
-
-            return await get_neo4j_driver(uri=uri, username=user, password=pw)
-
-    # Create RuleEngine with all dependencies
     rule_engine = RuleEngine(
-        action_registry, rule_registry, neo4j_driver, driver_provider=driver_provider
+        action_registry,
+        rule_registry,
+        db_session=None,
+        session_provider=get_db_session,
     )
 
     # Connect event emitter to rule engine
@@ -184,15 +129,13 @@ async def startup():
     app.state.rule_registry = rule_registry
     app.state.rule_engine = rule_engine
     app.state.rule_storage = rule_storage
-    app.state.neo4j_driver = neo4j_driver
     app.state.event_emitter = event_emitter
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    from app.core.neo4j_pool import close_neo4j
-
-    await close_neo4j()
+    # Cleanup resources
+    pass
 
 
 app.include_router(auth.router)

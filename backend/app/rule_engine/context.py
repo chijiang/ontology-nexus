@@ -1,8 +1,8 @@
 """Evaluation context for expressions."""
 
 from dataclasses import dataclass, field
-from typing import Any
-from neo4j import AsyncSession
+from typing import Any, Optional
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAsyncSession
 
 
 @dataclass
@@ -11,8 +11,13 @@ class EvaluationContext:
 
     entity: dict[str, Any]
     old_values: dict[str, Any]
-    session: AsyncSession | None
+    session: Optional[SQLAsyncSession] = None  # PostgreSQL DB session (renamed from Neo4j session)
     variables: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def db(self) -> Optional[SQLAsyncSession]:
+        """Alias for session for PostgreSQL compatibility."""
+        return self.session
 
     def get_variable(self, name: str) -> Any:
         """Get a variable by name.

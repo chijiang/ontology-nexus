@@ -1,14 +1,18 @@
 # backend/app/api/graph.py
+"""Graph API endpoints using PostgreSQL storage.
+
+Replaces the original Neo4j-based implementation with PostgreSQL.
+"""
+
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from typing import Optional
 from app.core.database import get_db
-from app.core.security import decrypt_data
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.neo4j_config import Neo4jConfig
-from app.core.neo4j_pool import get_neo4j_driver
-from app.services.graph_tools import GraphTools
+from app.services.pg_graph_storage import PGGraphStorage
+from app.services.pg_graph_importer import PGGraphImporter
 from app.rule_engine.event_emitter import GraphEventEmitter
 from fastapi.responses import JSONResponse
 
@@ -21,41 +25,32 @@ async def import_graph(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """导入 OWL 文件"""
-    # 获取 Neo4j 配置
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    neo4j_config = result.scalar_one_or_none()
-    if not neo4j_config:
-        raise HTTPException(status_code=400, detail="Neo4j not configured")
-
+    """导入 OWL/TTL 文件到 PostgreSQL 图存储"""
     content = await file.read()
 
     # 解析并导入
     from app.services.owl_parser import OWLParser
-    from app.services.graph_importer import GraphImporter
 
     parser = OWLParser()
     parser.load_from_string(content.decode("utf-8"))
     schema_triples, instance_triples = parser.classify_triples()
 
-    driver = await get_neo4j_driver(
-        uri=decrypt_data(neo4j_config.uri_encrypted),
-        username=decrypt_data(neo4j_config.username_encrypted),
-        password=decrypt_data(neo4j_config.password_encrypted),
-        database=neo4j_config.database,
+    importer = PGGraphImporter(db)
+    schema_stats = await importer.import_schema(parser)
+    instance_stats = await importer.import_instances(
+        schema_triples, instance_triples
     )
-
-    async with driver.session(database=neo4j_config.database) as session:
-        importer = GraphImporter(session)
-        schema_stats = await importer.import_schema(parser)
-        instance_stats = await importer.import_instances(
-            schema_triples, instance_triples
-        )
 
     return {
         "message": "Graph imported successfully",
         "schema_stats": schema_stats,
         "instance_stats": instance_stats,
+        "total": {
+            "classes": schema_stats.get("classes", 0),
+            "schema_properties": schema_stats.get("properties", 0),
+            "nodes": instance_stats.get("nodes", 0),
+            "relationships": instance_stats.get("relationships", 0),
+        }
     }
 
 
@@ -65,22 +60,8 @@ async def clear_graph(
     db: AsyncSession = Depends(get_db),
 ):
     """清除全部图谱数据"""
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    neo4j_config = result.scalar_one_or_none()
-    if not neo4j_config:
-        raise HTTPException(status_code=400, detail="Neo4j not configured")
-
-    driver = await get_neo4j_driver(
-        uri=decrypt_data(neo4j_config.uri_encrypted),
-        username=decrypt_data(neo4j_config.username_encrypted),
-        password=decrypt_data(neo4j_config.password_encrypted),
-        database=neo4j_config.database,
-    )
-
-    async with driver.session(database=neo4j_config.database) as session:
-        tools = GraphTools(session)
-        await tools.clear_graph()
-
+    storage = PGGraphStorage(db)
+    await storage.clear_graph()
     return {"message": "Graph cleared successfully"}
 
 
@@ -91,54 +72,42 @@ async def get_node(
     db: AsyncSession = Depends(get_db),
 ):
     """获取节点详情"""
-    # 获取配置
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    neo4j_config = result.scalar_one_or_none()
-    if not neo4j_config:
-        raise HTTPException(status_code=400, detail="Neo4j not configured")
+    storage = PGGraphStorage(db)
 
-    driver = await get_neo4j_driver(
-        uri=decrypt_data(neo4j_config.uri_encrypted),
-        username=decrypt_data(neo4j_config.username_encrypted),
-        password=decrypt_data(neo4j_config.password_encrypted),
-        database=neo4j_config.database,
+    # 首先尝试按 name 查找
+    entity = await storage.get_entity_by_name(uri)
+    if entity:
+        return entity
+
+    # 如果没找到，尝试按 URI 查找
+    from app.models.graph import GraphEntity
+    result = await db.execute(
+        select(GraphEntity).where(GraphEntity.uri == uri)
     )
+    entity = result.scalar_one_or_none()
+    if entity:
+        return {
+            "id": entity.id,
+            "name": entity.name,
+            "entity_type": entity.entity_type,
+            "properties": entity.properties or {}
+        }
 
-    async with driver.session(database=neo4j_config.database) as session:
-        # 首先尝试按 name 查找，然后按 uri 查找
-        record = await session.run(
-            "MATCH (n) WHERE n.name = $name OR n.uri = $name RETURN n LIMIT 1", name=uri
-        )
-        data = await record.data()
-        if not data:
-            raise HTTPException(status_code=404, detail="Node not found")
-        return data[0]["n"]
+    raise HTTPException(status_code=404, detail="Node not found")
 
 
 @router.get("/neighbors")
 async def get_neighbors(
     name: str,
     hops: int = 1,
+    direction: str = "both",
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """获取节点邻居"""
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    neo4j_config = result.scalar_one_or_none()
-    if not neo4j_config:
-        raise HTTPException(status_code=400, detail="Neo4j not configured")
-
-    driver = await get_neo4j_driver(
-        uri=decrypt_data(neo4j_config.uri_encrypted),
-        username=decrypt_data(neo4j_config.username_encrypted),
-        password=decrypt_data(neo4j_config.password_encrypted),
-        database=neo4j_config.database,
-    )
-
-    async with driver.session(database=neo4j_config.database) as session:
-        tools = GraphTools(session)
-        neighbors = await tools.get_instance_neighbors(name, hops)
-        return neighbors
+    storage = PGGraphStorage(db)
+    neighbors = await storage.get_instance_neighbors(name, hops, direction)
+    return neighbors
 
 
 @router.post("/path")
@@ -150,66 +119,22 @@ async def find_path(
     db: AsyncSession = Depends(get_db),
 ):
     """查找路径"""
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    neo4j_config = result.scalar_one_or_none()
-    if not neo4j_config:
-        raise HTTPException(status_code=400, detail="Neo4j not configured")
-
-    driver = await get_neo4j_driver(
-        uri=decrypt_data(neo4j_config.uri_encrypted),
-        username=decrypt_data(neo4j_config.username_encrypted),
-        password=decrypt_data(neo4j_config.password_encrypted),
-        database=neo4j_config.database,
-    )
-
-    async with driver.session(database=neo4j_config.database) as session:
-        tools = GraphTools(session)
-        path = await tools.find_path_between_nodes(start_uri, end_uri, max_depth)
-        return path
+    storage = PGGraphStorage(db)
+    path = await storage.find_path_between_instances(start_uri, end_uri, max_depth)
+    if not path:
+        raise HTTPException(status_code=404, detail="Path not found")
+    return path
 
 
 @router.get("/statistics")
 async def get_statistics(
-    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """获取图谱统计"""
-    from neo4j.exceptions import ServiceUnavailable, SessionExpired
-    from app.core.neo4j_pool import invalidate_driver
-
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    neo4j_config = result.scalar_one_or_none()
-    if not neo4j_config:
-        raise HTTPException(status_code=400, detail="Neo4j not configured")
-
-    uri = decrypt_data(neo4j_config.uri_encrypted)
-    username = decrypt_data(neo4j_config.username_encrypted)
-    password = decrypt_data(neo4j_config.password_encrypted)
-
-    # 尝试两次：第一次失败后刷新连接重试
-    for attempt in range(2):
-        try:
-            driver = await get_neo4j_driver(
-                uri=uri,
-                username=username,
-                password=password,
-                database=neo4j_config.database,
-                force_new=(attempt > 0),  # 第二次尝试时强制新连接
-            )
-
-            async with driver.session(database=neo4j_config.database) as session:
-                tools = GraphTools(session)
-                stats = await tools.get_node_statistics()
-                return stats
-
-        except (ServiceUnavailable, SessionExpired, OSError) as e:
-            if attempt == 0:
-                # 第一次失败，使连接失效并重试
-                await invalidate_driver(uri, username)
-                continue
-            else:
-                raise HTTPException(
-                    status_code=503, detail=f"Neo4j connection failed: {str(e)}"
-                )
+    storage = PGGraphStorage(db)
+    stats = await storage.get_graph_statistics()
+    return stats
 
 
 @router.get("/nodes")
@@ -220,22 +145,9 @@ async def get_nodes_by_label(
     db: AsyncSession = Depends(get_db),
 ):
     """根据标签获取节点"""
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    neo4j_config = result.scalar_one_or_none()
-    if not neo4j_config:
-        raise HTTPException(status_code=400, detail="Neo4j not configured")
-
-    driver = await get_neo4j_driver(
-        uri=decrypt_data(neo4j_config.uri_encrypted),
-        username=decrypt_data(neo4j_config.username_encrypted),
-        password=decrypt_data(neo4j_config.password_encrypted),
-        database=neo4j_config.database,
-    )
-
-    async with driver.session(database=neo4j_config.database) as session:
-        tools = GraphTools(session)
-        nodes = await tools.get_instances_by_class(label, None, limit)
-        return nodes
+    storage = PGGraphStorage(db)
+    nodes = await storage.get_instances_by_class(label, None, limit)
+    return nodes
 
 
 @router.get("/schema")
@@ -244,60 +156,18 @@ async def get_schema(
     db: AsyncSession = Depends(get_db),
 ):
     """获取 Schema 图（类和关系定义）"""
-    from neo4j.exceptions import ServiceUnavailable, SessionExpired
-    from app.core.neo4j_pool import invalidate_driver
+    storage = PGGraphStorage(db)
 
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    neo4j_config = result.scalar_one_or_none()
-    if not neo4j_config:
-        raise HTTPException(status_code=400, detail="Neo4j not configured")
+    # 获取所有 Schema 类节点
+    nodes_data = await storage.get_ontology_classes()
 
-    uri = decrypt_data(neo4j_config.uri_encrypted)
-    username = decrypt_data(neo4j_config.username_encrypted)
-    password = decrypt_data(neo4j_config.password_encrypted)
+    # 获取所有 Schema 关系
+    rels_data = await storage.get_ontology_relationships()
 
-    for attempt in range(2):
-        try:
-            driver = await get_neo4j_driver(
-                uri=uri,
-                username=username,
-                password=password,
-                database=neo4j_config.database,
-                force_new=(attempt > 0),
-            )
-
-            async with driver.session(database=neo4j_config.database) as session:
-                # 获取所有 Schema 类节点
-                nodes_result = await session.run(
-                    """
-                    MATCH (c:Class:__Schema)
-                    RETURN c.name as name, c.label as label, c.dataProperties as dataProperties
-                    """
-                )
-                nodes_data = await nodes_result.data()
-
-                # 获取所有 Schema 关系
-                rels_result = await session.run(
-                    """
-                    MATCH (c1:Class:__Schema)-[r]->(c2:Class:__Schema)
-                    RETURN c1.name as source, type(r) as type, c2.name as target
-                    """
-                )
-                rels_data = await rels_result.data()
-
-                return {
-                    "nodes": nodes_data,
-                    "relationships": rels_data,
-                }
-
-        except (ServiceUnavailable, SessionExpired, OSError) as e:
-            if attempt == 0:
-                await invalidate_driver(uri, username)
-                continue
-            else:
-                raise HTTPException(
-                    status_code=503, detail=f"Neo4j connection failed: {str(e)}"
-                )
+    return {
+        "nodes": nodes_data,
+        "relationships": rels_data,
+    }
 
 
 @router.get("/instances/search")
@@ -308,49 +178,15 @@ async def search_instances(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """搜索实例，支持类名、关键词和属性过滤"""
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    neo4j_config = result.scalar_one_or_none()
-    if not neo4j_config:
-        raise HTTPException(status_code=400, detail="Neo4j not configured")
+    """搜索实例，支持类名、关键词"""
+    storage = PGGraphStorage(db)
 
-    driver = await get_neo4j_driver(
-        uri=decrypt_data(neo4j_config.uri_encrypted),
-        username=decrypt_data(neo4j_config.username_encrypted),
-        password=decrypt_data(neo4j_config.password_encrypted),
-        database=neo4j_config.database,
-    )
+    if keyword:
+        instances = await storage.search_instances(keyword, class_name, limit)
+    else:
+        instances = await storage.get_instances_by_class(class_name, None, limit)
 
-    async with driver.session(database=neo4j_config.database) as session:
-        # 构建查询
-        conditions = ["n.__is_instance = true"]
-        params = {"limit": limit}
-
-        if keyword:
-            conditions.append("n.name CONTAINS $keyword")
-            params["keyword"] = keyword
-
-        where_clause = " AND ".join(conditions)
-
-        query = f"""
-            MATCH (n:`{class_name}`)
-            WHERE {where_clause}
-            RETURN n.name AS name, properties(n) AS properties
-            LIMIT $limit
-        """
-
-        result = await session.run(query, **params)
-        data = await result.data()
-
-        # 清理属性
-        for item in data:
-            if "properties" in item:
-                props = item["properties"]
-                item["properties"] = {
-                    k: v for k, v in props.items() if not k.startswith("__")
-                }
-
-        return data
+    return instances
 
 
 @router.put("/entities/{entity_type}/{entity_id}")
@@ -363,22 +199,49 @@ async def update_entity(
     db: AsyncSession = Depends(get_db),
 ):
     """Update an entity and emit events for rule engine."""
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    neo4j_config = result.scalar_one_or_none()
-    if not neo4j_config:
-        raise HTTPException(status_code=400, detail="Neo4j not configured")
-
-    driver = await get_neo4j_driver(
-        uri=decrypt_data(neo4j_config.uri_encrypted),
-        username=decrypt_data(neo4j_config.username_encrypted),
-        password=decrypt_data(neo4j_config.password_encrypted),
-        database=neo4j_config.database,
+    # Get event emitter from app state
+    event_emitter: Optional[GraphEventEmitter] = getattr(
+        request.app.state, "event_emitter", None
     )
 
-    # Get event emitter from app state
-    event_emitter: GraphEventEmitter = request.app.state.event_emitter
+    storage = PGGraphStorage(db, event_emitter=event_emitter)
+    result = await storage.update_entity(entity_type, entity_id, updates)
+    return result
 
-    async with driver.session(database=neo4j_config.database) as session:
-        tools = GraphTools(session, event_emitter=event_emitter)
-        result = await tools.update_entity(entity_type, entity_id, updates)
-        return result
+
+@router.get("/classes")
+async def get_classes(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取所有类定义"""
+    storage = PGGraphStorage(db)
+    classes = await storage.get_ontology_classes()
+    return classes
+
+
+@router.get("/relationships/schema")
+async def get_schema_relationships(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取 Schema 关系定义"""
+    storage = PGGraphStorage(db)
+    relationships = await storage.get_ontology_relationships()
+    return relationships
+
+
+@router.get("/describe/{class_name}")
+async def describe_class(
+    class_name: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """描述一个类的定义"""
+    storage = PGGraphStorage(db)
+    result = await storage.describe_class(class_name)
+
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+
+    return result

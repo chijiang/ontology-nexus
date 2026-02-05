@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.core.database import async_session, engine, Base
 from app.core.security import hash_password
 # Import all models to register them with Base
-from app.models import User, LLMConfig, Neo4jConfig
+from app.models import User, LLMConfig
 
 
 async def init_db():

@@ -1,12 +1,12 @@
-"""Rule engine package for reactive state management over Neo4j.
+"""Rule engine package for reactive state management over PostgreSQL graph.
 
 This package provides a complete DSL-based rule engine for defining and
-executing reactive rules over a Neo4j knowledge graph. It supports:
+executing reactive rules over a PostgreSQL knowledge graph. It supports:
 
 - ACTION definitions with preconditions and effects
 - RULE definitions triggered by graph events
 - Expression evaluation with built-in functions
-- Cypher translation for graph queries
+- SQL/PGQ translation for graph queries
 - Event-driven rule execution
 """
 
@@ -25,8 +25,8 @@ from app.rule_engine.rule_engine import RuleEngine
 from app.rule_engine.context import EvaluationContext
 from app.rule_engine.evaluator import ExpressionEvaluator
 
-# Cypher translator
-from app.rule_engine.cypher_translator import CypherTranslator
+# SQL/PGQ translator (replaces CypherTranslator)
+from app.rule_engine.pgq_translator import PGQTranslator
 
 # Event emitter
 from app.rule_engine.event_emitter import GraphEventEmitter
@@ -69,8 +69,8 @@ __all__ = [
     # Evaluation context and expression evaluator
     "EvaluationContext",
     "ExpressionEvaluator",
-    # Cypher translator
-    "CypherTranslator",
+    # SQL/PGQ translator (replaces CypherTranslator)
+    "PGQTranslator",
     # Event emitter
     "GraphEventEmitter",
     # Built-in functions

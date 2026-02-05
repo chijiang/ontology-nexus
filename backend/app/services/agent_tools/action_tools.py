@@ -98,27 +98,23 @@ async def _get_entity_data(
     entity_id: str,
     get_session_func: Callable
 ) -> dict[str, Any]:
-    """Get entity data from Neo4j.
+    """Get entity data from PostgreSQL.
 
     Args:
-        entity_type: Entity type/label
+        entity_type: Entity type
         entity_id: Entity ID (name property)
-        get_session_func: Function to get Neo4j session
+        get_session_func: Function to get database session
 
     Returns:
         Entity data dict
     """
-    from neo4j import AsyncSession
+    from app.services.pg_graph_storage import PGGraphStorage
 
-    async def _execute(session: AsyncSession) -> dict:
-        query = f"""
-            MATCH (n:`{entity_type}` {{name: $id}})
-            RETURN properties(n) AS props
-        """
-        result = await session.run(query, id=entity_id)
-        record = await result.single()
-        if record:
-            return dict(record["props"])
+    async def _execute(session) -> dict:
+        storage = PGGraphStorage(session)
+        results = await storage.search_instances(entity_id, entity_type, limit=1)
+        if results:
+            return results[0].get("properties", {})
         return {}
 
     return await _execute_with_session(get_session_func, _execute)
@@ -128,17 +124,20 @@ async def _execute_with_session(
     get_session_func: Callable,
     func: Callable
 ) -> Any:
-    """Execute a function with a Neo4j session.
+    """Execute a function with a database session.
 
     Args:
-        get_session_func: Function that returns a session context manager
+        get_session_func: Function that returns a session
         func: Function to execute with session
 
     Returns:
         Result of the function
     """
-    async with get_session_func() as session:
+    session = await get_session_func()
+    try:
         return await func(session)
+    finally:
+        pass  # Session managed by caller
 
 
 def create_action_tools(
@@ -149,7 +148,7 @@ def create_action_tools(
     """Create LangChain-compatible action tools.
 
     Args:
-        get_session_func: Async function that returns a Neo4j session
+        get_session_func: Async function that returns a database session
         action_executor: ActionExecutor instance
         action_registry: ActionRegistry instance
 
@@ -295,14 +294,9 @@ def create_action_tools(
             return f"错误: 未找到实体 '{entity_id}' (类型: {entity_type})"
 
         # Create evaluation context
-        from app.core.neo4j_pool import get_neo4j_driver
-        from app.services.agent.agent_service import EnhancedAgentService
-
-        # Need to get neo4j_config - this is a limitation
-        # For now, we'll create a simple context without session
-        # Execute the action
-        async with get_session_func() as session:
-            # Create evaluation context with session
+        # Execute the action using the session from get_session_func
+        session = await get_session_func()
+        try:
             context = EvaluationContext(
                 entity={"id": entity_id, **entity_data},
                 old_values={},
@@ -310,6 +304,8 @@ def create_action_tools(
                 variables=params
             )
             result = await action_executor.execute(entity_type, action_name, context)
+        finally:
+            pass  # Session managed by caller
 
         if result.success:
             changes_str = ", ".join([f"{k}={v}" for k, v in result.changes.items()])
@@ -441,7 +437,7 @@ class ActionToolRegistry:
         """Initialize the action tool registry.
 
         Args:
-            get_session_func: Async function that returns a Neo4j session
+            get_session_func: Async function that returns a database session
             action_executor: ActionExecutor instance
             action_registry: ActionRegistry instance
         """

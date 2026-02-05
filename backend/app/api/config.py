@@ -1,17 +1,14 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import encrypt_data, decrypt_data
-from app.core.neo4j_pool import get_neo4j_driver
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.llm_config import LLMConfig
-from app.models.neo4j_config import Neo4jConfig
 from app.schemas.config import (
     LLMConfigRequest, LLMConfigResponse,
-    Neo4jConfigRequest, Neo4jConfigResponse,
     TestConnectionResponse
 )
 from langchain_openai import ChatOpenAI
@@ -90,106 +87,5 @@ async def test_llm_connection(
         )
         await llm.ainvoke("test")
         return TestConnectionResponse(success=True, message="LLM connection successful")
-    except Exception as e:
-        return TestConnectionResponse(success=False, message=str(e))
-
-
-@router.get("/neo4j", response_model=Neo4jConfigResponse)
-async def get_neo4j_config(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    config = result.scalar_one_or_none()
-
-    if not config:
-        return Neo4jConfigResponse(uri="", username="", database="neo4j", has_password=False)
-
-    return Neo4jConfigResponse(
-        uri=decrypt_data(config.uri_encrypted),
-        username=decrypt_data(config.username_encrypted),
-        database=config.database,
-        has_password=bool(config.password_encrypted)
-    )
-
-
-@router.put("/neo4j")
-async def update_neo4j_config(
-    req: Neo4jConfigRequest,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    result = await db.execute(select(Neo4jConfig).limit(1))
-    config = result.scalar_one_or_none()
-
-    if config:
-        config.uri_encrypted = encrypt_data(req.uri)
-        config.username_encrypted = encrypt_data(req.username)
-        if req.password != "************":
-            config.password_encrypted = encrypt_data(req.password)
-        config.database = req.database
-        config.updated_at = datetime.utcnow()
-    else:
-        if req.password == "************":
-            raise HTTPException(status_code=400, detail="Cannot use placeholder for new configuration")
-        config = Neo4jConfig(
-            uri_encrypted=encrypt_data(req.uri),
-            username_encrypted=encrypt_data(req.username),
-            password_encrypted=encrypt_data(req.password),
-            database=req.database
-        )
-        db.add(config)
-
-    await db.commit()
-
-    # Refresh driver in app state
-    password = req.password
-    if password == "************":
-        password = decrypt_data(config.password_encrypted)
-
-    try:
-        new_driver = await get_neo4j_driver(
-            uri=req.uri,
-            username=req.username,
-            password=password,
-            database=req.database,
-            force_new=True
-        )
-        request.app.state.neo4j_driver = new_driver
-        if hasattr(request.app.state, 'rule_engine'):
-            request.app.state.rule_engine.neo4j_driver = new_driver
-    except Exception as e:
-        # We still commit the config, but warn that the driver refresh failed
-        return {"message": f"Neo4j config updated, but failed to refresh driver: {e}"}
-
-    return {"message": "Neo4j config updated"}
-
-
-@router.post("/test/neo4j", response_model=TestConnectionResponse)
-async def test_neo4j_connection(
-    req: Neo4jConfigRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    try:
-        password = req.password
-        if password == "************":
-            result = await db.execute(select(Neo4jConfig).limit(1))
-            config = result.scalar_one_or_none()
-            if not config:
-                return TestConnectionResponse(success=False, message="No saved password found")
-            password = decrypt_data(config.password_encrypted)
-
-        driver = await get_neo4j_driver(
-            uri=req.uri,
-            username=req.username,
-            password=password,
-            database=req.database
-        )
-        async with driver.session(database=req.database) as session:
-            result = await session.run("RETURN 1 AS n")
-            await result.data()
-        return TestConnectionResponse(success=True, message="Neo4j connection successful")
     except Exception as e:
         return TestConnectionResponse(success=False, message=str(e))

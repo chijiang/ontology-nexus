@@ -1,14 +1,15 @@
 """Query tools for the enhanced agent.
 
-These tools wrap the existing GraphTools functionality into LangChain-compatible tools.
+These tools wrap the PostgreSQL graph storage functionality into LangChain-compatible tools.
+Neo4j has been removed in favor of PostgreSQL + SQL/PGQ.
 """
 
-from typing import Any, Callable, AsyncContextManager
+from typing import Any, Callable
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
-from neo4j import AsyncSession
 
-from app.services.graph_tools import GraphTools
+from app.services.pg_graph_storage import PGGraphStorage
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class SearchInstancesInput(BaseModel):
@@ -59,34 +60,36 @@ class EmptyInput(BaseModel):
     pass
 
 
-async def _get_session(get_session_func: Callable) -> Any:
-    """Get the session context manager from the session function."""
-    return get_session_func()
+async def _get_session(get_session_func: Callable) -> AsyncSession:
+    """Get the database session from the session function."""
+    return await get_session_func()
 
 
 async def _execute_with_session(
     get_session_func: Callable,
-    func: Callable[[GraphTools], Any]
+    func: Callable,
 ) -> Any:
-    """Execute a function with a GraphTools session.
+    """Execute a function with a PostgreSQL graph storage instance.
 
     Args:
-        get_session_func: Function that returns a session context manager
-        func: Function to execute with GraphTools instance
+        get_session_func: Function that returns a database session
+        func: Function to execute with storage instance
 
     Returns:
         Result of the function
     """
-    async with await _get_session(get_session_func) as session:
-        tools = GraphTools(session)
-        return await func(tools)
+    session = await _get_session(get_session_func)
+    tools = PGGraphStorage(session)
+    return await func(tools)
 
 
-def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTool]:
+def create_query_tools(
+    get_session_func: Callable[[], AsyncSession],
+) -> list[StructuredTool]:
     """Create LangChain-compatible query tools.
 
     Args:
-        get_session_func: Async function that returns a Neo4j session
+        get_session_func: Async function that returns a database session
 
     Returns:
         List of StructuredTool instances
@@ -109,7 +112,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
         Returns:
             匹配的实例列表及其属性
         """
-        async def _execute(tools: GraphTools) -> str:
+        async def _execute(tools) -> str:
             results = await tools.search_instances(search_term, class_name, limit)
 
             if not results:
@@ -146,7 +149,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
         Returns:
             该类型的实例列表
         """
-        async def _execute(tools: GraphTools) -> str:
+        async def _execute(tools) -> str:
             # 不传递 filters，使用 None
             results = await tools.get_instances_by_class(class_name, None, limit)
 
@@ -184,7 +187,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
         Returns:
             邻居节点列表和关系
         """
-        async def _execute(tools: GraphTools) -> str:
+        async def _execute(tools) -> str:
             results = await tools.get_instance_neighbors(instance_name, hops, direction)
 
             if not results:
@@ -222,7 +225,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
         Returns:
             路径信息或未找到的消息
         """
-        async def _execute(tools: GraphTools) -> str:
+        async def _execute(tools) -> str:
             result = await tools.find_path_between_instances(start_name, end_name, max_depth)
 
             if not result:
@@ -254,7 +257,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
         Returns:
             类的详细定义
         """
-        async def _execute(tools: GraphTools) -> str:
+        async def _execute(tools) -> str:
             result = await tools.describe_class(class_name)
 
             if "error" in result:
@@ -291,7 +294,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
         Returns:
             所有类定义的列表
         """
-        async def _execute(tools: GraphTools) -> str:
+        async def _execute(tools) -> str:
             results = await tools.get_ontology_classes()
 
             if not results:
@@ -317,7 +320,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
         Returns:
             所有关系定义的列表
         """
-        async def _execute(tools: GraphTools) -> str:
+        async def _execute(tools) -> str:
             results = await tools.get_ontology_relationships()
 
             if not results:
@@ -345,7 +348,7 @@ def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTo
         Returns:
             统计信息
         """
-        async def _execute(tools: GraphTools) -> str:
+        async def _execute(tools) -> str:
             result = await tools.get_node_statistics(node_label)
 
             if node_label:
@@ -423,11 +426,11 @@ class QueryToolRegistry:
     a convenient interface for tool creation and management.
     """
 
-    def __init__(self, get_session_func: Callable[[], Any]):
+    def __init__(self, get_session_func: Callable[[], AsyncSession]):
         """Initialize the query tool registry.
 
         Args:
-            get_session_func: Async function that returns a Neo4j session
+            get_session_func: Async function that returns a database session
         """
         self.get_session_func = get_session_func
         self._tools: list[StructuredTool] | None = None

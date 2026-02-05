@@ -132,12 +132,8 @@ async def execute_action(
     # Build entity dict with id and data
     entity = {"id": request.entity_id, **request.entity_data}
 
-    # Get Neo4j driver from app state
-    driver = fastapi_request.app.state.neo4j_driver
+    # Get database session from app state (no Neo4j needed)
     session = None
-    if driver:
-        # Use a session for graph-based preconditions
-        session = driver.session()
 
     try:
         context = EvaluationContext(
@@ -167,33 +163,16 @@ async def execute_action(
 
     # Success! Now persist changes if any
     if result.changes:
-        from app.models.neo4j_config import Neo4jConfig
-        from app.core.security import decrypt_data
-        from app.core.neo4j_pool import get_neo4j_driver
-        from app.services.graph_tools import GraphTools
+        from app.services.pg_graph_storage import PGGraphStorage
 
-        # 1. Get Neo4j config
-        stmt = select(Neo4jConfig).limit(1)
-        res = await db.execute(stmt)
-        neo4j_config = res.scalar_one_or_none()
+        # Get event emitter
+        event_emitter = getattr(fastapi_request.app.state, "event_emitter", None)
 
-        if neo4j_config:
-            driver = await get_neo4j_driver(
-                uri=decrypt_data(neo4j_config.uri_encrypted),
-                username=decrypt_data(neo4j_config.username_encrypted),
-                password=decrypt_data(neo4j_config.password_encrypted),
-                database=neo4j_config.database,
-            )
-
-            # 2. Get event emitter
-            event_emitter = getattr(fastapi_request.app.state, "event_emitter", None)
-
-            # 3. Apply updates via GraphTools to trigger rules
-            async with driver.session(database=neo4j_config.database) as session:
-                tools = GraphTools(session, event_emitter=event_emitter)
-                await tools.update_entity(
-                    entity_type, request.entity_id, result.changes
-                )
+        # Apply updates via PGGraphStorage to trigger rules
+        storage = PGGraphStorage(db, event_emitter=event_emitter)
+        await storage.update_entity(
+            entity_type, request.entity_id, result.changes
+        )
 
     return {
         "success": True,

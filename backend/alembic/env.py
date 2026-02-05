@@ -12,11 +12,33 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import your models and Base
 from app.core.database import Base
-from app.models import User, LLMConfig, Neo4jConfig, Conversation, Message, Rule, ActionDefinition
+from app.models import (
+    User,
+    LLMConfig,
+    Conversation,
+    Message,
+    Rule,
+    ActionDefinition,
+    GraphEntity,
+    GraphRelationship,
+    SchemaClass,
+    SchemaRelationship,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# 从环境变量读取 DATABASE_URL
+from app.core.config import settings
+database_url = settings.effective_database_url
+
+# Alembic 需要使用同步驱动，将 asyncpg 替换为 psycopg2 或 postgresql+pg8000
+# 为了迁移方便，直接替换 URL 前缀
+if database_url.startswith("postgresql+asyncpg://"):
+    sync_database_url = database_url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
+else:
+    sync_database_url = database_url
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -47,9 +69,8 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=sync_database_url,  # 使用同步 URL
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -66,8 +87,12 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # 使用同步 URL
+    configuration = config.get_section(config.config_ini_section, {})
+    configuration["sqlalchemy.url"] = sync_database_url
+
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

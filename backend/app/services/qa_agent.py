@@ -376,8 +376,8 @@ class QAAgent:
             if graph_nodes:
                 yield {
                     "type": "graph_data",
-                    "nodes": graph_nodes[:20],
-                    "edges": graph_edges[:30],
+                    "nodes": graph_nodes,
+                    "edges": graph_edges,
                 }
 
         yield {"type": "done"}

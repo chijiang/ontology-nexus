@@ -31,11 +31,12 @@ export const configApi = {
   testLLM: (data: { api_key: string; base_url: string; model: string }) =>
     api.post('/config/test/llm', data),
 
-  getNeo4j: () => api.get('/config/neo4j'),
-  updateNeo4j: (data: { uri: string; username: string; password: string; database?: string }) =>
-    api.put('/config/neo4j', data),
-  testNeo4j: (data: { uri: string; username: string; password: string }) =>
-    api.post('/config/test/neo4j', data),
+  // PostgreSQL configuration (future enhancement)
+  // getPostgreSQL: () => api.get('/config/postgresql'),
+  // updatePostgreSQL: (data: { uri: string; username: string; password: string; database?: string }) =>
+  //   api.put('/config/postgresql', data),
+  // testPostgreSQL: (data: { uri: string; username: string; password: string }) =>
+  //   api.post('/config/test/postgresql', data),
 }
 
 export const chatApi = {

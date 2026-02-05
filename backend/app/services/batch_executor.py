@@ -72,7 +72,7 @@ class StreamingBatchExecutor:
 
         Args:
             action_executor: ActionExecutor instance
-            get_session_func: Async function to get Neo4j session
+            get_session_func: Async function to get database session
             get_entity_data_func: Optional function to get entity data
         """
         self.action_executor = action_executor
@@ -256,7 +256,7 @@ class StreamingBatchExecutor:
             return await self.action_executor.execute(entity_type, action_name, context)
 
     async def _get_entity_data(self, entity_type: str, entity_id: str) -> dict[str, Any]:
-        """Get entity data from Neo4j.
+        """Get entity data from PostgreSQL.
 
         Args:
             entity_type: Entity type
@@ -268,21 +268,15 @@ class StreamingBatchExecutor:
         if self.get_entity_data_func:
             return await self.get_entity_data_func(entity_type, entity_id)
 
-        # Default implementation
-        async def _query(session) -> dict:
-            query = f"""
-                MATCH (n:`{entity_type}` {{name: $id}})
-                RETURN properties(n) AS props
-            """
-            result = await session.run(query, id=entity_id)
-            record = await result.single()
-            if record:
-                return dict(record["props"])
-            return {}
+        # Default implementation using PostgreSQL
+        from app.services.pg_graph_storage import PGGraphStorage
 
-        # Execute with session
-        async with self.get_session_func() as session:
-            return await _query(session)
+        session = await self.get_session_func()
+        storage = PGGraphStorage(session)
+        results = await storage.search_instances(entity_id, entity_type, limit=1)
+        if results:
+            return results[0].get("properties", {})
+        return {}
 
 
 class BatchActionExecutor(StreamingBatchExecutor):

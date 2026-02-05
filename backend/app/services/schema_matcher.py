@@ -5,9 +5,10 @@ import jieba
 from difflib import SequenceMatcher
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from app.core.security import decrypt_data
-from app.models.llm_config import LLMConfig
-from app.models.neo4j_config import Neo4jConfig
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+from app.models.graph import SchemaClass, SchemaRelationship
 
 
 class SchemaMatcher:
@@ -18,15 +19,14 @@ class SchemaMatcher:
     - Instance (实例): 实际的数据节点和关系
     """
 
-    def __init__(self, neo4j_session, llm_config: dict, neo4j_config: dict):
-        self.session = neo4j_session
+    def __init__(self, db: AsyncSession, llm_config: dict):
+        self.db = db
         self.llm = ChatOpenAI(
             api_key=llm_config["api_key"],
             base_url=llm_config["base_url"],
             model=llm_config["model"],
             temperature=0,
         )
-        self.neo4j_config = neo4j_config
         self.classes = {}  # Ontology: 类定义
         self.relationships = {}  # Ontology: 关系定义 (ObjectProperty)
         self.data_properties = {}  # Ontology: 数据属性定义
@@ -45,37 +45,31 @@ class SchemaMatcher:
             self.synonyms = {}
 
     async def _load_schema(self):
-        """从 Neo4j 加载 Schema (Ontology 层)"""
-        # 加载所有类 (Class 节点)
-        result = await self.session.run(
-            """
-            MATCH (c:Class:__Schema)
-            RETURN c.name as name, c.label as label, c.dataProperties as dataProperties
-        """
-        )
-        classes_data = await result.data()
+        """从 PostgreSQL 加载 Schema (Ontology 层)"""
+        # 加载所有类
+        result = await self.db.execute(select(SchemaClass))
+        classes = result.scalars().all()
         self.classes = {
-            record["name"]: {
-                "label": record.get("label"),
-                "dataProperties": record.get("dataProperties", []),
+            c.name: {
+                "label": c.label,
+                "dataProperties": c.data_properties or [],
             }
-            for record in classes_data
+            for c in classes
         }
 
-        # 加载关系定义 (Class 之间的关系)
-        result = await self.session.run(
-            """
-            MATCH (c1:Class:__Schema)-[r]->(c2:Class:__Schema)
-            RETURN c1.name as source, type(r) as type, c2.name as target
-        """
+        # 加载关系定义
+        result = await self.db.execute(
+            select(SchemaRelationship)
+            .options(selectinload(SchemaRelationship.source_class))
+            .options(selectinload(SchemaRelationship.target_class))
         )
-        rels_data = await result.data()
-        for record in rels_data:
-            rel_type = record["type"]
+        rels = result.scalars().all()
+        for rel in rels:
+            rel_type = rel.relationship_type
             if rel_type not in self.relationships:
                 self.relationships[rel_type] = []
             self.relationships[rel_type].append(
-                {"source": record["source"], "target": record["target"]}
+                {"source": rel.source_class.name, "target": rel.target_class.name}
             )
 
     def _tokenize(self, text: str) -> List[str]:

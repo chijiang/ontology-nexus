@@ -3,7 +3,8 @@
 from typing import Any
 from app.rule_engine.context import EvaluationContext
 from app.rule_engine.functions import evaluate_function
-from app.rule_engine.cypher_translator import CypherTranslator
+# Use PGQ translator instead of Cypher translator
+from app.rule_engine.pgq_translator import PGQTranslator
 
 
 class ExpressionEvaluator:
@@ -20,7 +21,7 @@ class ExpressionEvaluator:
             context: Evaluation context containing entity data and variables
         """
         self.ctx = context
-        self.translator = CypherTranslator()
+        self.translator = PGQTranslator()
 
     async def evaluate(self, ast: Any) -> Any:
         """Evaluate an AST node to a value.
@@ -165,7 +166,7 @@ class ExpressionEvaluator:
         return evaluate_function(name, evaluated_args)
 
     async def _evaluate_exists(self, pattern: Any) -> bool:
-        """Evaluate EXISTS check via Neo4j.
+        """Evaluate EXISTS check via PostgreSQL.
 
         Args:
             pattern: Graph pattern AST node
@@ -173,7 +174,7 @@ class ExpressionEvaluator:
         Returns:
             True if pattern exists, False otherwise
         """
-        if not self.ctx.session:
+        if not self.ctx.db:
             # If no session, we can't check the graph
             # This might happen in dry-runs or local-only evaluations
             return False
@@ -182,17 +183,18 @@ class ExpressionEvaluator:
         entity_id = self.ctx.entity.get("id") or self.ctx.entity.get("name")
         entity_type = self.ctx.entity.get("__type__")
         if entity_id:
-            self.translator.bind_variable("this", entity_type, entity_id)
+            self.translator.bind_variable("this", entity_type, str(entity_id))
 
         try:
-            # Translate pattern to Cypher
-            pattern_cypher = self.translator._translate_pattern(pattern)
-            query = f"MATCH {pattern_cypher} RETURN count(*) > 0 as exists"
+            # Translate pattern to SQL/PGQ
+            pattern_sql = self.translator._translate_pattern(pattern)
+            query = f"SELECT EXISTS ({pattern_sql}) as exists"
 
             # Execute query
-            result = await self.ctx.session.run(query, this_id=entity_id)
-            record = await result.single()
-            return record["exists"] if record else False
+            from sqlalchemy import text
+            result = await self.ctx.db.execute(text(query))
+            record = result.first()
+            return record[0] if record else False
         finally:
             self.translator.unbind_variable("this")
 

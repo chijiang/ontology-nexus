@@ -107,32 +107,46 @@ class ActionExecutor:
         session: Any,
         context_entity: dict[str, Any] | None = None
     ):
-        """Persist property changes to Neo4j.
+        """Persist property changes to PostgreSQL.
 
         Args:
-            entity_type: Entity label
+            entity_type: Entity type/label
             entity_id: Entity name property
             changes: Dictionary of properties to update
-            session: Active Neo4j session
+            session: Active PostgreSQL DB session
         """
-        # Generate SET clause
-        set_parts = []
-        for i, key in enumerate(changes.keys()):
-            set_parts.append(f"n.`{key}` = $val{i}")
+        from sqlalchemy import update
+        from app.models.graph import GraphEntity
 
-        query = f"""
-            MATCH (n:`{entity_type}` {{name: $id}})
-            SET {", ".join(set_parts)}
-            RETURN n
-        """
+        # Build the update query
+        # We need to merge changes with existing properties
+        query = (
+            update(GraphEntity)
+            .where(
+                GraphEntity.name == entity_id,
+                GraphEntity.entity_type == entity_type
+            )
+        )
 
-        # Prepare parameters
-        params = {"id": entity_id}
-        for i, val in enumerate(changes.values()):
-            params[f"val{i}"] = val
+        # Execute query to get current entity, then update properties
+        from sqlalchemy import select
+        result = await session.execute(
+            select(GraphEntity).where(
+                GraphEntity.name == entity_id,
+                GraphEntity.entity_type == entity_type
+            )
+        )
+        entity = result.scalar_one_or_none()
 
-        # Execute query
-        await session.run(query, **params)
+        if entity:
+            # Merge properties
+            current_props = entity.properties or {}
+            merged_props = {**current_props, **changes}
+
+            # Update with merged properties
+            await session.execute(
+                query.values(properties=merged_props)
+            )
 
         # Emit events for rule engine
         if self.event_emitter:

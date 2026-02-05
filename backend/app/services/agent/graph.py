@@ -5,7 +5,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_openai import ChatOpenAI
 
 from app.services.agent.state import AgentState
-from app.services.agent.nodes import AgentNodes, route_decision
+from app.services.agent.nodes import AgentNodes, should_continue
 
 
 def create_agent_graph(
@@ -17,10 +17,10 @@ def create_agent_graph(
     """Create the LangGraph state graph for the enhanced agent.
 
     The graph structure:
-        Start -> Router -> [Query Tools | Action Tools | Answer] -> End
-                       |                        |
-                       v                        v
-                    [Answer]              [Summary] -> End
+        Start -> Agent -> Should Continue? -> Tools -> Agent
+                         |
+                         v
+                       Answer -> End
 
     Args:
         llm: The LLM instance
@@ -37,32 +37,27 @@ def create_agent_graph(
     # Create the workflow
     workflow = StateGraph(AgentState)
 
-    # Add all nodes
-    workflow.add_node("router", nodes.router_node)
-    workflow.add_node("query_tools", nodes.query_tools_node)
-    workflow.add_node("action_tools", nodes.action_tools_node)
+    # Add nodes
+    workflow.add_node("agent", nodes.agent_node)
+    workflow.add_node("tools", nodes.execute_tools_node)
     workflow.add_node("answer", nodes.answer_node)
-    workflow.add_node("summary", nodes.summary_node)
 
     # Set entry point
-    workflow.set_entry_point("router")
+    workflow.set_entry_point("agent")
 
-    # Add conditional edges from router
+    # Add conditional edges from agent
     workflow.add_conditional_edges(
-        "router",
-        route_decision,
+        "agent",
+        should_continue,
         {
-            "query_tools": "query_tools",
-            "action_tools": "action_tools",
-            "answer": "answer",
+            "tools": "tools",
+            "end": "answer",
         }
     )
 
-    # Add edges to end
-    workflow.add_edge("query_tools", END)
-    workflow.add_edge("action_tools", "summary")
+    # Add edges
+    workflow.add_edge("tools", "agent")
     workflow.add_edge("answer", END)
-    workflow.add_edge("summary", END)
 
     # Compile with optional memory
     checkpointer = MemorySaver() if with_memory else None

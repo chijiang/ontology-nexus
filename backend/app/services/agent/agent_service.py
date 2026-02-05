@@ -6,7 +6,7 @@ It combines LangGraph orchestration with query and action tools.
 
 import logging
 import asyncio
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Callable, Optional
 from langchain_openai import ChatOpenAI
 
 from app.services.agent.state import AgentState, StreamEvent, UserIntent
@@ -16,6 +16,29 @@ from app.services.agent_tools.action_tools import ActionToolRegistry
 from app.core.neo4j_pool import get_neo4j_driver
 
 logger = logging.getLogger(__name__)
+
+
+class Neo4jSessionContext:
+    """Async context manager for Neo4j sessions.
+
+    Ensures the session is properly closed after use, even if errors occur.
+    This avoids issues with async generators being garbage collected too early.
+    """
+
+    def __init__(self, get_driver_func: Callable, database: str):
+        self.get_driver_func = get_driver_func
+        self.database = database
+        self.session = None
+
+    async def __aenter__(self):
+        driver = await self.get_driver_func()
+        self.session = driver.session(database=self.database)
+        return self.session
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+            self.session = None
 
 
 class EnhancedAgentService:
@@ -58,28 +81,24 @@ class EnhancedAgentService:
 
         # Create Neo4j session provider
         self._neo4j_driver = None
+        self._driver_lock = asyncio.Lock()
 
         # Initialize graph (lazy loading)
         self._graph = None
 
     async def _get_driver(self):
-        """Get or create Neo4j driver."""
-        if self._neo4j_driver is None:
-            self._neo4j_driver = await get_neo4j_driver(**self.neo4j_config)
-        return self._neo4j_driver
+        """Get or create Neo4j driver with thread safety."""
+        async with self._driver_lock:
+            if self._neo4j_driver is None:
+                self._neo4j_driver = await get_neo4j_driver(**self.neo4j_config)
+            return self._neo4j_driver
 
     def _get_session(self):
-        """Get a Neo4j session generator.
+        """Get a Neo4j session context manager.
 
-        Each call creates a new session to avoid concurrency issues.
+        Each call returns a new context manager to ensure proper session lifecycle.
         """
-        async def _session_generator():
-            driver = self._neo4j_driver
-            if driver is None:
-                driver = await self._get_driver()
-            async with driver.session(database=self.neo4j_config["database"]) as session:
-                yield session
-        return _session_generator()
+        return Neo4jSessionContext(self._get_driver, self.neo4j_config["database"])
 
     def _get_graph(self):
         """Get or create the LangGraph."""

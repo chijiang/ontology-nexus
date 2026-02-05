@@ -32,9 +32,11 @@ app.add_middleware(
 async def startup():
     await init_db()
 
-    # Initialize rule engine components
+    # Create event emitter early for dependency injection
+    event_emitter = GraphEventEmitter()
+    
     action_registry = ActionRegistry()
-    action_executor = ActionExecutor(action_registry)
+    action_executor = ActionExecutor(action_registry, event_emitter=event_emitter)
     rule_registry = RuleRegistry()
 
     # Get global Neo4j config from database
@@ -73,8 +75,7 @@ async def startup():
             "Neo4j not configured, rule engine will start without Neo4j."
         )
 
-    # Create event emitter
-    event_emitter = GraphEventEmitter()
+    # event_emitter created earlier
 
     # Define a driver provider for RuleEngine resilience
     async def driver_provider():

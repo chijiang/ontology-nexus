@@ -117,263 +117,116 @@ class AgentNodes:
 
         return state
 
-    async def query_tools_node(self, state: AgentState) -> AgentState:
-        """Execute query tools to gather information.
+    async def agent_node(self, state: AgentState) -> AgentState:
+        """Unified agent node that can query or act.
 
-        This node uses tool calling with the LLM to execute
-        the appropriate query tools based on the user's question.
-
-        Supports multi-turn tool execution for complex queries.
+        This node uses all available tools and the LLM to process the request.
+        It supports multi-turn tool execution by being part of a loop.
 
         Args:
             state: Current agent state
 
         Returns:
-            Updated state with query results
+            Updated state with LLM response or tool results
         """
-        logger.info("Executing query tools node")
-
-        # Prepare messages with system prompt
-        prompt_result = await self.query_prompt.ainvoke({"messages": state["messages"]})
-
-        # Track current messages for multi-turn conversation
-        # prompt_result is a ChatPromptValue with a messages attribute
-        current_messages = list(prompt_result.messages if hasattr(prompt_result, 'messages') else prompt_result)
-
-        # Multi-turn tool execution loop
-        max_iterations = 10  # Prevent infinite loops
-        for iteration in range(max_iterations):
-            # Get response from LLM
-            response = await self.query_llm_with_tools.ainvoke(current_messages)
-            current_messages.append(response)
-
-            # Check if there are tool calls
-            if not (hasattr(response, "tool_calls") and response.tool_calls):
-                # No more tool calls, exit loop
-                break
-
-            # Execute all tool calls in this round
-            tool_messages = []
-            for tool_call in response.tool_calls:
-                tool_name = tool_call.get("name", "")
-                tool_args = tool_call.get("args", {})
-                tool_id = tool_call.get("id", "")
-
-                # Find and execute the tool
-                tool = next((t for t in self.query_tools if t.name == tool_name), None)
-                if tool:
-                    try:
-                        logger.info(f"Executing query tool: {tool_name} with args: {tool_args}")
-                        result = await tool.ainvoke(tool_args)
-                        tool_messages.append(ToolMessage(
-                            content=str(result),
-                            tool_call_id=tool_id,
-                            name=tool_name
-                        ))
-                    except Exception as e:
-                        logger.error(f"Error executing tool {tool_name}: {e}")
-                        tool_messages.append(ToolMessage(
-                            content=f"Error: {str(e)}",
-                            tool_call_id=tool_id,
-                            name=tool_name
-                        ))
-
-            # Add tool messages to conversation
-            current_messages.extend(tool_messages)
-            logger.info(f"Query iteration {iteration + 1}, executed {len(tool_messages)} tools")
-
-        # Update state with all messages
-        state["messages"].extend(current_messages[1:])  # Skip the duplicate system prompt
-
-        state["current_step"] = "queried"
-
-        return state
-
-    async def action_tools_node(self, state: AgentState) -> AgentState:
-        """Plan and execute action operations.
-
-        This node uses both query and action tools to:
-        1. Identify target entities using query tools
-        2. Execute actions using action tools
-        3. Return results with success/failure breakdown
-
-        Args:
-            state: Current agent state
-
-        Returns:
-            Updated state with action results
-        """
-        logger.info("=== action_tools_node started ===")
-        logger.info(f"Available query tools: {[t.name for t in self.query_tools]}")
-        logger.info(f"Available action tools: {[t.name for t in self.action_tools]}")
-
-        # Combine query and action tools for full capability
+        logger.info("--- agent_node started ---")
+        
+        # Combine all tools
         all_tools = self.query_tools + self.action_tools
+        llm_with_tools = self.llm.bind_tools(all_tools)
 
-        # Bind all tools to LLM
-        llm_with_all_tools = self.llm.bind_tools(all_tools)
+        # Prepare messages
+        # We use all messages in state to maintain context
+        messages = state["messages"]
+        
+        # Add system prompt if it's the first turn
+        if len(messages) == 1 and isinstance(messages[0], (str, dict)):
+            # This shouldn't happen with standard LangGraph but good to be safe
+            prompt_result = await self.action_prompt.ainvoke({"messages": messages})
+            messages = prompt_result.to_messages()
+        elif not any(isinstance(m, (AIMessage, ToolMessage)) for m in messages):
+            # First turn, inject system prompt
+            prompt_result = await self.action_prompt.ainvoke({"messages": messages})
+            messages = prompt_result.to_messages()
 
-        # Prepare messages with system prompt
-        prompt_result = await self.action_prompt.ainvoke({"messages": state["messages"]})
+        # Get response from LLM
+        response = await llm_with_tools.ainvoke(messages)
+        
+        logger.info(f"LLM response: {str(response.content)[:100]}...")
+        if hasattr(response, "tool_calls") and response.tool_calls:
+            logger.info(f"Tool calls: {[tc.get('name') for tc in response.tool_calls]}")
 
-        # Track current messages for multi-turn conversation
-        # prompt_result is a ChatPromptValue with a messages attribute
-        current_messages = list(prompt_result.messages if hasattr(prompt_result, 'messages') else prompt_result)
+        # Update state
+        return {"messages": [response]}
 
-        # Multi-turn tool execution loop
-        max_iterations = 10  # Prevent infinite loops
-        for iteration in range(max_iterations):
-            logger.info(f"--- Action iteration {iteration + 1}/{max_iterations} ---")
+    async def execute_tools_node(self, state: AgentState) -> AgentState:
+        """Execute tool calls from the last AIMessage.
 
-            # Get response from LLM
-            response = await llm_with_all_tools.ainvoke(current_messages)
-            current_messages.append(response)
+        Args:
+            state: Current agent state
 
-            logger.info(f"LLM response type: {type(response).__name__}")
-            logger.info(f"LLM response content: {str(response.content)[:200] if hasattr(response, 'content') and response.content else 'No content'}...")
+        Returns:
+            Updated state with ToolMessages
+        """
+        logger.info("--- execute_tools_node started ---")
+        last_message = state["messages"][-1]
+        
+        if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
+            return state
 
-            # Check if there are tool calls
-            if not (hasattr(response, "tool_calls") and response.tool_calls):
-                logger.info("No tool calls in response, ending iteration")
-                # No more tool calls, exit loop
-                break
+        all_tools = self.query_tools + self.action_tools
+        tool_messages = []
+        
+        for tool_call in last_message.tool_calls:
+            tool_name = tool_call.get("name", "")
+            tool_args = tool_call.get("args", {})
+            tool_id = tool_call.get("id", "")
 
-            logger.info(f"Tool calls in response: {len(response.tool_calls)}")
-            for i, tc in enumerate(response.tool_calls):
-                logger.info(f"  Tool call {i+1}: {tc.get('name')} with args {tc.get('args')}")
-
-            # Execute all tool calls in this round
-            tool_messages = []
-            for tool_call in response.tool_calls:
-                tool_name = tool_call.get("name", "")
-                tool_args = tool_call.get("args", {})
-                tool_id = tool_call.get("id", "")
-
-                # Find tool in either query or action tools
-                tool = next((t for t in all_tools if t.name == tool_name), None)
-                if tool:
-                    try:
-                        logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
-                        result = await tool.ainvoke(tool_args)
-                        result_preview = str(result)[:200]
-                        logger.info(f"Tool result: {result_preview}...")
-                        tool_messages.append(ToolMessage(
-                            content=str(result),
-                            tool_call_id=tool_id,
-                            name=tool_name
-                        ))
-                    except Exception as e:
-                        logger.error(f"Error executing tool {tool_name}: {e}")
-                        tool_messages.append(ToolMessage(
-                            content=f"Error: {str(e)}",
-                            tool_call_id=tool_id,
-                            name=tool_name
-                        ))
-                else:
-                    logger.warning(f"Tool not found: {tool_name}")
+            tool = next((t for t in all_tools if t.name == tool_name), None)
+            if tool:
+                try:
+                    logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
+                    result = await tool.ainvoke(tool_args)
                     tool_messages.append(ToolMessage(
-                        content=f"Error: Tool '{tool_name}' not found",
+                        content=str(result),
                         tool_call_id=tool_id,
                         name=tool_name
                     ))
+                except Exception as e:
+                    logger.error(f"Error executing tool {tool_name}: {e}")
+                    tool_messages.append(ToolMessage(
+                        content=f"Error: {str(e)}",
+                        tool_call_id=tool_id,
+                        name=tool_name
+                    ))
+            else:
+                logger.warning(f"Tool not found: {tool_name}")
+                tool_messages.append(ToolMessage(
+                    content=f"Error: Tool '{tool_name}' not found",
+                    tool_call_id=tool_id,
+                    name=tool_name
+                ))
 
-            # Add tool messages to conversation
-            current_messages.extend(tool_messages)
-            logger.info(f"Completed iteration {iteration + 1}, executed {len(tool_messages)} tools")
-
-        # Update state with all messages
-        state["messages"].extend(current_messages[1:])  # Skip the duplicate system prompt
-
-        state["current_step"] = "action_executed"
-
-        return state
+        return {"messages": tool_messages}
 
     async def answer_node(self, state: AgentState) -> AgentState:
-        """Generate a direct answer without tools.
-
-        This node handles general conversation and direct answers.
-
-        Args:
-            state: Current agent state
-
-        Returns:
-            Updated state with AI response
-        """
-        logger.info("Executing answer node")
-
-        last_message = state["messages"][-1]
-
-        if hasattr(last_message, "content"):
-            user_input = last_message.content
-        else:
-            user_input = str(last_message)
-
-        # Simple response for direct answer
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "你是一个知识图谱助手。简洁友好地回应用户。"),
-            ("human", "{input}")
-        ])
-
-        chain = prompt | self.llm
-
-        try:
-            result = await chain.ainvoke({"input": user_input})
-            ai_message = AIMessage(content=result.content)
-        except Exception as e:
-            logger.error(f"Error in answer_node: {e}")
-            ai_message = AIMessage(content="抱歉，我现在无法处理您的请求。")
-
-        state["messages"].append(ai_message)
-        state["current_step"] = "answered"
-
-        return state
-
-    async def summary_node(self, state: AgentState) -> AgentState:
-        """Summarize action execution results.
-
-        This node creates a summary of batch action execution.
-        The actual action execution happens in action_tools_node,
-        this node just ensures we have a final message.
-
-        Args:
-            state: Current agent state
-
-        Returns:
-            Updated state with summary
-        """
-        logger.info("Executing summary node")
-
-        # Check if we have action results in messages
-        # If not, add a completion message
-        last_message = state["messages"][-1]
-
-        # If the last message is already an AI response, we're done
-        if isinstance(last_message, AIMessage):
-            state["current_step"] = "completed"
-            return state
-
-        # Add a completion message
-        ai_message = AIMessage(content="操作执行完成。")
-        state["messages"].append(ai_message)
+        """Final answer node (basically a pass-through now)."""
         state["current_step"] = "completed"
-
         return state
 
 
-def route_decision(state: AgentState) -> Literal["query_tools", "action_tools", "answer"]:
-    """Decide which node to route to based on user intent.
+def should_continue(state: AgentState) -> Literal["tools", "end"]:
+    """Decide whether to continue tool execution or end.
 
     Args:
         state: Current agent state
 
     Returns:
-        Name of the next node to execute
+        "tools" if more tool calls are present, "end" otherwise
     """
-    intent = state.get("user_intent", UserIntent.QUERY)
-
-    if intent == UserIntent.QUERY:
-        return "query_tools"
-    elif intent == UserIntent.ACTION:
-        return "action_tools"
-    else:
-        return "answer"
+    last_message = state["messages"][-1]
+    
+    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        return "tools"
+    
+    return "end"

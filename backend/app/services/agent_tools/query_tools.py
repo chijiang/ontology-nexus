@@ -60,17 +60,8 @@ class EmptyInput(BaseModel):
 
 
 async def _get_session(get_session_func: Callable) -> Any:
-    """Get a session from the session function.
-
-    Handles both async generators and async context managers.
-    """
-    session_getter = get_session_func()
-    import inspect
-    if inspect.isasyncgen(session_getter):
-        return await session_getter.__anext__()
-    else:
-        # It's already an async context manager, return it as-is
-        return session_getter
+    """Get the session context manager from the session function."""
+    return get_session_func()
 
 
 async def _execute_with_session(
@@ -80,27 +71,15 @@ async def _execute_with_session(
     """Execute a function with a GraphTools session.
 
     Args:
-        get_session_func: Function that returns a session
+        get_session_func: Function that returns a session context manager
         func: Function to execute with GraphTools instance
 
     Returns:
         Result of the function
     """
-    session_or_ctx = await _get_session(get_session_func)
-
-    import inspect
-    if inspect.isasyncgen(session_or_ctx):
-        session = session_or_ctx
-        try:
-            tools = GraphTools(session)
-            return await func(tools)
-        finally:
-            await session.aclose()
-    else:
-        # It's an async context manager
-        async with session_or_ctx as session:
-            tools = GraphTools(session)
-            return await func(tools)
+    async with await _get_session(get_session_func) as session:
+        tools = GraphTools(session)
+        return await func(tools)
 
 
 def create_query_tools(get_session_func: Callable[[], Any]) -> list[StructuredTool]:

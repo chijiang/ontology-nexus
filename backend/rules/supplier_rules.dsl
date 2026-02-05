@@ -55,6 +55,22 @@ ACTION PurchaseOrder.cancel {
     }
 }
 
+// ACTION: Transfer payment for a purchase order
+// Precondition: Order must be in Open/Approved status and not yet transferred
+// Effect: Marks order as transferred and records transfer details
+ACTION PurchaseOrder.transfer {
+    PRECONDITION: this.status IN ["Open", "Approved"]
+        ON_FAILURE: "Only open or approved orders can be transferred"
+    PRECONDITION: this.isTransferred == false
+        ON_FAILURE: "This order has already been transferred"
+    EFFECT {
+        SET this.isTransferred = true;
+        SET this.transferred = true;
+        SET this.lastTransfer = NOW();
+        SET this.transferAmount = this.amount;
+    }
+}
+
 // RULE: Supplier Status Blocking
 // Triggered when a Supplier's status changes
 // Effect: Locks all open purchase orders from expired/blacklisted/suspended suppliers

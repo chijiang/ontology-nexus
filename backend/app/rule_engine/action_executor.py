@@ -3,9 +3,10 @@
 from dataclasses import dataclass, field
 from typing import Any
 from app.rule_engine.action_registry import ActionRegistry
-from app.rule_engine.models import ActionDef, SetStatement
+from app.rule_engine.models import ActionDef, SetStatement, UpdateEvent
 from app.rule_engine.context import EvaluationContext
 from app.rule_engine.evaluator import ExpressionEvaluator
+from app.rule_engine.event_emitter import GraphEventEmitter
 
 
 @dataclass
@@ -30,13 +31,15 @@ class ActionExecutor:
     and applies SET statements from the effect block.
     """
 
-    def __init__(self, registry: ActionRegistry):
+    def __init__(self, registry: ActionRegistry, event_emitter: GraphEventEmitter | None = None):
         """Initialize the executor.
 
         Args:
             registry: ActionRegistry containing action definitions
+            event_emitter: Optional GraphEventEmitter for triggering rules
         """
         self.registry = registry
+        self.event_emitter = event_emitter
 
     async def execute(
         self,
@@ -84,7 +87,90 @@ class ActionExecutor:
         if action.effect is not None:
             changes = await self._apply_effect(action.effect, evaluator, context)
 
+        # Persist changes to database if any
+        if changes and context.session:
+            await self._persist_changes(
+                entity_type,
+                context.entity["id"],
+                changes,
+                context.session,
+                context_entity=context.entity
+            )
+
         return ExecutionResult(success=True, error=None, changes=changes)
+
+    async def _persist_changes(
+        self,
+        entity_type: str,
+        entity_id: str,
+        changes: dict[str, Any],
+        session: Any,
+        context_entity: dict[str, Any] | None = None
+    ):
+        """Persist property changes to Neo4j.
+
+        Args:
+            entity_type: Entity label
+            entity_id: Entity name property
+            changes: Dictionary of properties to update
+            session: Active Neo4j session
+        """
+        # Generate SET clause
+        set_parts = []
+        for i, key in enumerate(changes.keys()):
+            set_parts.append(f"n.`{key}` = $val{i}")
+
+        query = f"""
+            MATCH (n:`{entity_type}` {{name: $id}})
+            SET {", ".join(set_parts)}
+            RETURN n
+        """
+
+        # Prepare parameters
+        params = {"id": entity_id}
+        for i, val in enumerate(changes.values()):
+            params[f"val{i}"] = val
+
+        # Execute query
+        await session.run(query, **params)
+
+        # Emit events for rule engine
+        if self.event_emitter:
+            self._emit_update_events(entity_type, entity_id, changes, context_entity=context_entity)
+
+    def _emit_update_events(
+        self,
+        entity_type: str,
+        entity_id: str,
+        changes: dict[str, Any],
+        context_entity: dict[str, Any] | None = None
+    ):
+        """Emit UpdateEvent for each changed property.
+
+        Args:
+            entity_type: Entity label
+            entity_id: Entity name property
+            changes: Dictionary of properties that were updated
+            context_entity: Original entity properties from context
+        """
+        if not self.event_emitter:
+            return
+
+        for key, new_val in changes.items():
+            old_val = context_entity.get(key) if context_entity else None
+            
+            # Skip if value hasn't actually changed
+            if old_val == new_val:
+                continue
+                
+            event = UpdateEvent(
+                entity_type=entity_type,
+                entity_id=entity_id,
+                property=key,
+                old_value=old_val,
+                new_value=new_val
+            )
+            self.event_emitter.emit(event)
 
     async def _apply_effect(
         self,

@@ -29,7 +29,7 @@ async def chat_stream(
     req: ChatRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    use_enhanced: bool = False,  # Set to True to use new agent
+    use_enhanced: bool = True,  # Set to True to use new agent
 ):
     """SSE 流式问答
 

@@ -131,23 +131,14 @@ async def _execute_with_session(
     """Execute a function with a Neo4j session.
 
     Args:
-        get_session_func: Function that returns a session
+        get_session_func: Function that returns a session context manager
         func: Function to execute with session
 
     Returns:
         Result of the function
     """
-    session_getter = get_session_func()
-    import inspect
-    if inspect.isasyncgen(session_getter):
-        session = await session_getter.__anext__()
-        try:
-            return await func(session)
-        finally:
-            await session.aclose()
-    else:
-        async with session_getter as session:
-            return await func(session)
+    async with get_session_func() as session:
+        return await func(session)
 
 
 def create_action_tools(
@@ -309,15 +300,16 @@ def create_action_tools(
 
         # Need to get neo4j_config - this is a limitation
         # For now, we'll create a simple context without session
-        context = EvaluationContext(
-            entity={"id": entity_id, **entity_data},
-            old_values={},
-            session=None,
-            variables=params
-        )
-
         # Execute the action
-        result = await action_executor.execute(entity_type, action_name, context)
+        async with get_session_func() as session:
+            # Create evaluation context with session
+            context = EvaluationContext(
+                entity={"id": entity_id, **entity_data},
+                old_values={},
+                session=session,
+                variables=params
+            )
+            result = await action_executor.execute(entity_type, action_name, context)
 
         if result.success:
             changes_str = ", ".join([f"{k}={v}" for k, v in result.changes.items()])

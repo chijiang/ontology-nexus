@@ -242,16 +242,18 @@ class StreamingBatchExecutor:
                 error=f"Entity '{entity_id}' not found (type: {entity_type})"
             )
 
-        # Create evaluation context
-        context = EvaluationContext(
-            entity={"id": entity_id, **entity_data},
-            old_values={},
-            session=None,  # Session not needed for execution
-            variables=params
-        )
+        # Execute the action with session
+        async with self.get_session_func() as session:
+            # Create evaluation context with session
+            context = EvaluationContext(
+                entity={"id": entity_id, **entity_data},
+                old_values={},
+                session=session,
+                variables=params
+            )
 
-        # Execute the action
-        return await self.action_executor.execute(entity_type, action_name, context)
+            # Execute the action
+            return await self.action_executor.execute(entity_type, action_name, context)
 
     async def _get_entity_data(self, entity_type: str, entity_id: str) -> dict[str, Any]:
         """Get entity data from Neo4j.
@@ -279,17 +281,8 @@ class StreamingBatchExecutor:
             return {}
 
         # Execute with session
-        session_getter = self.get_session_func()
-        import inspect
-        if inspect.isasyncgen(session_getter):
-            session = await session_getter.__anext__()
-            try:
-                return await _query(session)
-            finally:
-                await session.aclose()
-        else:
-            async with session_getter as session:
-                return await _query(session)
+        async with self.get_session_func() as session:
+            return await _query(session)
 
 
 class BatchActionExecutor(StreamingBatchExecutor):

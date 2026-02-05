@@ -39,6 +39,8 @@ import {
     Play,
     Settings,
 } from 'lucide-react'
+import BusinessEditor, { Schema } from '@/components/business-editor'
+import { graphApi } from '@/lib/api'
 
 // Rule card component
 function RuleCard({
@@ -241,6 +243,19 @@ function RuleEditorDialog({
     const [dslContent, setDslContent] = useState('')
     const [error, setError] = useState('')
     const [saving, setSaving] = useState(false)
+    const [activeTab, setActiveTab] = useState('dsl')
+    const [schema, setSchema] = useState<Schema>({ nodes: [], relationships: [] })
+    const [trigger, setTrigger] = useState<{
+        type: string
+        entity: string
+        property: string | null
+    }>({
+        type: 'UPDATE',
+        entity: 'Entity',
+        property: ''
+    })
+    const [isCustomProperty, setIsCustomProperty] = useState(false)
+    const token = useAuthStore((state) => state.token)
 
     useEffect(() => {
         if (rule) {
@@ -248,10 +263,24 @@ function RuleEditorDialog({
             setPriority(rule.priority)
             setIsActive(rule.is_active)
             setDslContent(rule.dsl_content)
+            setTrigger(rule.trigger)
+            // If property is not in current schema's entity properties, it might be custom
+            const properties = schema.nodes.find(n => n.name === rule.trigger.entity)?.dataProperties || []
+            if (rule.trigger.property && !properties.includes(rule.trigger.property)) {
+                setIsCustomProperty(true)
+            } else {
+                setIsCustomProperty(false)
+            }
         } else {
             setName('')
             setPriority(100)
             setIsActive(true)
+            setIsCustomProperty(false)
+            setTrigger({
+                type: 'UPDATE',
+                entity: 'Entity',
+                property: ''
+            })
             setDslContent(`// 新规则示例
 RULE NewRule PRIORITY 100 {
     ON UPDATE(Entity.property)
@@ -262,7 +291,14 @@ RULE NewRule PRIORITY 100 {
 `)
         }
         setError('')
-    }, [rule, open])
+
+        // Fetch schema when opening
+        if (open && token) {
+            graphApi.getSchema(token).then(res => {
+                setSchema(res.data)
+            }).catch(console.error)
+        }
+    }, [rule, open, token])
 
     const handleSave = async () => {
         setError('')
@@ -305,7 +341,7 @@ RULE NewRule PRIORITY 100 {
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-6xl max-h-[95vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Zap className="h-5 w-5 text-indigo-600" />
@@ -356,48 +392,151 @@ RULE NewRule PRIORITY 100 {
                         </label>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700">
-                            DSL 内容
-                        </label>
-                        <DslEditor
-                            value={dslContent}
-                            onChange={setDslContent}
-                            error={error}
-                            placeholder="请输入规则 DSL..."
-                        />
-                    </div>
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 mb-4">
+                            <TabsTrigger value="dsl" className="flex items-center gap-2">
+                                <Code className="h-4 w-4" /> 源码编辑器
+                            </TabsTrigger>
+                            <TabsTrigger value="business" className="flex items-center gap-2">
+                                <Layers className="h-4 w-4" /> 业务编辑器
+                            </TabsTrigger>
+                        </TabsList>
 
-                    {/* DSL Help */}
-                    <div className="bg-slate-50 rounded-lg p-4 text-sm">
-                        <h4 className="font-medium text-slate-700 mb-2">DSL 语法提示</h4>
-                        <div className="grid grid-cols-2 gap-4 text-slate-600">
-                            <div>
-                                <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                    ON UPDATE(Entity.prop)
-                                </p>
-                                <p className="text-xs">属性更新触发器</p>
+                        <TabsContent value="dsl">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-700">
+                                        DSL 内容
+                                    </label>
+                                    <DslEditor
+                                        value={dslContent}
+                                        onChange={setDslContent}
+                                        error={error}
+                                        placeholder="请输入规则 DSL..."
+                                    />
+                                </div>
+
+                                {/* DSL Help */}
+                                <div className="bg-slate-50 rounded-lg p-4 text-sm">
+                                    <h4 className="font-medium text-slate-700 mb-2">DSL 语法提示</h4>
+                                    <div className="grid grid-cols-2 gap-4 text-slate-600">
+                                        <div>
+                                            <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
+                                                ON UPDATE(Entity.prop)
+                                            </p>
+                                            <p className="text-xs">属性更新触发器</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
+                                                FOR (v: Entity WHERE condition)
+                                            </p>
+                                            <p className="text-xs">作用域定义</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
+                                                SET entity.prop = value;
+                                            </p>
+                                            <p className="text-xs">设置属性值</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
+                                                TRIGGER Action.name ON target;
+                                            </p>
+                                            <p className="text-xs">触发动作</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                    FOR (v: Entity WHERE condition)
-                                </p>
-                                <p className="text-xs">作用域定义</p>
+                        </TabsContent>
+
+                        <TabsContent value="business">
+                            <div className="space-y-6">
+                                <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
+                                    <h4 className="text-xs font-bold text-amber-800 uppercase mb-3 flex items-center gap-1.5">
+                                        <Zap size={14} /> 触发配置
+                                    </h4>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold text-amber-700 uppercase">触发类型</label>
+                                            <select
+                                                value={trigger.type}
+                                                onChange={(e) => setTrigger({ ...trigger, type: e.target.value })}
+                                                className="w-full bg-white border border-amber-200 text-slate-700 text-xs rounded px-2 py-1.5 outline-none"
+                                            >
+                                                <option value="UPDATE">UPDATE</option>
+                                                <option value="CREATE">CREATE</option>
+                                                <option value="DELETE">DELETE</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold text-amber-700 uppercase">实体类型</label>
+                                            <select
+                                                value={trigger.entity}
+                                                onChange={(e) => setTrigger({ ...trigger, entity: e.target.value, property: '' })}
+                                                className="w-full bg-white border border-amber-200 text-slate-700 text-xs rounded px-2 py-1.5 outline-none"
+                                            >
+                                                <option value="">选择实体</option>
+                                                {schema.nodes.map(n => <option key={n.name} value={n.name}>{n.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold text-amber-700 uppercase">触发属性</label>
+                                            {!isCustomProperty ? (
+                                                <select
+                                                    value={trigger.property || ''}
+                                                    onChange={(e) => {
+                                                        if (e.target.value === '__custom__') {
+                                                            setIsCustomProperty(true)
+                                                            setTrigger({ ...trigger, property: '' })
+                                                        } else {
+                                                            setTrigger({ ...trigger, property: e.target.value })
+                                                        }
+                                                    }}
+                                                    disabled={trigger.type !== 'UPDATE'}
+                                                    className="w-full bg-white border border-amber-200 text-slate-700 text-xs rounded px-2 py-1.5 outline-none disabled:bg-amber-50/50 disabled:text-amber-300"
+                                                >
+                                                    <option value="">全部属性</option>
+                                                    {schema.nodes.find(n => n.name === trigger.entity)?.dataProperties.map(p => (
+                                                        <option key={p} value={p}>{p}</option>
+                                                    ))}
+                                                    <option value="__custom__" className="text-indigo-600 font-medium">+ 自定义...</option>
+                                                </select>
+                                            ) : (
+                                                <div className="flex gap-1">
+                                                    <Input
+                                                        value={trigger.property || ''}
+                                                        onChange={(e) => setTrigger({ ...trigger, property: e.target.value })}
+                                                        className="h-7 text-xs py-1 px-2 border-amber-200 focus:ring-amber-500 focus:ring-1 outline-none"
+                                                        placeholder="输入属性名"
+                                                        autoFocus
+                                                    />
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-7 px-1.5 text-amber-600 hover:bg-amber-100 text-[10px]"
+                                                        onClick={() => {
+                                                            setIsCustomProperty(false)
+                                                            setTrigger({ ...trigger, property: '' })
+                                                        }}
+                                                    >
+                                                        取消
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <BusinessEditor
+                                    mode="RULE"
+                                    initialDsl={dslContent}
+                                    schema={schema}
+                                    meta={{ name, priority, trigger }}
+                                    onDslChange={setDslContent}
+                                />
                             </div>
-                            <div>
-                                <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                    SET entity.prop = value;
-                                </p>
-                                <p className="text-xs">设置属性值</p>
-                            </div>
-                            <div>
-                                <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                    TRIGGER Action.name ON target;
-                                </p>
-                                <p className="text-xs">触发动作</p>
-                            </div>
-                        </div>
-                    </div>
+                        </TabsContent>
+                    </Tabs>
                 </div>
 
                 <DialogFooter>
@@ -438,6 +577,9 @@ function ActionEditorDialog({
     const [dslContent, setDslContent] = useState('')
     const [error, setError] = useState('')
     const [saving, setSaving] = useState(false)
+    const [activeTab, setActiveTab] = useState('dsl')
+    const [schema, setSchema] = useState<Schema>({ nodes: [], relationships: [] })
+    const token = useAuthStore((state) => state.token)
 
     useEffect(() => {
         if (action) {
@@ -461,7 +603,14 @@ ACTION Entity.submit {
 `)
         }
         setError('')
-    }, [action, open])
+
+        // Fetch schema when opening
+        if (open && token) {
+            graphApi.getSchema(token).then(res => {
+                setSchema(res.data)
+            }).catch(console.error)
+        }
+    }, [action, open, token])
 
     const handleSave = async () => {
         setError('')
@@ -508,7 +657,7 @@ ACTION Entity.submit {
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-6xl max-h-[95vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Play className="h-5 w-5 text-emerald-600" />
@@ -560,48 +709,75 @@ ACTION Entity.submit {
                         </label>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700">
-                            DSL 内容
-                        </label>
-                        <DslEditor
-                            value={dslContent}
-                            onChange={setDslContent}
-                            error={error}
-                            placeholder="请输入动作 DSL..."
-                        />
-                    </div>
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 mb-4">
+                            <TabsTrigger value="dsl" className="flex items-center gap-2">
+                                <Code className="h-4 w-4" /> 源码编辑器
+                            </TabsTrigger>
+                            <TabsTrigger value="business" className="flex items-center gap-2">
+                                <Layers className="h-4 w-4" /> 业务编辑器
+                            </TabsTrigger>
+                        </TabsList>
 
-                    {/* DSL Help */}
-                    <div className="bg-slate-50 rounded-lg p-4 text-sm">
-                        <h4 className="font-medium text-slate-700 mb-2">DSL 语法提示</h4>
-                        <div className="grid grid-cols-2 gap-4 text-slate-600">
-                            <div>
-                                <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                    PRECONDITION name: condition
-                                </p>
-                                <p className="text-xs">前置条件检查</p>
+                        <TabsContent value="dsl">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-700">
+                                        DSL 内容
+                                    </label>
+                                    <DslEditor
+                                        value={dslContent}
+                                        onChange={setDslContent}
+                                        error={error}
+                                        placeholder="请输入动作 DSL..."
+                                    />
+                                </div>
+
+                                {/* DSL Help */}
+                                <div className="bg-slate-50 rounded-lg p-4 text-sm">
+                                    <h4 className="font-medium text-slate-700 mb-2">DSL 语法提示</h4>
+                                    <div className="grid grid-cols-2 gap-4 text-slate-600">
+                                        <div>
+                                            <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
+                                                PRECONDITION name: condition
+                                            </p>
+                                            <p className="text-xs">前置条件检查</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
+                                                ON_FAILURE: "message"
+                                            </p>
+                                            <p className="text-xs">条件失败时的错误消息</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
+                                                EFFECT {'{'} ... {'}'}
+                                            </p>
+                                            <p className="text-xs">动作执行效果</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
+                                                SET this.prop = value;
+                                            </p>
+                                            <p className="text-xs">设置实体属性</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                    ON_FAILURE: "message"
-                                </p>
-                                <p className="text-xs">条件失败时的错误消息</p>
+                        </TabsContent>
+
+                        <TabsContent value="business">
+                            <div className="space-y-6">
+                                <BusinessEditor
+                                    mode="ACTION"
+                                    initialDsl={dslContent}
+                                    schema={schema}
+                                    meta={{ name, entityType }}
+                                    onDslChange={setDslContent}
+                                />
                             </div>
-                            <div>
-                                <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                    EFFECT {'{'} ... {'}'}
-                                </p>
-                                <p className="text-xs">动作执行效果</p>
-                            </div>
-                            <div>
-                                <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                    SET this.prop = value;
-                                </p>
-                                <p className="text-xs">设置实体属性</p>
-                            </div>
-                        </div>
-                    </div>
+                        </TabsContent>
+                    </Tabs>
                 </div>
 
                 <DialogFooter>

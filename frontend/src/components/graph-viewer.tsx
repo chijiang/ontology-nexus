@@ -257,14 +257,17 @@ export function GraphViewer() {
       const neighbors = res.data
 
       const newElements: ElementDefinition[] = []
+      const addedNodeIds = new Set<string>()
+      const addedEdgeIds = new Set<string>()
 
       neighbors.forEach((n: any) => {
         const labelName = n.labels?.[0] || 'Unknown'
         const nodeColor = getColorForLabel(labelName)
         const borderColor = shadeColor(nodeColor, -20)
 
-        // Add node if not exists
-        if (!cyRef.current?.getElementById(n.name).length) {
+        // Add node if not exists (check both cytoscape and current batch)
+        if (!cyRef.current?.getElementById(n.name).length && !addedNodeIds.has(n.name)) {
+          addedNodeIds.add(n.name)
           newElements.push({
             data: {
               id: n.name,
@@ -278,8 +281,14 @@ export function GraphViewer() {
 
         // Add edges
         n.relationships?.forEach((rel: any, i: number) => {
-          const edgeId = typeof rel === 'object' ? `${rel.source}-${rel.target}-${i}` : `${nodeName}-${n.name}-${i}`
-          if (!cyRef.current?.getElementById(edgeId).length) {
+          // Use relationship ID if available, otherwise fallback to composite key
+          const edgeId = rel.id
+            ? `rel-${rel.id}`
+            : (typeof rel === 'object' ? `${rel.source}-${rel.target}-${rel.type}` : `${nodeName}-${n.name}-${i}`)
+
+          // Check both cytoscape and current batch to avoid duplicates
+          if (!cyRef.current?.getElementById(edgeId).length && !addedEdgeIds.has(edgeId)) {
+            addedEdgeIds.add(edgeId)
             newElements.push({
               data: {
                 id: edgeId,

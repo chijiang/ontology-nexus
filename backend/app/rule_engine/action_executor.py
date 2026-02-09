@@ -18,6 +18,7 @@ class ExecutionResult:
         error: Error message if execution failed, None otherwise
         changes: Dictionary of property changes made by the action
     """
+
     success: bool
     error: str | None = None
     changes: dict[str, Any] = field(default_factory=dict)
@@ -31,7 +32,9 @@ class ActionExecutor:
     and applies SET statements from the effect block.
     """
 
-    def __init__(self, registry: ActionRegistry, event_emitter: GraphEventEmitter | None = None):
+    def __init__(
+        self, registry: ActionRegistry, event_emitter: GraphEventEmitter | None = None
+    ):
         """Initialize the executor.
 
         Args:
@@ -42,10 +45,7 @@ class ActionExecutor:
         self.event_emitter = event_emitter
 
     async def execute(
-        self,
-        entity_type: str,
-        action_name: str,
-        context: EvaluationContext
+        self, entity_type: str, action_name: str, context: EvaluationContext
     ) -> ExecutionResult:
         """Execute an ACTION.
 
@@ -66,8 +66,7 @@ class ActionExecutor:
         action = self.registry.lookup(entity_type, action_name)
         if action is None:
             return ExecutionResult(
-                success=False,
-                error=f"Action {entity_type}.{action_name} not found"
+                success=False, error=f"Action {entity_type}.{action_name} not found"
             )
 
         # Create evaluator for this execution
@@ -77,10 +76,7 @@ class ActionExecutor:
         for precondition in action.preconditions:
             result = await evaluator.evaluate(precondition.condition)
             if not result:
-                return ExecutionResult(
-                    success=False,
-                    error=precondition.on_failure
-                )
+                return ExecutionResult(success=False, error=precondition.on_failure)
 
         # All preconditions passed - apply effect if present
         changes = {}
@@ -94,7 +90,7 @@ class ActionExecutor:
                 context.entity["id"],
                 changes,
                 context.session,
-                context_entity=context.entity
+                context_entity=context.entity,
             )
 
         return ExecutionResult(success=True, error=None, changes=changes)
@@ -105,7 +101,7 @@ class ActionExecutor:
         entity_id: str,
         changes: dict[str, Any],
         session: Any,
-        context_entity: dict[str, Any] | None = None
+        context_entity: dict[str, Any] | None = None,
     ):
         """Persist property changes to PostgreSQL.
 
@@ -120,22 +116,20 @@ class ActionExecutor:
 
         # Build the update query
         # We need to merge changes with existing properties
-        query = (
-            update(GraphEntity)
-            .where(
-                GraphEntity.name == entity_id,
-                GraphEntity.entity_type == entity_type
-            )
-        )
+        # Note: We'll reconstruct the update based on found entity to be safe
 
         # Execute query to get current entity, then update properties
         from sqlalchemy import select
-        result = await session.execute(
-            select(GraphEntity).where(
-                GraphEntity.name == entity_id,
-                GraphEntity.entity_type == entity_type
+
+        stmt = select(GraphEntity)
+        if isinstance(entity_id, int):
+            stmt = stmt.where(GraphEntity.id == entity_id)
+        else:
+            stmt = stmt.where(
+                GraphEntity.name == entity_id, GraphEntity.entity_type == entity_type
             )
-        )
+
+        result = await session.execute(stmt)
         entity = result.scalar_one_or_none()
 
         if entity:
@@ -145,19 +139,23 @@ class ActionExecutor:
 
             # Update with merged properties
             await session.execute(
-                query.values(properties=merged_props)
+                update(GraphEntity)
+                .where(GraphEntity.id == entity.id)
+                .values(properties=merged_props)
             )
 
         # Emit events for rule engine
         if self.event_emitter:
-            self._emit_update_events(entity_type, entity_id, changes, context_entity=context_entity)
+            self._emit_update_events(
+                entity_type, entity_id, changes, context_entity=context_entity
+            )
 
     def _emit_update_events(
         self,
         entity_type: str,
         entity_id: str,
         changes: dict[str, Any],
-        context_entity: dict[str, Any] | None = None
+        context_entity: dict[str, Any] | None = None,
     ):
         """Emit UpdateEvent for each changed property.
 
@@ -172,25 +170,22 @@ class ActionExecutor:
 
         for key, new_val in changes.items():
             old_val = context_entity.get(key) if context_entity else None
-            
+
             # Skip if value hasn't actually changed
             if old_val == new_val:
                 continue
-                
+
             event = UpdateEvent(
                 entity_type=entity_type,
                 entity_id=entity_id,
                 property=key,
                 old_value=old_val,
-                new_value=new_val
+                new_value=new_val,
             )
             self.event_emitter.emit(event)
 
     async def _apply_effect(
-        self,
-        effect: Any,
-        evaluator: ExpressionEvaluator,
-        context: EvaluationContext
+        self, effect: Any, evaluator: ExpressionEvaluator, context: EvaluationContext
     ) -> dict[str, Any]:
         """Apply an effect block to the context.
 
@@ -219,9 +214,7 @@ class ActionExecutor:
         return changes
 
     async def _apply_set_statement(
-        self,
-        statement: SetStatement,
-        evaluator: ExpressionEvaluator
+        self, statement: SetStatement, evaluator: ExpressionEvaluator
     ) -> dict[str, Any]:
         """Apply a SET statement.
 
@@ -238,7 +231,7 @@ class ActionExecutor:
         # Extract the property name from the target path
         # e.g., "this.status" -> "status"
         if statement.target.startswith("this."):
-            prop_name = statement.target[len("this."):]
+            prop_name = statement.target[len("this.") :]
         else:
             prop_name = statement.target
 

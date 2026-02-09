@@ -52,6 +52,14 @@ class DynamicGrpcClient:
                 self.channel
             )
             logger.info(f"Connected to gRPC server at {self.target} (async)")
+        except asyncio.TimeoutError:
+            logger.error(f"Connection timeout to {self.target} after {timeout}s")
+            if self.channel:
+                await self.channel.close()
+                self.channel = None
+            raise Exception(
+                f"连接超时 ({timeout}s)，请检查服务器地址 {self.target} 是否正确且服务已启动"
+            )
         except Exception as e:
             logger.error(f"Failed to connect to {self.target}: {e}")
             if self.channel:

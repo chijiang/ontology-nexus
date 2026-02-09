@@ -382,7 +382,31 @@ export const dataProductsApi = {
   // Entity mappings for a product
   getEntityMappings: (id: number) =>
     api.get<{ items: EntityMapping[]; total: number }>(`/data-products/${id}/entity-mappings`),
+
+  // Synchronization
+  triggerSync: (id: number) =>
+    api.post<SyncLogResponse>(`/data-products/${id}/sync`),
+
+  getSyncLogs: (id: number, limit = 50) =>
+    api.get<SyncLogResponse[]>(`/data-products/${id}/sync-logs`, { params: { limit } }),
 }
+
+export interface SyncLogResponse {
+  id: number
+  data_product_id: number | null
+  entity_mapping_id: number | null
+  sync_type: string
+  direction: string
+  status: string
+  records_processed: number
+  records_created: number
+  records_updated: number
+  records_failed: number
+  error_message: string | null
+  started_at: string
+  completed_at: string | null
+}
+
 
 // ============================================================================
 // Data Mappings API

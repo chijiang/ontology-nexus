@@ -713,7 +713,7 @@ ACTION Entity.submit {
                             <Input
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="例如: PurchaseOrder.submit"
+                                placeholder="例如: submitPurchaseOrder"
                                 disabled={!!action}
                                 className={action ? 'bg-slate-100' : ''}
                             />

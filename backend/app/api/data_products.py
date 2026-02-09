@@ -215,22 +215,41 @@ async def test_connection(
             detail=f"数据产品 ID={product_id} 不存在",
         )
 
-    async with DynamicGrpcClient(product.grpc_host, product.grpc_port) as client:
-        success, message, latency = await client.test_connection()
+    try:
+        async with DynamicGrpcClient(product.grpc_host, product.grpc_port) as client:
+            success, message, latency = await client.test_connection()
 
-        # 更新连接状态
-        if success:
-            product.connection_status = ConnectionStatus.CONNECTED
-            product.last_error = None
-        else:
-            product.connection_status = ConnectionStatus.DISCONNECTED
-            product.last_error = message
+            # 更新连接状态
+            if success:
+                product.connection_status = ConnectionStatus.CONNECTED
+                product.last_error = None
+            else:
+                product.connection_status = ConnectionStatus.DISCONNECTED
+                product.last_error = message
 
+            product.last_health_check = datetime.utcnow()
+            await db.commit()
+
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"连接失败: {message}",
+                )
+
+            return ConnectionTestResponse(
+                success=success, message=message, latency_ms=latency
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error testing connection for product {product_id}: {e}")
+        product.connection_status = ConnectionStatus.DISCONNECTED
+        product.last_error = str(e)
         product.last_health_check = datetime.utcnow()
         await db.commit()
-
-        return ConnectionTestResponse(
-            success=success, message=message, latency_ms=latency
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"连接异常: {str(e)}",
         )
 
 

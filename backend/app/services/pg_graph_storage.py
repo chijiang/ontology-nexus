@@ -543,6 +543,7 @@ class PGGraphStorage:
                         },
                         "relationships": [
                             {
+                                "id": rel.id,
                                 "type": rel.relationship_type,
                                 "source": instance_name,
                                 "target": entity.name,
@@ -572,6 +573,7 @@ class PGGraphStorage:
                         },
                         "relationships": [
                             {
+                                "id": rel.id,
                                 "type": rel.relationship_type,
                                 "source": entity.name,
                                 "target": instance_name,
@@ -629,6 +631,7 @@ class PGGraphStorage:
                             },
                             "relationships": [
                                 {
+                                    "id": rel.id,
                                     "type": rel.relationship_type,
                                     "source": (
                                         instance_name

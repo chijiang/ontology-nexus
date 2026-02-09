@@ -245,7 +245,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                 <div className="grid grid-cols-1 gap-2">
                     {Object.entries(metadata).map(([key, value]) => (
                         <div key={key} className="flex flex-col gap-0.5">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{key}</span>
+                            <span className="text-[10px] font-bold text-gray-400 tracking-tighter">{key}</span>
                             <span className="text-sm font-medium text-gray-600 truncate">{String(value || '-')}</span>
                         </div>
                     ))}
@@ -267,7 +267,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                     <div className="space-y-4">
                         {Object.entries(displayProps).map(([key, value]) => (
                             <div key={key} className="space-y-1">
-                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                <label className="text-xs font-medium text-gray-500 tracking-wide">
                                     {key}
                                 </label>
                                 {editing ? (

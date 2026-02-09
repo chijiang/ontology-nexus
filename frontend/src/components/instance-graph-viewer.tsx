@@ -264,7 +264,11 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
 
                         // 添加边
                         n.relationships?.forEach((rel: any, i: number) => {
-                            const edgeId = `${rel.source}-${rel.target}-${i}`
+                            // Use consistent edge ID format (same as expandNode)
+                            const edgeId = rel.id
+                                ? `rel-${rel.id}`
+                                : `${rel.source}-${rel.target}-${rel.type}`
+
                             if (!addedNodes.has(rel.source) || !addedNodes.has(rel.target)) return
 
                             elements.push({
@@ -308,14 +312,17 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
             const neighbors = res.data
 
             const newElements: ElementDefinition[] = []
+            const addedNodeIds = new Set<string>()
+            const addedEdgeIds = new Set<string>()
 
             neighbors.forEach((n: any) => {
                 const labelName = n.labels?.[0] || 'Unknown'
                 const nodeColor = getColorForLabel(labelName)
                 const borderColor = shadeColor(nodeColor, -20)
 
-                // Add node if not exists
-                if (!cyRef.current?.getElementById(n.name).length) {
+                // Add node if not exists (check both cytoscape and current batch)
+                if (!cyRef.current?.getElementById(n.name).length && !addedNodeIds.has(n.name)) {
+                    addedNodeIds.add(n.name)
                     newElements.push({
                         data: {
                             id: n.name,
@@ -331,20 +338,27 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
 
                 // Add edges
                 n.relationships?.forEach((rel: any, i: number) => {
-                    const edgeId = `${rel.source}-${rel.target}-${i}`
-                    if (!cyRef.current?.getElementById(edgeId).length) {
-                        // Ensure both nodes exist in the graph before adding the edge
-                        if (cyRef.current?.getElementById(rel.source).length || rel.source === n.name) {
-                            if (cyRef.current?.getElementById(rel.target).length || rel.target === n.name) {
-                                newElements.push({
-                                    data: {
-                                        id: edgeId,
-                                        source: rel.source,
-                                        target: rel.target,
-                                        label: rel.type,
-                                    },
-                                })
-                            }
+                    // Use relationship ID if available, otherwise fallback to composite key
+                    const edgeId = rel.id
+                        ? `rel-${rel.id}`
+                        : `${rel.source}-${rel.target}-${rel.type}`
+
+                    // Check both cytoscape and current batch to avoid duplicates
+                    if (!cyRef.current?.getElementById(edgeId).length && !addedEdgeIds.has(edgeId)) {
+                        // Ensure both nodes exist in the graph or current batch before adding the edge
+                        const sourceExists = cyRef.current?.getElementById(rel.source).length || addedNodeIds.has(rel.source)
+                        const targetExists = cyRef.current?.getElementById(rel.target).length || addedNodeIds.has(rel.target)
+
+                        if (sourceExists && targetExists) {
+                            addedEdgeIds.add(edgeId)
+                            newElements.push({
+                                data: {
+                                    id: edgeId,
+                                    source: rel.source,
+                                    target: rel.target,
+                                    label: rel.type,
+                                },
+                            })
                         }
                     }
                 })

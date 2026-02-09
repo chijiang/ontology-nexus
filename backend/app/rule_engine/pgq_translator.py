@@ -49,12 +49,16 @@ class PGQTranslator:
         # 这里我们使用传统 SQL JOIN 作为兼容实现
         # 如果使用原生 GRAPH_TABLE，需要先 CREATE PROPERTY GRAPH
 
+        # Use the variable name as the table alias for consistency with paths
+        alias = var
+
         # 构建 SELECT 查询
-        query = f"SELECT e.*\nFROM graph_entities e\n"
-        query += f"WHERE e.entity_type = '{entity_type}'\n"
-        query += f"AND e.is_instance = true\n"
+        query = f"SELECT {alias}.*\nFROM graph_entities {alias}\n"
+        query += f"WHERE {alias}.entity_type = '{entity_type}'\n"
+        query += f"AND {alias}.is_instance = true\n"
 
         if condition:
+            # Pass alias context if needed, but currently translate_condition handles it via paths
             where_clause = self.translate_condition(condition)
             if where_clause:
                 query += f"AND {where_clause}\n"
@@ -125,6 +129,11 @@ class PGQTranslator:
                 _, func_name, args = condition
                 return self._translate_function_call(func_name, args)
 
+            elif op == "node":
+                # 节点模式: ("node", var, type_name)
+                # 在 SQL 中通常只使用变量名作为别名
+                return str(condition[1])
+
         # 处理字面值
         return self._translate_value(condition)
 
@@ -153,15 +162,22 @@ class PGQTranslator:
         # 例如: po -[orderedFrom]-> s
         if isinstance(operator, list) and len(operator) >= 2:
             rel_name = operator[1] if len(operator) > 1 else ""
-            direction = operator[2] if len(operator) > 2 else (operator[0] if len(operator) > 0 else "->")
+            direction = (
+                operator[2]
+                if len(operator) > 2
+                else (operator[0] if len(operator) > 0 else "->")
+            )
 
             # 这是一个图模式，需要转换为 EXISTS 子查询
-            return self._translate_relationship_pattern(left_sql, rel_name, direction, right_sql)
+            return self._translate_relationship_pattern(
+                left_sql, rel_name, direction, right_sql
+            )
 
-        # 映射操作符到 SQL
+        if operator == "!=":
+            return f"({left_sql} IS NULL OR {left_sql} <> {right_sql})"
+
         op_map = {
             "==": "=",
-            "!=": "<>",
             "<": "<",
             ">": ">",
             "<=": "<=",
@@ -202,10 +218,22 @@ class PGQTranslator:
         if direction == "->":
             # 左 -> 右
             if left_bound:
-                # 左边已绑定，检查右边
+                # 左边已绑定，检查右边是否也绑定了
                 left_type, left_id = self._bound_vars[left]
-                return self._exists_relationship_from_bound(
-                    left, left_id, rel_name, right
+                if right_bound:
+                    right_type, right_id = self._bound_vars[right]
+                    return self._exists_relationship_between_bounds(
+                        left_id, rel_name, right_id
+                    )
+                else:
+                    return self._exists_relationship_from_bound(
+                        left, left_id, rel_name, right
+                    )
+            elif right_bound:
+                # 只有右边绑定，源 <- 目标（反向检查）
+                right_type, right_id = self._bound_vars[right]
+                return self._exists_relationship_to_bound(
+                    right, right_id, rel_name, left
                 )
             else:
                 return f"EXISTS (SELECT 1 FROM graph_relationships r WHERE r.relationship_type = '{rel_name}')"
@@ -225,27 +253,110 @@ class PGQTranslator:
             return f"EXISTS (SELECT 1 FROM graph_relationships r WHERE r.relationship_type = '{rel_name}')"
 
     def _exists_relationship_from_bound(
-        self, source_var: str, source_id: str, rel_type: str, target_var: str
+        self,
+        source_var: str,
+        source_id: Any,
+        rel_type: str,
+        target_var: str,
+        target_type: str = None,
+        condition: str = None,
     ) -> str:
         """生成从已绑定变量出发的关系 EXISTS 查询"""
-        return f"""EXISTS (
-            SELECT 1 FROM graph_relationships r
-            JOIN graph_entities e ON e.id = r.target_id
-            WHERE r.source_id = {source_id}
-            AND r.relationship_type = '{rel_type}'
-            AND e.name = '{target_var}'
-        )"""
+        sid = (
+            source_id
+            if isinstance(source_id, (int, str)) and "." in str(source_id)
+            else (source_id if isinstance(source_id, int) else f"'{source_id}'")
+        )
+
+        # If target_var is not bound, we need to join graph_entities
+        if target_var not in self._bound_vars:
+            where_parts = [
+                f"r.source_id = {sid}",
+                f"r.relationship_type = '{rel_type}'",
+                f"r.target_id = {target_var}.id",
+            ]
+            if target_type:
+                where_parts.append(f"{target_var}.entity_type = '{target_type}'")
+            if condition:
+                where_parts.append(condition)
+
+            return f"""EXISTS (
+                SELECT 1 FROM graph_entities {target_var}
+                JOIN graph_relationships r ON r.target_id = {target_var}.id
+                WHERE {" AND ".join(where_parts)}
+            )"""
+        else:
+            # Both are bound
+            where_parts = [
+                f"r.source_id = {sid}",
+                f"r.relationship_type = '{rel_type}'",
+                f"r.target_id = {target_var}.id",  # target_var should be an alias in outer query
+            ]
+            if condition:
+                where_parts.append(condition)
+
+            return f"""EXISTS (
+                SELECT 1 FROM graph_relationships r
+                WHERE {" AND ".join(where_parts)}
+            )"""
 
     def _exists_relationship_to_bound(
-        self, target_var: str, target_id: str, rel_type: str, source_var: str
+        self,
+        target_var: str,
+        target_id: Any,
+        rel_type: str,
+        source_var: str,
+        source_type: str = None,
+        condition: str = None,
     ) -> str:
         """生成指向已绑定变量的关系 EXISTS 查询"""
+        tid = (
+            target_id
+            if isinstance(target_id, (int, str)) and "." in str(target_id)
+            else (target_id if isinstance(target_id, int) else f"'{target_id}'")
+        )
+
+        if source_var not in self._bound_vars:
+            where_parts = [
+                f"r.target_id = {tid}",
+                f"r.relationship_type = '{rel_type}'",
+                f"r.source_id = {source_var}.id",
+            ]
+            if source_type:
+                where_parts.append(f"{source_var}.entity_type = '{source_type}'")
+            if condition:
+                where_parts.append(condition)
+
+            return f"""EXISTS (
+                SELECT 1 FROM graph_entities {source_var}
+                JOIN graph_relationships r ON r.source_id = {source_var}.id
+                WHERE {" AND ".join(where_parts)}
+            )"""
+        else:
+            where_parts = [
+                f"r.target_id = {tid}",
+                f"r.relationship_type = '{rel_type}'",
+                f"r.source_id = {source_var}.id",
+            ]
+            if condition:
+                where_parts.append(condition)
+
+            return f"""EXISTS (
+                SELECT 1 FROM graph_relationships r
+                WHERE {" AND ".join(where_parts)}
+            )"""
+
+    def _exists_relationship_between_bounds(
+        self, source_id: Any, rel_type: str, target_id: Any
+    ) -> str:
+        """生成两个已绑定变量之间的关系 EXISTS 查询"""
+        sid = source_id if isinstance(source_id, int) else f"{source_id}"
+        tid = target_id if isinstance(target_id, int) else f"{target_id}"
         return f"""EXISTS (
             SELECT 1 FROM graph_relationships r
-            JOIN graph_entities e ON e.id = r.source_id
-            WHERE r.target_id = {target_id}
+            WHERE r.source_id = {sid}
+            AND r.target_id = {tid}
             AND r.relationship_type = '{rel_type}'
-            AND e.name = '{source_var}'
         )"""
 
     def _translate_path(self, path: str) -> str:
@@ -268,13 +379,15 @@ class PGQTranslator:
         # 在 GRAPH_TABLE 或 JOIN 中可能会有不同别名
         # 这里简化处理，如果是 this 则映射到 e
         var = parts[0]
-        alias = "e" if var == "this" else var
+        # In current RuleEngine implementation, triggering entity uses 'this' or 'e'
+        # Nested FORs use their own variable names which correspond to table aliases
+        alias = var
 
         if len(parts) == 1:
             return alias
 
         attr = parts[1]
-        
+
         # 基础列名直接访问
         base_cols = {"id", "name", "entity_type", "is_instance", "uri", "properties"}
         if attr in base_cols and len(parts) == 2:
@@ -284,27 +397,140 @@ class PGQTranslator:
         # 对 JSONB，最后一级使用 ->> 获取 text，中间级使用 -> 获取 jsonb
         if len(parts) == 2:
             return f"{alias}.properties->>'{attr}'"
-        
+
         # 多级嵌套
         path_segments = "->".join([f"'{p}'" for p in parts[1:-1]])
         last_segment = f"->>'{parts[-1]}'"
         return f"{alias}.properties->{path_segments}{last_segment}"
 
+    def _translate_pattern(self, pattern: Any) -> str:
+        """Entry point for ExpressionEvaluator to translate a pattern (e.g. for EXISTS)."""
+        return self._translate_exists_pattern(pattern)
+
     def _translate_exists_pattern(self, pattern: Any) -> str:
         """翻译存在性检查模式
 
         Args:
-            pattern: 图模式 AST
-
-        Returns:
-            SQL EXISTS 表达式
+            pattern: 图模式 AST, 例如: [node1, rel, node2, "WHERE", condition]
         """
-        if not isinstance(pattern, (list, tuple)):
-            return ""
+        if not isinstance(pattern, (list, tuple)) or len(pattern) < 3:
+            return "SELECT 1"  # Default truthy for EXISTS if pattern is weird
 
-        # 解析模式: (node1, rel1, node2, ...)
-        # 简化实现：返回一个通用的 EXISTS
-        return "EXISTS (SELECT 1)"
+        # Filter out "WHERE" and condition
+        actual_pattern = []
+        condition_ast = None
+        is_where = False
+
+        for item in pattern:
+            if item == "WHERE":
+                is_where = True
+                continue
+            if is_where:
+                condition_ast = item
+                break
+            actual_pattern.append(item)
+
+        if len(actual_pattern) < 3:
+            return "SELECT 1"
+
+        # Translate components
+        left_node = actual_pattern[0]
+        rel_pattern = actual_pattern[1]
+        right_node = actual_pattern[2]
+
+        # Format nodes
+        left_var = (
+            left_node[1]
+            if isinstance(left_node, (list, tuple)) and left_node[0] == "node"
+            else str(left_node)
+        )
+        right_var = (
+            right_node[1]
+            if isinstance(right_node, (list, tuple)) and right_node[0] == "node"
+            else str(right_node)
+        )
+        right_type = (
+            right_node[2]
+            if isinstance(right_node, (list, tuple)) and right_node[0] == "node"
+            else None
+        )
+        left_type = (
+            left_node[2]
+            if isinstance(left_node, (list, tuple)) and left_node[0] == "node"
+            else None
+        )
+
+        # Format relationship
+        rel_name = rel_pattern[1] if len(rel_pattern) > 1 else ""
+        direction = "->"  # Default
+        if rel_pattern[0] == "<-":
+            direction = "<-"
+        elif rel_pattern[2] == "->":
+            direction = "->"
+        else:
+            direction = "-"
+
+        # Translate condition if present
+        condition_sql = (
+            self.translate_condition(condition_ast) if condition_ast else None
+        )
+
+        # Generate SQL
+        left_bound = left_var in self._bound_vars
+        right_bound = right_var in self._bound_vars
+
+        if direction == "->":
+            if left_bound:
+                _, left_id = self._bound_vars[left_var]
+                sql = self._exists_relationship_from_bound(
+                    left_var, left_id, rel_name, right_var, right_type, condition_sql
+                )
+            elif right_bound:
+                _, right_id = self._bound_vars[right_var]
+                sql = self._exists_relationship_to_bound(
+                    right_var, right_id, rel_name, left_var, left_type, condition_sql
+                )
+            else:
+                # Neither bound, return a generic join
+                sql = f"EXISTS (SELECT 1 FROM graph_entities {left_var} JOIN graph_relationships r ON r.source_id = {left_var}.id JOIN graph_entities {right_var} ON r.target_id = {right_var}.id WHERE r.relationship_type = '{rel_name}'"
+                if left_type:
+                    sql += f" AND {left_var}.entity_type = '{left_type}'"
+                if right_type:
+                    sql += f" AND {right_var}.entity_type = '{right_type}'"
+                if condition_sql:
+                    sql += f" AND {condition_sql}"
+                sql += ")"
+        elif direction == "<-":
+            if right_bound:
+                _, right_id = self._bound_vars[right_var]
+                sql = self._exists_relationship_from_bound(
+                    right_var, right_id, rel_name, left_var, left_type, condition_sql
+                )
+            elif left_bound:
+                _, left_id = self._bound_vars[left_var]
+                sql = self._exists_relationship_to_bound(
+                    left_var, left_id, rel_name, right_var, right_type, condition_sql
+                )
+            else:
+                sql = f"EXISTS (SELECT 1 FROM graph_entities {right_var} JOIN graph_relationships r ON r.source_id = {right_var}.id JOIN graph_entities {left_var} ON r.target_id = {left_var}.id WHERE r.relationship_type = '{rel_name}'"
+                if right_type:
+                    sql += f" AND {right_var}.entity_type = '{right_type}'"
+                if left_type:
+                    sql += f" AND {left_var}.entity_type = '{left_type}'"
+                if condition_sql:
+                    sql += f" AND {condition_sql}"
+                sql += ")"
+        else:
+            # Unspecified direction
+            sql = "EXISTS (SELECT 1)"  # Simplify for now
+
+        # ExpressionEvaluator wraps it in EXISTS(sql) so we return only the inner SELECT if it already starts with EXISTS
+        stripped_sql = sql.strip()
+        if stripped_sql.upper().startswith("EXISTS") and stripped_sql.endswith(")"):
+            # Extract content between EXISTS ( and )
+            start = stripped_sql.find("(")
+            return stripped_sql[start + 1 : -1].strip()
+        return sql
 
     def _translate_function_call(self, func_name: str, args: List[Any]) -> str:
         """翻译函数调用
@@ -403,7 +629,7 @@ class PGQTranslator:
         match_pattern: str,
         where_clause: Optional[str] = None,
         columns: Optional[List[str]] = None,
-        graph_name: str = "kg_graph"
+        graph_name: str = "kg_graph",
     ) -> str:
         """生成 GRAPH_TABLE 查询
 
@@ -448,7 +674,7 @@ class PGQueryBuilder:
         start_node: str,
         direction: str = "both",
         rel_types: Optional[List[str]] = None,
-        hops: int = 1
+        hops: int = 1,
     ) -> str:
         """构建邻居查询
 

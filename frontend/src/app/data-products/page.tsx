@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
+import { AppLayout } from '@/components/layout'
 import { dataProductsApi, DataProduct, ConnectionStatus } from '@/lib/api'
 
 function ConnectionStatusBadge({ status }: { status: ConnectionStatus }) {
@@ -57,12 +58,43 @@ function ConnectionStatusBadge({ status }: { status: ConnectionStatus }) {
 
 export default function DataProductsPage() {
     const router = useRouter()
+    const [isHydrated, setIsHydrated] = useState(false)
+    const token = localStorage.getItem('auth-storage')
 
     const [products, setProducts] = useState<DataProduct[]>([])
     const [loading, setLoading] = useState(true)
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
     const [testingConnection, setTestingConnection] = useState<number | null>(null)
     const [deletingProduct, setDeletingProduct] = useState<number | null>(null)
+
+    // Schema editing
+    const [schemaDialogOpen, setSchemaDialogOpen] = useState(false)
+    const [selectedProductForSchema, setSelectedProductForSchema] = useState<DataProduct | null>(null)
+    const [schemaContent, setSchemaContent] = useState('')
+    const [savingSchema, setSavingSchema] = useState(false)
+
+    const handleOpenSchema = (product: any) => {
+        setSelectedProductForSchema(product)
+        setSchemaContent(product.proto_content || '')
+        setSchemaDialogOpen(true)
+    }
+
+    const handleSaveSchema = async () => {
+        if (!selectedProductForSchema) return
+        setSavingSchema(true)
+        try {
+            await dataProductsApi.update(selectedProductForSchema.id, {
+                proto_content: schemaContent
+            })
+            toast.success('Schema 已保存', { description: 'Proto 定义更新成功' })
+            setSchemaDialogOpen(false)
+            loadProducts()
+        } catch (err) {
+            toast.error('保存失败')
+        } finally {
+            setSavingSchema(false)
+        }
+    }
 
     // Form state
     const [formData, setFormData] = useState({
@@ -89,8 +121,19 @@ export default function DataProductsPage() {
     }
 
     useEffect(() => {
+        setIsHydrated(true)
         loadProducts()
     }, [])
+
+    useEffect(() => {
+        if (isHydrated && !token) {
+            router.push('/')
+        }
+    }, [isHydrated, token, router])
+
+    if (!isHydrated || !token) {
+        return null
+    }
 
     const handleCreate = async () => {
         if (!formData.name || !formData.grpc_host || !formData.service_name) {
@@ -182,194 +225,238 @@ export default function DataProductsPage() {
     }
 
     return (
-        <div className="container mx-auto py-8 px-4 max-w-6xl">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">数据产品</h1>
-                    <p className="text-muted-foreground mt-1">
-                        注册和管理 gRPC 数据服务，配置与 Ontology 的映射关系
-                    </p>
-                </div>
-
-                <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="w-4 h-4 mr-2" />
-                            注册数据产品
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[500px]">
-                        <DialogHeader>
-                            <DialogTitle>注册新数据产品</DialogTitle>
-                            <DialogDescription>
-                                配置 gRPC 服务端点信息，注册后可进行数据映射
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <div className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="name">产品名称 *</Label>
-                                <Input
-                                    id="name"
-                                    placeholder="例如: ERP-Supplier"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="description">描述</Label>
-                                <Textarea
-                                    id="description"
-                                    placeholder="数据产品的简要描述"
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="host">gRPC 服务地址 *</Label>
-                                    <Input
-                                        id="host"
-                                        placeholder="localhost"
-                                        value={formData.grpc_host}
-                                        onChange={(e) => setFormData({ ...formData, grpc_host: e.target.value })}
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="port">端口 *</Label>
-                                    <Input
-                                        id="port"
-                                        type="number"
-                                        placeholder="50051"
-                                        value={formData.grpc_port}
-                                        onChange={(e) => setFormData({ ...formData, grpc_port: parseInt(e.target.value) || 50051 })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="service">服务名称 *</Label>
-                                <Input
-                                    id="service"
-                                    placeholder="例如: SupplierService"
-                                    value={formData.service_name}
-                                    onChange={(e) => setFormData({ ...formData, service_name: e.target.value })}
-                                />
-                            </div>
-                        </div>
-
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-                                取消
-                            </Button>
-                            <Button onClick={handleCreate} disabled={creating}>
-                                {creating ? '创建中...' : '创建'}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            </div>
-
-            {/* Product List */}
-            {loading ? (
-                <div className="flex items-center justify-center py-12">
-                    <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
-                </div>
-            ) : products.length === 0 ? (
-                <Card className="border-dashed">
-                    <CardContent className="flex flex-col items-center justify-center py-12">
-                        <Server className="w-12 h-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium mb-2">暂无数据产品</h3>
-                        <p className="text-muted-foreground text-sm mb-4">
-                            注册第一个 gRPC 数据产品以开始数据映射
+        <AppLayout>
+            <div className="container mx-auto py-8 px-4 max-w-6xl">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">数据产品</h1>
+                        <p className="text-muted-foreground mt-1">
+                            注册和管理 gRPC 数据服务，配置与 Ontology 的映射关系
                         </p>
-                        <Button onClick={() => setCreateDialogOpen(true)}>
-                            <Plus className="w-4 h-4 mr-2" />
-                            注册数据产品
-                        </Button>
-                    </CardContent>
-                </Card>
-            ) : (
-                <div className="grid gap-4">
-                    {products.map((product) => (
-                        <Card key={product.id} className="hover:shadow-md transition-shadow">
-                            <CardHeader className="pb-3">
-                                <div className="flex items-start justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-primary/10 rounded-lg">
-                                            <Server className="w-5 h-5 text-primary" />
-                                        </div>
-                                        <div>
-                                            <CardTitle className="text-lg">{product.name}</CardTitle>
-                                            <CardDescription className="mt-0.5">
-                                                {product.grpc_host}:{product.grpc_port} / {product.service_name}
-                                            </CardDescription>
-                                        </div>
-                                    </div>
+                    </div>
 
-                                    <ConnectionStatusBadge status={product.connection_status} />
+                    <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button>
+                                <Plus className="w-4 h-4 mr-2" />
+                                注册数据产品
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[500px]">
+                            <DialogHeader>
+                                <DialogTitle>注册新数据产品</DialogTitle>
+                                <DialogDescription>
+                                    配置 gRPC 服务端点信息，注册后可进行数据映射
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="grid gap-4 py-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="name">产品名称 *</Label>
+                                    <Input
+                                        id="name"
+                                        placeholder="例如: ERP-Supplier"
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    />
                                 </div>
-                            </CardHeader>
 
-                            <CardContent>
-                                {product.description && (
-                                    <p className="text-sm text-muted-foreground mb-4">
-                                        {product.description}
-                                    </p>
-                                )}
+                                <div className="grid gap-2">
+                                    <Label htmlFor="description">描述</Label>
+                                    <Textarea
+                                        id="description"
+                                        placeholder="数据产品的简要描述"
+                                        value={formData.description}
+                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    />
+                                </div>
 
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                        <span className="flex items-center gap-1">
-                                            <Clock className="w-3.5 h-3.5" />
-                                            上次检查: {formatDate(product.last_health_check)}
-                                        </span>
-                                        {product.last_error && (
-                                            <span className="text-red-500">
-                                                错误: {product.last_error}
-                                            </span>
-                                        )}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="host">gRPC 服务地址 *</Label>
+                                        <Input
+                                            id="host"
+                                            placeholder="localhost"
+                                            value={formData.grpc_host}
+                                            onChange={(e) => setFormData({ ...formData, grpc_host: e.target.value })}
+                                        />
                                     </div>
-
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleTestConnection(product.id)}
-                                            disabled={testingConnection === product.id}
-                                        >
-                                            <RefreshCw className={`w-4 h-4 mr-1.5 ${testingConnection === product.id ? 'animate-spin' : ''}`} />
-                                            测试连接
-                                        </Button>
-
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => router.push(`/data-products/${product.id}/mappings`)}
-                                        >
-                                            <Link2 className="w-4 h-4 mr-1.5" />
-                                            配置映射
-                                        </Button>
-
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleDelete(product.id)}
-                                            disabled={deletingProduct === product.id}
-                                            className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="port">端口 *</Label>
+                                        <Input
+                                            id="port"
+                                            type="number"
+                                            placeholder="50051"
+                                            value={formData.grpc_port}
+                                            onChange={(e) => setFormData({ ...formData, grpc_port: parseInt(e.target.value) || 50051 })}
+                                        />
                                     </div>
                                 </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="service">服务名称 *</Label>
+                                    <Input
+                                        id="service"
+                                        placeholder="例如: SupplierService"
+                                        value={formData.service_name}
+                                        onChange={(e) => setFormData({ ...formData, service_name: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                                    取消
+                                </Button>
+                                <Button onClick={handleCreate} disabled={creating}>
+                                    {creating ? '创建中...' : '创建'}
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Schema Edit Dialog */}
+                    <Dialog open={schemaDialogOpen} onOpenChange={setSchemaDialogOpen}>
+                        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+                            <DialogHeader>
+                                <DialogTitle>编辑 Proto Schema - {selectedProductForSchema?.name}</DialogTitle>
+                                <DialogDescription>
+                                    手动编辑此数据产品的 gRPC 服务定义 (.proto)。这有助于在没有反射支持的情况下识别 Message 类型和同步方法。
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="flex-1 min-h-0 mt-4">
+                                <textarea
+                                    className="w-full h-full p-4 font-mono text-sm bg-slate-900 text-slate-100 rounded-lg border-none focus:ring-1 focus:ring-primary resize-none"
+                                    placeholder="// Paste your .proto file content here..."
+                                    value={schemaContent}
+                                    onChange={(e) => setSchemaContent(e.target.value)}
+                                />
+                            </div>
+                            <DialogFooter className="mt-4">
+                                <Button variant="outline" onClick={() => setSchemaDialogOpen(false)}>
+                                    取消
+                                </Button>
+                                <Button onClick={handleSaveSchema} disabled={savingSchema}>
+                                    {savingSchema ? (
+                                        <>
+                                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                            保存中...
+                                        </>
+                                    ) : '保存 Schema'}
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </div>
-            )}
-        </div>
+
+                {/* Product List */}
+                {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                        <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+                    </div>
+                ) : products.length === 0 ? (
+                    <Card className="border-dashed">
+                        <CardContent className="flex flex-col items-center justify-center py-12">
+                            <Server className="w-12 h-12 text-muted-foreground mb-4" />
+                            <h3 className="text-lg font-medium mb-2">暂无数据产品</h3>
+                            <p className="text-muted-foreground text-sm mb-4">
+                                注册第一个 gRPC 数据产品以开始数据映射
+                            </p>
+                            <Button onClick={() => setCreateDialogOpen(true)}>
+                                <Plus className="w-4 h-4 mr-2" />
+                                注册数据产品
+                            </Button>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <div className="grid gap-4">
+                        {products.map((product) => (
+                            <Card key={product.id} className="hover:shadow-md transition-shadow">
+                                <CardHeader className="pb-3">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-primary/10 rounded-lg">
+                                                <Server className="w-5 h-5 text-primary" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-lg">{product.name}</CardTitle>
+                                                <CardDescription className="mt-0.5">
+                                                    {product.grpc_host}:{product.grpc_port} / {product.service_name}
+                                                </CardDescription>
+                                            </div>
+                                        </div>
+
+                                        <ConnectionStatusBadge status={product.connection_status} />
+                                    </div>
+                                </CardHeader>
+
+                                <CardContent>
+                                    {product.description && (
+                                        <p className="text-sm text-muted-foreground mb-4">
+                                            {product.description}
+                                        </p>
+                                    )}
+
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                            <span className="flex items-center gap-1">
+                                                <Clock className="w-3.5 h-3.5" />
+                                                上次检查: {formatDate(product.last_health_check)}
+                                            </span>
+                                            {product.last_error && (
+                                                <span className="text-red-500">
+                                                    错误: {product.last_error}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleTestConnection(product.id)}
+                                                disabled={testingConnection === product.id}
+                                            >
+                                                <RefreshCw className={`w-4 h-4 mr-1.5 ${testingConnection === product.id ? 'animate-spin' : ''}`} />
+                                                测试连接
+                                            </Button>
+
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleOpenSchema(product)}
+                                            >
+                                                <Settings className="w-4 h-4 mr-1.5" />
+                                                Schema
+                                            </Button>
+
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => router.push(`/data-products/${product.id}/mappings`)}
+                                            >
+                                                <Link2 className="w-4 h-4 mr-1.5" />
+                                                配置映射
+                                            </Button>
+
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleDelete(product.id)}
+                                                disabled={deletingProduct === product.id}
+                                                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </AppLayout>
     )
 }

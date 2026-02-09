@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import json
 from typing import Any, TYPE_CHECKING
 from contextlib import asynccontextmanager
 from app.rule_engine.rule_registry import RuleRegistry
@@ -14,6 +15,7 @@ from app.rule_engine.models import (
     TriggerStatement,
 )
 from app.rule_engine.pgq_translator import PGQTranslator
+from sqlalchemy import text
 
 if TYPE_CHECKING:
     from app.rule_engine.action_registry import ActionRegistry
@@ -61,6 +63,7 @@ class RuleEngine:
             # Check if session_provider is an async generator (like from FastAPI)
             # or a simple factory returning an async context manager
             import inspect
+
             if inspect.isasyncgenfunction(self.session_provider):
                 async for session in self.session_provider():
                     yield session
@@ -124,7 +127,7 @@ class RuleEngine:
             if session is None:
                 logger.error("No database session available for rule execution")
                 return []
-                
+
             for rule in matched_rules:
                 result = await self._execute_rule_async(rule, event, session)
                 if result:
@@ -174,7 +177,19 @@ class RuleEngine:
             for_clause = rule.body
 
             # Execute the FOR clause with actual database queries
-            result = await self._execute_for_clause_async(for_clause, event, session)
+            # Bind the triggering entity as 'this' and also its variable name (if match)
+            # The root FOR clause usually uses 'e' or 'this'
+            bindings = {
+                "this": ("internal", event.entity_id),
+                "e": (
+                    "internal",
+                    event.entity_id,
+                ),  # Support 'e' as default for trigger entity
+            }
+
+            result = await self._execute_for_clause_async(
+                for_clause, event, session, bindings
+            )
 
             return {
                 "rule": rule.name,
@@ -188,17 +203,29 @@ class RuleEngine:
             return {"rule": rule.name, "error": str(e), "success": False}
 
     async def _execute_for_clause_async(
-        self, for_clause: ForClause, event: UpdateEvent, session: "AsyncSession"
+        self,
+        for_clause: ForClause,
+        event: UpdateEvent,
+        session: "AsyncSession",
+        bindings: dict[str, tuple[str, str]] | None = None,
     ) -> dict[str, Any]:
         """Execute a FOR clause with actual database queries.
 
         Args:
             for_clause: The FOR clause to execute
             event: The triggering event
+            session: Database session
+            bindings: Variable bindings from parent scopes (var_name -> (type, entity_id))
 
         Returns:
             Execution result with counts
         """
+        # Set up translator with bindings
+        self.translator.clear_bound_vars()
+        if bindings:
+            for var, (vtype, vid) in bindings.items():
+                self.translator.bind_variable(var, vtype, vid)
+
         # Use the PGQ translator to generate SQL query
         sql_query = self.translator.translate_for(for_clause)
 
@@ -225,13 +252,28 @@ class RuleEngine:
             # For each matching entity, execute the statements
             for record in records:
                 entity_id = record[0]  # First column is entity_id
-                entity_props = record[1] if len(record) > 1 else {}  # Second column is props
+                entity_props = (
+                    record[1] if len(record) > 1 else {}
+                )  # Second column is props
 
                 # Execute each statement in the FOR clause
                 for stmt in for_clause.statements:
+                    # Update bindings for this iteration
+                    current_bindings = (bindings or {}).copy()
+                    current_bindings[for_clause.variable] = (
+                        for_clause.entity_type,
+                        entity_id,
+                    )
+
                     executed = await self._execute_statement_async(
-                        session, stmt, for_clause.variable, for_clause.entity_type,
-                        entity_id, entity_props
+                        session,
+                        stmt,
+                        for_clause.variable,
+                        for_clause.entity_type,
+                        entity_id,
+                        entity_props,
+                        event,
+                        current_bindings,
                     )
                     if executed:
                         statements_executed += 1
@@ -254,6 +296,8 @@ class RuleEngine:
         entity_type: str,
         entity_id: str,
         entity_props: dict[str, Any],
+        event: UpdateEvent,
+        bindings: dict[str, tuple[str, str]],
     ) -> bool:
         """Execute a single statement.
 
@@ -264,6 +308,8 @@ class RuleEngine:
             entity_type: Entity type
             entity_id: Entity ID
             entity_props: Current entity properties
+            event: The original update event
+            bindings: Current variable bindings
 
         Returns:
             True if statement executed successfully
@@ -277,12 +323,12 @@ class RuleEngine:
                 session, stmt, entity_type, entity_id
             )
         elif isinstance(stmt, ForClause):
-            # Nested FOR clause - use PGQ translator
-            sql_query = self.translator.translate_for(stmt)
-            logger.debug(f"Executing nested FOR SQL: {sql_query}")
-            # For now, just log it - full nested execution would need more work
-            logger.info(f"Nested FOR clause: {sql_query}")
-            return True
+            # Nested FOR clause - recursive execution
+            logger.info(f"Executing nested FOR clause for {stmt.variable}")
+            result = await self._execute_for_clause_async(
+                stmt, event, session, bindings
+            )
+            return result.get("entities_affected", 0) >= 0  # Always true if it ran
 
         return False
 
@@ -325,17 +371,21 @@ class RuleEngine:
             evaluated_value = self._evaluate_value(value, entity_props)
 
             # Build and execute the update query for PostgreSQL
-            from sqlalchemy import text
-
-            update_query = text("""
+            # Use jsonb_set(target, path, new_value)
+            # path is an array of text
+            update_query = text(
+                """
                 UPDATE graph_entities
                 SET properties = jsonb_set(
                     COALESCE(properties, '{}'::jsonb),
-                    :prop_name,
-                    :value::jsonb
+                    ARRAY[:prop_name]::text[],
+                    CAST(:json_value AS jsonb)
                 )
-                WHERE name = :entity_id AND entity_type = :entity_type
-            """)
+                WHERE (id = :entity_id OR name = :entity_id_str) AND entity_type = :entity_type
+            """
+            )
+
+            json_value = json.dumps(evaluated_value)
 
             logger.info(f"Executing SET: {entity_id}.{prop_name} = {evaluated_value}")
 
@@ -343,10 +393,11 @@ class RuleEngine:
                 update_query,
                 {
                     "entity_id": entity_id,
+                    "entity_id_str": str(entity_id),
                     "entity_type": entity_type,
-                    "prop_name": f"{{{{{prop_name}}}}}",
-                    "value": evaluated_value,
-                }
+                    "prop_name": prop_name,
+                    "json_value": json_value,
+                },
             )
             await session.commit()
 
@@ -445,16 +496,21 @@ class RuleEngine:
 
                     if func_name.upper() == "NOW":
                         from datetime import datetime
+
                         return datetime.utcnow().isoformat()
                     # Add more built-in functions as needed
-                
+
                 elif value[0] == "id":
                     path = value[1]
                     # Direct reuse of string logic for simple resolution
                     if "." in path:
                         parts = path.split(".")
-                        if len(parts) == 2 and parts[0] in ("this", "e") or any(parts[0] == var for var in ("this", "e", "s", "po")):
-                            # We might need better variable awareness here, 
+                        if (
+                            len(parts) == 2
+                            and parts[0] in ("this", "e")
+                            or any(parts[0] == var for var in ("this", "e", "s", "po"))
+                        ):
+                            # We might need better variable awareness here,
                             # but for now let's just use entity_props if it's the right prefix
                             # Wait, RuleEngine handles nested FORs by passing entity_props
                             # but it doesn't have a full scope stack.

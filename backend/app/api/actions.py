@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.rule_engine.action_registry import ActionRegistry
 from app.rule_engine.action_executor import ActionExecutor
 from app.rule_engine.context import EvaluationContext
+from app.services.pg_graph_storage import PGGraphStorage
 from app.rule_engine.parser import RuleParser
 from app.rule_engine.models import ActionDef
 from app.api.deps import get_current_user
@@ -131,10 +132,26 @@ async def execute_action(
     """
     # Create evaluation context
     # Build entity dict with id and data
-    entity = {"id": request.entity_id, **request.entity_data}
+
+    # Resolve entity_id (which might be a name) to a real database ID
+    storage = PGGraphStorage(db)
+    resolved_entity = await storage.get_entity_by_name(request.entity_id, entity_type)
+
+    real_id = request.entity_id
+    if resolved_entity:
+        real_id = resolved_entity["id"]
+        # Also merge properties from DB to ensure we have the latest state
+        request.entity_data = {**resolved_entity["properties"], **request.entity_data}
+    else:
+        # If not found by name, it might already be an ID or the record is missing
+        # We try to keep going but it might fail later
+        pass
+
+    # Ensure id from request (real DB ID) takes precedence over any 'id' in entity_data
+    entity = {**request.entity_data, "id": real_id, "__type__": entity_type}
 
     # Get database session from app state
-    session = None
+    session = db
 
     try:
         context = EvaluationContext(
@@ -164,7 +181,6 @@ async def execute_action(
 
     # Success! Now persist changes if any
     if result.changes:
-        from app.services.pg_graph_storage import PGGraphStorage
 
         # Get event emitter
         event_emitter = getattr(fastapi_request.app.state, "event_emitter", None)
@@ -274,6 +290,7 @@ async def list_actions(
         Dictionary with list of all actions
     """
     actions = registry.list_all()
+    action_infos = []
 
     for action in actions:
         action_infos.append(

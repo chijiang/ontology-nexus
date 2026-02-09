@@ -1,8 +1,10 @@
 """Expression evaluator for DSL conditions."""
 
 from typing import Any
+import logging
 from app.rule_engine.context import EvaluationContext
 from app.rule_engine.functions import evaluate_function
+
 # Use PGQ translator instead of Cypher translator
 from app.rule_engine.pgq_translator import PGQTranslator
 
@@ -101,7 +103,9 @@ class ExpressionEvaluator:
 
         raise ValueError(f"Unknown AST node type: {op}")
 
-    async def _evaluate_comparison(self, operator: str | None, left: Any, right: Any) -> bool | Any:
+    async def _evaluate_comparison(
+        self, operator: str | None, left: Any, right: Any
+    ) -> bool | Any:
         """Evaluate a comparison operation.
 
         Args:
@@ -182,6 +186,7 @@ class ExpressionEvaluator:
         # Bind 'this' context for the query
         entity_id = self.ctx.entity.get("id") or self.ctx.entity.get("name")
         entity_type = self.ctx.entity.get("__type__")
+
         if entity_id:
             self.translator.bind_variable("this", entity_type, str(entity_id))
 
@@ -192,6 +197,7 @@ class ExpressionEvaluator:
 
             # Execute query
             from sqlalchemy import text
+
             result = await self.ctx.db.execute(text(query))
             record = result.first()
             return record[0] if record else False
@@ -205,5 +211,5 @@ class ExpressionEvaluator:
             resolved = self.ctx.resolve_path(path)
             if resolved is not None:
                 return resolved
-        
+
         return await self.evaluate(path)

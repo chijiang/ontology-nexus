@@ -208,6 +208,7 @@ class RuleEngine:
         event: UpdateEvent,
         session: "AsyncSession",
         bindings: dict[str, tuple[str, str]] | None = None,
+        scope: dict[str, dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Execute a FOR clause with actual database queries.
 
@@ -216,6 +217,7 @@ class RuleEngine:
             event: The triggering event
             session: Database session
             bindings: Variable bindings from parent scopes (var_name -> (type, entity_id))
+            scope: Variable properties from parent scopes (var_name -> props dict)
 
         Returns:
             Execution result with counts
@@ -251,10 +253,27 @@ class RuleEngine:
 
             # For each matching entity, execute the statements
             for record in records:
-                entity_id = record[0]  # First column is entity_id
-                entity_props = (
-                    record[1] if len(record) > 1 else {}
-                )  # Second column is props
+                # graph_entities columns: id(0), name(1), entity_type(2), is_instance(3), properties(4), uri(5), created_at(6), updated_at(7)
+                entity_id = record[0]  # id column
+                entity_name = record[1] if len(record) > 1 else None  # name column
+                raw_props = (
+                    record[4] if len(record) > 4 else {}
+                )  # properties JSONB column
+                # Parse JSON string to dict if needed
+                if isinstance(raw_props, str):
+                    try:
+                        entity_props = json.loads(raw_props)
+                    except (json.JSONDecodeError, TypeError):
+                        entity_props = {}
+                else:
+                    entity_props = raw_props if raw_props else {}
+                # Include the entity name in props so ${e.name} resolves
+                if entity_name and "name" not in entity_props:
+                    entity_props["name"] = entity_name
+
+                # Update scope with this variable's properties
+                current_scope = (scope or {}).copy()
+                current_scope[for_clause.variable] = entity_props
 
                 # Execute each statement in the FOR clause
                 for stmt in for_clause.statements:
@@ -274,6 +293,7 @@ class RuleEngine:
                         entity_props,
                         event,
                         current_bindings,
+                        current_scope,
                     )
                     if executed:
                         statements_executed += 1
@@ -298,6 +318,7 @@ class RuleEngine:
         entity_props: dict[str, Any],
         event: UpdateEvent,
         bindings: dict[str, tuple[str, str]],
+        scope: dict[str, dict[str, Any]] | None = None,
     ) -> bool:
         """Execute a single statement.
 
@@ -310,13 +331,14 @@ class RuleEngine:
             entity_props: Current entity properties
             event: The original update event
             bindings: Current variable bindings
+            scope: Variable properties from all scopes (var_name -> props dict)
 
         Returns:
             True if statement executed successfully
         """
         if isinstance(stmt, SetStatement):
             return await self._execute_set_statement(
-                session, stmt, var, entity_type, entity_id, entity_props
+                session, stmt, var, entity_type, entity_id, entity_props, scope
             )
         elif isinstance(stmt, TriggerStatement):
             return await self._execute_trigger_statement(
@@ -326,7 +348,7 @@ class RuleEngine:
             # Nested FOR clause - recursive execution
             logger.info(f"Executing nested FOR clause for {stmt.variable}")
             result = await self._execute_for_clause_async(
-                stmt, event, session, bindings
+                stmt, event, session, bindings, scope
             )
             return result.get("entities_affected", 0) >= 0  # Always true if it ran
 
@@ -340,6 +362,7 @@ class RuleEngine:
         entity_type: str,
         entity_id: str,
         entity_props: dict[str, Any],
+        scope: dict[str, dict[str, Any]] | None = None,
     ) -> bool:
         """Execute a SET statement.
 
@@ -350,6 +373,7 @@ class RuleEngine:
             entity_type: Entity type
             entity_id: Entity ID
             entity_props: Current entity properties
+            scope: Variable properties from all scopes (var_name -> props dict)
 
         Returns:
             True if successful
@@ -367,8 +391,8 @@ class RuleEngine:
 
             target_var, prop_name = parts
 
-            # Evaluate the value
-            evaluated_value = self._evaluate_value(value, entity_props)
+            # Evaluate the value with full scope for cross-variable references
+            evaluated_value = self._evaluate_value(value, entity_props, scope)
 
             # Build and execute the update query for PostgreSQL
             # Use jsonb_set(target, path, new_value)
@@ -443,12 +467,18 @@ class RuleEngine:
             logger.error(f"Error executing TRIGGER statement: {e}")
             return False
 
-    def _evaluate_value(self, value: Any, entity_props: dict[str, Any]) -> Any:
+    def _evaluate_value(
+        self,
+        value: Any,
+        entity_props: dict[str, Any],
+        scope: dict[str, dict[str, Any]] | None = None,
+    ) -> Any:
         """Evaluate a value expression.
 
         Args:
             value: The value expression (could be literal or function call)
-            entity_props: Entity properties for variable resolution
+            entity_props: Entity properties for variable resolution (current entity)
+            scope: Variable properties from all scopes (var_name -> props dict)
 
         Returns:
             Evaluated value
@@ -476,12 +506,21 @@ class RuleEngine:
             # Check if it's a property reference (e.g., "e.status")
             if "." in value:
                 parts = value.split(".")
-                if len(parts) == 2 and parts[0] in ("this", "e"):
-                    prop_value = entity_props.get(parts[1])
-                    logger.debug(
-                        f"Value is property reference: {value} -> {prop_value}"
-                    )
-                    return prop_value
+                if len(parts) == 2:
+                    var_name, prop_name = parts
+                    # Try scope first for cross-variable resolution
+                    if scope and var_name in scope:
+                        prop_value = scope[var_name].get(prop_name)
+                        logger.debug(
+                            f"Value is scoped reference: {value} -> {prop_value}"
+                        )
+                        return prop_value
+                    if var_name in ("this", "e"):
+                        prop_value = entity_props.get(prop_name)
+                        logger.debug(
+                            f"Value is property reference: {value} -> {prop_value}"
+                        )
+                        return prop_value
             # It's a plain string value
             logger.debug(f"Value is plain string: {value}")
             return value
@@ -489,6 +528,21 @@ class RuleEngine:
         # Handle function calls or identifiers (tuples like ("call", "NOW", []) or ("id", "var.prop"))
         if isinstance(value, tuple):
             if len(value) > 0:
+                # Handle string interpolation: ("format_str", [parts...])
+                if value[0] == "format_str":
+                    parts = value[1] if len(value) > 1 else []
+                    result_parts = []
+                    for part in parts:
+                        if isinstance(part, str):
+                            result_parts.append(part)
+                        else:
+                            # Resolve identifier or expression
+                            resolved = self._evaluate_value(part, entity_props, scope)
+                            result_parts.append(
+                                str(resolved) if resolved is not None else ""
+                            )
+                    return "".join(result_parts)
+
                 if value[0] == "call":
                     func_name = value[1] if len(value) > 1 else ""
                     args = value[2] if len(value) > 2 else []
@@ -502,20 +556,20 @@ class RuleEngine:
 
                 elif value[0] == "id":
                     path = value[1]
-                    # Direct reuse of string logic for simple resolution
+                    # Resolve variable.property references
                     if "." in path:
                         parts = path.split(".")
-                        if (
-                            len(parts) == 2
-                            and parts[0] in ("this", "e")
-                            or any(parts[0] == var for var in ("this", "e", "s", "po"))
-                        ):
-                            # We might need better variable awareness here,
-                            # but for now let's just use entity_props if it's the right prefix
-                            # Wait, RuleEngine handles nested FORs by passing entity_props
-                            # but it doesn't have a full scope stack.
-                            # For now, let's just try to resolve it.
-                            prop_value = entity_props.get(parts[1])
+                        if len(parts) == 2:
+                            var_name, prop_name = parts
+                            # Try scope first for cross-variable resolution
+                            if scope and var_name in scope:
+                                prop_value = scope[var_name].get(prop_name)
+                                logger.debug(
+                                    f"Value is scoped identifier: {path} -> {prop_value}"
+                                )
+                                return prop_value
+                            # Fall back to entity_props
+                            prop_value = entity_props.get(prop_name)
                             logger.debug(f"Value is identifier: {path} -> {prop_value}")
                             return prop_value
                     return path
@@ -527,7 +581,7 @@ class RuleEngine:
         # Handle lists
         if isinstance(value, list):
             logger.debug(f"Value is list: {value}")
-            return [self._evaluate_value(item, entity_props) for item in value]
+            return [self._evaluate_value(item, entity_props, scope) for item in value]
 
         logger.warning(f"Unknown value type: {type(value).__name__} = {value}")
         return value

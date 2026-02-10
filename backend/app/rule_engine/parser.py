@@ -1,5 +1,6 @@
 """DSL Parser using Lark."""
 
+import re
 from lark import Lark, Transformer, Token
 from pathlib import Path
 from app.rule_engine.models import (
@@ -35,7 +36,27 @@ class ASTTransformer(Transformer):
         # Strip quotes from string
         s = str(token)
         if s.startswith('"') and s.endswith('"'):
-            return s[1:-1]
+            s = s[1:-1]
+
+        # Check for ${...} interpolation patterns
+        if "${" in s:
+            parts = []
+            last_end = 0
+            for m in re.finditer(r"\$\{([^}]+)\}", s):
+                # Add literal text before this match
+                if m.start() > last_end:
+                    parts.append(m.string[last_end : m.start()])
+                # Add the identifier reference (e.g. "e.name")
+                expr = m.group(1).strip()
+                parts.append(("id", expr))
+                last_end = m.end()
+            # Add any trailing literal text
+            if last_end < len(s):
+                parts.append(s[last_end:])
+            # Only wrap if there were actual interpolations
+            if any(isinstance(p, tuple) for p in parts):
+                return ("format_str", parts)
+
         return s
 
     def NUMBER(self, token: Token) -> int | float:

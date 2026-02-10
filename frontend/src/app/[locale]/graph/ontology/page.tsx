@@ -24,7 +24,7 @@ import { graphApi } from '@/lib/api'
 
 export interface OntologyNode {
     name: string
-    label?: string
+    label?: string[] | string
     dataProperties?: string[]
     color?: string
 }
@@ -154,7 +154,7 @@ export default function OntologyPage() {
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg font-semibold text-slate-800">{t('graph.ontology.title')}</h2>
                         {isEditMode && relStep !== 'IDLE' && (
-                            <div className="flex items-center gap-1.5 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 text-blue-600 text-xs">
+                            <div className="flex items-center gap-1.5 bg-primary/5 px-2.5 py-1 rounded-md border border-primary/20 text-primary text-xs">
                                 <Info className="w-3 h-3" />
                                 <span>
                                     {relStep === 'SOURCE' && t('graph.ontology.stepSource')}
@@ -171,7 +171,7 @@ export default function OntologyPage() {
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 text-xs border-green-200 text-green-700 hover:bg-green-50"
+                                    className="h-7 text-xs border-slate-200 text-slate-700 hover:bg-slate-50"
                                     onClick={() => setIsAddClassOpen(true)}
                                 >
                                     <Plus className="w-3 h-3 mr-1" />
@@ -180,7 +180,7 @@ export default function OntologyPage() {
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
+                                    className="h-7 text-xs border-slate-200 text-slate-700 hover:bg-slate-50"
                                     onClick={startAddRel}
                                 >
                                     <Plus className="w-3 h-3 mr-1" />
@@ -195,7 +195,7 @@ export default function OntologyPage() {
                                 setIsEditMode(!isEditMode)
                                 setRelStep('IDLE')
                             }}
-                            className={`h-7 text-xs ${isEditMode ? "bg-amber-500 hover:bg-amber-600 border-none" : "border-slate-200"}`}
+                            className={`h-7 text-xs ${isEditMode ? "bg-primary text-white hover:opacity-90 transition-opacity border-none" : "border-slate-200"}`}
                         >
                             {isEditMode ? <Eye className="w-3 h-3 mr-1" /> : <Edit3 className="w-3 h-3 mr-1" />}
                             {isEditMode ? t('graph.ontology.exitEditMode') : t('graph.ontology.editMode')}

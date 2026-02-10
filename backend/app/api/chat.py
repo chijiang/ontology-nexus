@@ -63,15 +63,29 @@ async def chat_stream_v2(
     db.add(user_message)
     await db.commit()
 
+    # Fetch history (last 3 rounds = 6 messages)
+    history_result = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation.id, Message.id < user_message.id)
+        .order_by(Message.id.desc())
+        .limit(6)
+    )
+    history_messages = history_result.scalars().all()
+    # Reverse to get chronological order
+    history = [
+        {"role": m.role, "content": m.content} for m in reversed(history_messages)
+    ]
+
+    # Create llm_dict by decrypting API key
     llm_dict = {
         "api_key": decrypt_data(llm_config.api_key_encrypted),
         "base_url": llm_config.base_url,
         "model": llm_config.model,
     }
 
-    # Get action executor and registry from app state if available
-    action_executor = getattr(request.app.state, "action_executor", None)
-    action_registry = getattr(request.app.state, "action_registry", None)
+    # Get action components from app state
+    action_executor = request.app.state.action_executor
+    action_registry = request.app.state.action_registry
 
     # Create enhanced agent (Neo4j config is now empty, using PostgreSQL)
     agent = EnhancedAgentService(
@@ -89,7 +103,7 @@ async def chat_stream_v2(
         # Send conversation_id immediately
         yield f"data: {json.dumps({'type': 'conversation_id', 'id': conversation.id}, ensure_ascii=False)}\n\n"
 
-        async for chunk in agent.astream_chat(req.query):
+        async for chunk in agent.astream_chat(req.query, history=history):
             chunk["conversation_id"] = conversation.id
 
             if chunk.get("type") == "thinking":

@@ -6,7 +6,7 @@ import { graphApi, actionsApi, ActionRuntimeInfo } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { X, Save, Edit2, Check, XCircle, Play, Loader2 } from 'lucide-react'
+import { X, Save, Edit2, Check, XCircle, Play, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslations } from 'next-intl'
 
@@ -16,6 +16,7 @@ interface InstanceNode {
     label: string
     nodeLabel: string
     labels?: string[]
+    aliases?: string[]
     properties?: Record<string, any>
 }
 
@@ -30,6 +31,8 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
     const token = useAuthStore((state) => state.token)
     const [editing, setEditing] = useState(false)
     const [editedProperties, setEditedProperties] = useState<Record<string, any>>({})
+    const [editingAliases, setEditingAliases] = useState<string[]>([])
+    const [originalAliases, setOriginalAliases] = useState<string[]>([])
     const [saving, setSaving] = useState(false)
     const [metadata, setMetadata] = useState<Record<string, any>>({})
     const [expandedProps, setExpandedProps] = useState<Record<string, any>>({})
@@ -70,6 +73,9 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             })
             setExpandedProps(filteredProps)
             setEditedProperties(filteredProps)
+            const aliases = data.aliases || []
+            setEditingAliases(aliases)
+            setOriginalAliases(aliases)
         } catch (err) {
             console.error('Failed to load node details:', err)
             // 回退逻辑
@@ -80,17 +86,20 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             const props = node.properties || {}
             setExpandedProps(props)
             setEditedProperties(props)
+            setEditingAliases(node.aliases || [])
         }
     }
 
     const handleStartEdit = () => {
         setEditing(true)
         setEditedProperties({ ...expandedProps })
+        setEditingAliases([...editingAliases])
     }
 
     const handleCancelEdit = () => {
         setEditing(false)
         setEditedProperties({ ...expandedProps })
+        setEditingAliases([...editingAliases])
     }
 
     const handlePropertyChange = (key: string, value: any) => {
@@ -113,6 +122,12 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                 }
             })
 
+            // 检查别名是否修改
+            const filteredEditingAliases = editingAliases.filter(a => a.trim() !== '')
+            if (JSON.stringify(filteredEditingAliases) !== JSON.stringify(originalAliases)) {
+                updates['__aliases__'] = filteredEditingAliases
+            }
+
             if (Object.keys(updates).length === 0) {
                 toast.info(t('components.instance.noChanges'))
                 setEditing(false)
@@ -122,6 +137,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             await graphApi.updateEntity(node.nodeLabel, node.name, updates, token)
             toast.success(t('components.instance.propertiesUpdated'))
             setExpandedProps({ ...editedProperties })
+            setOriginalAliases([...editingAliases])
             setEditing(false)
             onUpdate?.()
         } catch (err: any) {
@@ -252,6 +268,55 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                         </div>
                     ))}
                 </div>
+
+                {/* 别名展示/编辑 */}
+                <div className="mt-3 pt-3 border-t">
+                    <span className="text-[10px] font-bold text-gray-400 tracking-tighter uppercase">别名</span>
+                    {editing ? (
+                        <div className="flex flex-col gap-1.5 mt-1">
+                            {editingAliases.map((a, i) => (
+                                <div key={i} className="flex gap-1 items-center">
+                                    <Input
+                                        value={a}
+                                        onChange={(e) => {
+                                            const newAliases = [...editingAliases]
+                                            newAliases[i] = e.target.value
+                                            setEditingAliases(newAliases)
+                                        }}
+                                        className="h-7 text-xs border-emerald-100 focus-visible:ring-emerald-500"
+                                        placeholder="输入别名"
+                                    />
+                                    <button
+                                        onClick={() => setEditingAliases(editingAliases.filter((_, idx) => idx !== i))}
+                                        className="text-red-400 hover:text-red-600"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            ))}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-[10px] w-fit text-emerald-600"
+                                onClick={() => setEditingAliases([...editingAliases, ''])}
+                            >
+                                <Plus className="h-3 w-3 mr-1" /> 添加别名
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                            {editingAliases.length > 0 ? (
+                                editingAliases.map((a, i) => (
+                                    <span key={i} className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-100">
+                                        {a}
+                                    </span>
+                                ))
+                            ) : (
+                                <span className="text-xs text-gray-400 italic">无别名</span>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* 属性列表 */}
@@ -301,7 +366,12 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                                     <div key={actionKey} className="flex flex-col gap-2 p-3 border rounded-lg bg-white shadow-sm hover:border-emerald-200 transition-colors">
                                         <div className="flex items-center justify-between gap-4">
                                             <div className="flex flex-col gap-0.5">
-                                                <span className="text-sm font-medium text-gray-700">{action.action_name}</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-sm font-medium text-gray-700">{action.action_name}</span>
+                                                    {action.has_call && (
+                                                        <span className="px-1 py-0.5 rounded text-[8px] bg-blue-100 text-blue-600 font-medium">gRPC</span>
+                                                    )}
+                                                </div>
                                                 {action.description && (
                                                     <span className="text-[10px] text-gray-400 italic leading-tight">
                                                         {action.description}

@@ -36,13 +36,13 @@ export function AppLayout({ children, noPadding = false }: { children: React.Rea
     <div className={`flex flex-col bg-gray-50 ${noPadding ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       <header className="bg-white border-b flex-shrink-0 sticky top-0 z-50">
         <div className="w-full px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold bg-indigo-600 bg-clip-text text-transparent">{t('layout.title')}</h1>
+          <h1 className="text-xl font-bold text-primary">{t('layout.title')}</h1>
           <nav className="flex items-center gap-6">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`text-sm transition-colors ${pathname === item.href ? 'font-bold text-indigo-600' : 'text-gray-600 hover:text-indigo-400'
+                className={`text-sm transition-colors ${pathname === item.href ? 'font-bold text-primary' : 'text-slate-600 hover:text-primary/70'
                   }`}
               >
                 {item.label}

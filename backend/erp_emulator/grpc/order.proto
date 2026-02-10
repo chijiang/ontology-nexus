@@ -32,6 +32,8 @@ message PurchaseOrder {
   int64 created_at = 11;     // Unix timestamp
   int64 updated_at = 12;     // Unix timestamp
   repeated OrderItem items = 13;
+  optional int32 contract_id = 14;
+  optional int32 material_id = 15;
 }
 
 message CreateOrderItemRequest {
@@ -49,6 +51,8 @@ message CreateOrderRequest {
   string shipping_address = 5;
   string notes = 6;
   repeated CreateOrderItemRequest items = 7;
+  optional int32 contract_id = 8;
+  optional int32 material_id = 9;
 }
 
 message UpdateOrderRequest {

@@ -16,7 +16,7 @@ const SCHEMA_COLORS = [
 
 interface SchemaNode {
     name: string
-    label?: string
+    label?: string[]
     dataProperties?: string[]
     color?: string
 }
@@ -134,7 +134,7 @@ export function SchemaViewer({
             const node = evt.target
             const nodeData = {
                 name: node.id(),
-                label: node.data('label'),
+                label: node.data('aliases'), // Use the stored aliases array
                 dataProperties: node.data('dataProperties'),
                 color: node.data('color'),
             }
@@ -199,6 +199,7 @@ export function SchemaViewer({
                         label: node.name,
                         color: color,
                         borderColor: color,
+                        aliases: node.label || [], // Store original label array
                         dataProperties: node.dataProperties || [],
                     }
                 })

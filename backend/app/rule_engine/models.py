@@ -51,6 +51,14 @@ class SetStatement:
 
 
 @dataclass
+class CallStatement:
+    service_name: str  # gRPC service name, e.g. "OrderService"
+    method_name: str  # method name, e.g. "UpdateOrder"
+    arguments: dict[str, Any]  # request body field -> AST expression
+    result_var: str | None = None  # INTO variable name (optional)
+
+
+@dataclass
 class TriggerStatement:
     entity_type: str
     action_name: str

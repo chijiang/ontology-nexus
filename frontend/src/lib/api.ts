@@ -174,6 +174,7 @@ export interface ActionRuntimeInfo {
   parameters: ActionParameter[]
   precondition_count: number
   has_effect: boolean
+  has_call: boolean
   description?: string
 }
 
@@ -182,6 +183,7 @@ export interface ActionInfo {
   name: string
   entity_type: string
   is_active: boolean
+  has_call?: boolean
   description?: string
   created_at: string
   updated_at: string

@@ -42,10 +42,10 @@ import { dataProductsApi, DataProduct, ConnectionStatus } from '@/lib/api'
 function ConnectionStatusBadge({ status }: { status: ConnectionStatus }) {
     const t = useTranslations()
     const config = {
-        connected: { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10', label: t('dataProducts.connecting') },
-        disconnected: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', label: t('dataProducts.disconnected') },
-        error: { icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-500/10', label: t('dataProducts.connectionError') },
-        unknown: { icon: AlertCircle, color: 'text-gray-500', bg: 'bg-gray-500/10', label: t('dataProducts.connectionUnknown') },
+        connected: { icon: CheckCircle, color: 'text-primary', bg: 'bg-primary/10', label: t('dataProducts.connecting') },
+        disconnected: { icon: XCircle, color: 'text-slate-500', bg: 'bg-slate-100', label: t('dataProducts.disconnected') },
+        error: { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-50', label: t('dataProducts.connectionError') },
+        unknown: { icon: AlertCircle, color: 'text-slate-400', bg: 'bg-slate-50', label: t('dataProducts.connectionUnknown') },
     }
 
     const { icon: Icon, color, bg, label } = config[status] || config.unknown
@@ -313,7 +313,7 @@ export default function DataProductsPage() {
                                 <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
                                     {t('common.cancel')}
                                 </Button>
-                                <Button onClick={handleCreate} disabled={creating}>
+                                <Button onClick={handleCreate} disabled={creating} className="bg-primary hover:opacity-90">
                                     {creating ? t('common.loading') : t('common.create')}
                                 </Button>
                             </DialogFooter>
@@ -331,7 +331,7 @@ export default function DataProductsPage() {
                             </DialogHeader>
                             <div className="flex-1 min-h-0 mt-4">
                                 <textarea
-                                    className="w-full h-full p-4 font-mono text-sm bg-slate-900 text-slate-100 rounded-lg border-none focus:ring-1 focus:ring-primary resize-none"
+                                    className="w-full h-full p-4 font-mono text-sm bg-slate-950 text-slate-100 rounded-lg border-none focus:ring-1 focus:ring-primary resize-none"
                                     placeholder="// Paste your .proto file content here..."
                                     value={schemaContent}
                                     onChange={(e) => setSchemaContent(e.target.value)}
@@ -341,7 +341,7 @@ export default function DataProductsPage() {
                                 <Button variant="outline" onClick={() => setSchemaDialogOpen(false)}>
                                     {t('common.cancel')}
                                 </Button>
-                                <Button onClick={handleSaveSchema} disabled={savingSchema}>
+                                <Button onClick={handleSaveSchema} disabled={savingSchema} className="bg-primary hover:opacity-90">
                                     {savingSchema ? (
                                         <>
                                             <RefreshCw className="w-4 h-4 mr-2 animate-spin" />

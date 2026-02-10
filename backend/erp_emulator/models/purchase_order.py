@@ -26,7 +26,10 @@ class PurchaseOrder(Base):
     id = Column(Integer, primary_key=True, autoincrement="auto")
     order_number = Column(String(50), unique=True, nullable=False, index=True)
     supplier_id = Column(
-        Integer, ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=False, index=True
+        Integer,
+        ForeignKey("suppliers.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
     status = Column(
         String(30),
@@ -42,8 +45,26 @@ class PurchaseOrder(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
+    __table_args__ = (
+        Index("idx_orders_supplier", "supplier_id"),
+        Index("idx_orders_status", "status"),
+        Index("idx_orders_date", "order_date"),
+        Index("idx_orders_number", "order_number"),
+        Index("idx_orders_contract", "contract_id"),
+        Index("idx_orders_material", "material_id"),
+    )
+
+    contract_id = Column(
+        Integer, ForeignKey("contracts.id", ondelete="SET NULL"), nullable=True
+    )
+    material_id = Column(
+        Integer, ForeignKey("materials.id", ondelete="RESTRICT"), nullable=True
+    )
+
     # Relationships
     supplier = relationship("Supplier", back_populates="purchase_orders")
+    contract = relationship("Contract", back_populates="purchase_orders")
+    material = relationship("Material", back_populates="purchase_orders")
     order_items = relationship(
         "OrderItem",
         back_populates="order",
@@ -53,13 +74,6 @@ class PurchaseOrder(Base):
         "Payment",
         back_populates="order",
         cascade="all, delete-orphan",
-    )
-
-    __table_args__ = (
-        Index("idx_orders_supplier", "supplier_id"),
-        Index("idx_orders_status", "status"),
-        Index("idx_orders_date", "order_date"),
-        Index("idx_orders_number", "order_number"),
     )
 
 

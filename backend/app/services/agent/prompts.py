@@ -34,7 +34,8 @@ When a user asks questions:
 Be concise but thorough. If no results are found, explain why and suggest alternatives."""
 
 
-ACTION_SYSTEM_PROMPT = """You are an intelligent knowledge graph agent. Your goal is to fulfill user requests by querying the graph and executing actions.
+ACTION_SYSTEM_PROMPT = (
+    """You are an intelligent knowledge graph agent. Your goal is to fulfill user requests by querying the graph and executing actions.
 
 ## Your Capabilities
 
@@ -51,9 +52,9 @@ You have access to both query and action tools. You should use them strategicall
 - **list_available_actions**: See what you can do with an entity
 - **get_action_details**: Understand a specific action
 - **execute_action**: Perform a single operation
-- **batch_execute_action**: Perform bulk operations (PREFERRED)
-- **validate_action_preconditions**: Check if an action is valid
-
+- **batch_execute_action**: Perform bulk operations (PREFERRED)"""
+    # """- **validate_action_preconditions**: Check if an action is valid"""
+    """
 ## Operating Guidelines
 
 1. **Think step-by-step**: If a request is complex, break it down. You can call tools multiple times.
@@ -75,6 +76,7 @@ Steps you might take:
 6. Final answer: "Found order ORDER-999 for Acme Inc, verified the 'Approve' action was available, and successfully executed it."
 
 Proceed with the user's request until you have a final result to report."""
+)
 
 
 INTENT_CLASSIFICATION_PROMPT = """Classify the user's intent into one of these categories:

@@ -92,7 +92,7 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
             const data = JSON.parse(line.slice(6))
 
             if (data.type === 'thinking') {
-              thinking = data.content
+              thinking += data.content
               if (data.conversation_id) {
                 newConversationId = data.conversation_id
                 setCurrentConversationId(data.conversation_id)
@@ -173,8 +173,8 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="p-4 rounded-full bg-indigo-100 mb-4">
-              <Sparkles className="h-8 w-8 text-indigo-600" />
+            <div className="p-4 rounded-full bg-primary/10 mb-4">
+              <Sparkles className="h-8 w-8 text-primary" />
             </div>
             <h3 className="text-lg font-medium text-slate-700 mb-2">开始探索知识图谱</h3>
             <p className="text-sm text-slate-500 mb-6">尝试以下问题：</p>
@@ -183,7 +183,7 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
                 <button
                   key={i}
                   onClick={() => setInput(q)}
-                  className="w-full px-4 py-3 text-left text-sm bg-white hover:bg-indigo-50 border border-slate-200 rounded-xl transition-all hover:border-indigo-300 hover:shadow-sm"
+                  className="w-full px-4 py-3 text-left text-sm bg-white hover:bg-primary/5 border border-slate-200 rounded-lg transition-all hover:border-primary/30 hover:shadow-sm"
                 >
                   {q}
                 </button>
@@ -198,7 +198,7 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
             className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
           >
             {/* Avatar */}
-            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-indigo-600' : 'bg-emerald-600'
+            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-primary' : 'bg-slate-800'
               }`}>
               {msg.role === 'user' ? (
                 <User className="h-4 w-4 text-white" />
@@ -213,7 +213,7 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
               {msg.thinking && (
                 <button
                   onClick={() => setExpandedThinking(expandedThinking === i ? null : i)}
-                  className="flex items-center gap-1 text-xs text-slate-500 mb-1 hover:text-indigo-600 transition-colors"
+                  className="flex items-center gap-1 text-xs text-slate-500 mb-1 hover:text-primary transition-colors"
                 >
                   <Sparkles className="h-3 w-3" />
                   <span>{t('thinking')}</span>
@@ -225,15 +225,15 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
                 </button>
               )}
               {expandedThinking === i && msg.thinking && (
-                <div className="mb-2 px-3 py-2 text-xs text-slate-600 bg-slate-100 rounded-lg border-l-2 border-indigo-400">
+                <div className="mb-2 px-3 py-2 text-xs text-slate-600 bg-slate-100 rounded-lg border-l-2 border-primary/50">
                   {msg.thinking}
                 </div>
               )}
 
               {/* Main content */}
-              <div className={`px-4 py-3 rounded-2xl ${msg.role === 'user'
-                ? 'bg-indigo-600 text-white rounded-tr-md'
-                : 'bg-slate-100 text-slate-700 rounded-tl-md'
+              <div className={`px-4 py-3 rounded-lg ${msg.role === 'user'
+                ? 'bg-primary text-white rounded-tr-none'
+                : 'bg-slate-100 text-slate-700 rounded-tl-none'
                 }`}>
                 {msg.role === 'user' ? (
                   <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
@@ -248,8 +248,8 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
 
               {/* Graph indicator */}
               {msg.graphData && (
-                <div className="flex items-center gap-1.5 mt-2 px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs w-fit">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-xs w-fit font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                   预览图谱已更新
                 </div>
               )}
@@ -260,10 +260,10 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
         {/* Loading indicator */}
         {loading && (
           <div className="flex gap-3">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center">
               <Bot className="h-4 w-4 text-white" />
             </div>
-            <div className="px-4 py-3 bg-slate-100 rounded-2xl rounded-tl-md">
+            <div className="px-4 py-3 bg-slate-100 rounded-lg rounded-tl-none">
               <div className="flex gap-1">
                 <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -285,12 +285,12 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
             onChange={(e) => setInput(e.target.value)}
             placeholder={t('placeholder')}
             disabled={loading}
-            className="flex-1 px-4 py-3 bg-slate-100 border-0 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-400"
+            className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
           />
           <Button
             type="submit"
             disabled={loading || !input.trim()}
-            className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all disabled:opacity-50"
+            className="px-4 py-3 bg-primary hover:opacity-90 text-white rounded-lg transition-all disabled:opacity-50"
             title={t('send')}
           >
             <Send className="h-4 w-4" />

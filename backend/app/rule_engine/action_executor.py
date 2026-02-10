@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 from app.rule_engine.action_registry import ActionRegistry
-from app.rule_engine.models import ActionDef, SetStatement, UpdateEvent
+from app.rule_engine.models import ActionDef, SetStatement, CallStatement, UpdateEvent
 from app.rule_engine.context import EvaluationContext
 from app.rule_engine.evaluator import ExpressionEvaluator
 from app.rule_engine.event_emitter import GraphEventEmitter
@@ -210,6 +210,11 @@ class ActionExecutor:
             if isinstance(statement, SetStatement):
                 change = await self._apply_set_statement(statement, evaluator)
                 changes.update(change)
+            elif isinstance(statement, CallStatement):
+                call_result = await self._apply_call_statement(
+                    statement, evaluator, context
+                )
+                changes.update(call_result)
 
         return changes
 
@@ -236,3 +241,88 @@ class ActionExecutor:
             prop_name = statement.target
 
         return {prop_name: value}
+
+    async def _apply_call_statement(
+        self,
+        statement: CallStatement,
+        evaluator: ExpressionEvaluator,
+        context: EvaluationContext,
+    ) -> dict[str, Any]:
+        """Execute a CALL statement: invoke a data product gRPC method.
+
+        Args:
+            statement: CallStatement with service/method/args
+            evaluator: ExpressionEvaluator for evaluating argument expressions
+            context: EvaluationContext for storing result variables
+
+        Returns:
+            Empty dict (CALL itself doesn't modify graph; SET does)
+        """
+        import logging
+        from sqlalchemy import select
+        from app.models.data_product import DataProduct
+        from app.services.grpc_client import DynamicGrpcClient
+
+        logger = logging.getLogger(__name__)
+
+        session = context.session
+        if not session:
+            raise RuntimeError("Database session required for CALL statement")
+
+        # 1. Find DataProduct by service_name (exact match, then suffix match)
+        result = await session.execute(
+            select(DataProduct).where(
+                DataProduct.service_name == statement.service_name,
+                DataProduct.is_active == True,
+            )
+        )
+        product = result.scalar_one_or_none()
+
+        if not product:
+            # Try suffix match: e.g. "OrderService" matches "erp.OrderService"
+            result = await session.execute(
+                select(DataProduct).where(
+                    DataProduct.service_name.endswith(f".{statement.service_name}"),
+                    DataProduct.is_active == True,
+                )
+            )
+            product = result.scalar_one_or_none()
+
+        if not product:
+            # Try name match for better UX in Business Editor
+            result = await session.execute(
+                select(DataProduct).where(
+                    DataProduct.name == statement.service_name,
+                    DataProduct.is_active == True,
+                )
+            )
+            product = result.scalar_one_or_none()
+
+        if not product:
+            raise ValueError(
+                f"Data product with service '{statement.service_name}' not found"
+            )
+
+        # 2. Evaluate argument expressions
+        request_data = {}
+        for field_name, expr in statement.arguments.items():
+            request_data[field_name] = await evaluator.evaluate(expr)
+
+        # 3. Call gRPC method
+        async with DynamicGrpcClient(product.grpc_host, product.grpc_port) as client:
+            response = await client.call_method(
+                product.service_name,
+                statement.method_name,
+                request_data,
+            )
+
+        logger.info(
+            f"CALL {statement.service_name}.{statement.method_name} "
+            f"response: {response}"
+        )
+
+        # 4. Store result in context variables if INTO was specified
+        if statement.result_var and response:
+            context.variables[statement.result_var] = response
+
+        return {}  # CALL doesn't directly modify graph properties

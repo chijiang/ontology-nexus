@@ -11,6 +11,7 @@ from app.rule_engine.models import (
     TriggerType,
     ForClause,
     SetStatement,
+    CallStatement,
     TriggerStatement,
 )
 from typing import Any, Union
@@ -286,6 +287,25 @@ class ASTTransformer(Transformer):
             action_name=action_name,
             target=target,
             params=params,
+        )
+
+    def call_stmt(self, items):
+        # items: [CALL, service_name, method_name, object, INTO?, result_var?]
+        # Filter out CALL and INTO tokens
+        parts = [
+            i
+            for i in items
+            if not isinstance(i, Token) or i.type not in ("CALL", "INTO")
+        ]
+        service_name = parts[0]
+        method_name = parts[1]
+        arguments = parts[2] if len(parts) > 2 else {}
+        result_var = parts[3] if len(parts) > 3 else None
+        return CallStatement(
+            service_name=service_name,
+            method_name=method_name,
+            arguments=arguments,
+            result_var=result_var,
         )
 
     def path(self, items):

@@ -824,6 +824,8 @@ class OrderServicer(order_pb2_grpc.OrderServiceServicer):
                 created_at=datetime_to_timestamp(order.created_at),
                 updated_at=datetime_to_timestamp(order.updated_at),
                 items=items,
+                contract_id=order.contract_id,
+                material_id=order.material_id,
             )
 
     async def CreateOrder(self, request, context: ServicerContext):
@@ -845,6 +847,12 @@ class OrderServicer(order_pb2_grpc.OrderServiceServicer):
             # Create order
             order = PurchaseOrder(
                 supplier_id=request.supplier_id,
+                contract_id=(
+                    request.contract_id if request.HasField("contract_id") else None
+                ),
+                material_id=(
+                    request.material_id if request.HasField("material_id") else None
+                ),
                 order_number=order_number,
                 status=str_to_order_status(request.status),
                 delivery_date=(
@@ -932,6 +940,8 @@ class OrderServicer(order_pb2_grpc.OrderServiceServicer):
                 created_at=datetime_to_timestamp(order.created_at),
                 updated_at=datetime_to_timestamp(order.updated_at),
                 items=items,
+                contract_id=order.contract_id,
+                material_id=order.material_id,
             )
 
     async def UpdateOrder(self, request, context: ServicerContext):
@@ -997,6 +1007,8 @@ class OrderServicer(order_pb2_grpc.OrderServiceServicer):
                 created_at=datetime_to_timestamp(order.created_at),
                 updated_at=datetime_to_timestamp(order.updated_at),
                 items=items,
+                contract_id=order.contract_id,
+                material_id=order.material_id,
             )
 
     async def DeleteOrder(self, request, context: ServicerContext):
@@ -1081,6 +1093,8 @@ class OrderServicer(order_pb2_grpc.OrderServiceServicer):
                         created_at=datetime_to_timestamp(order.created_at),
                         updated_at=datetime_to_timestamp(order.updated_at),
                         items=[],  # Empty unless requested
+                        contract_id=order.contract_id,
+                        material_id=order.material_id,
                     )
                 )
 
@@ -1385,199 +1399,31 @@ class AdminServicer(admin_pb2_grpc.AdminServiceServicer):
 
     async def SeedDatabase(self, request, context: ServicerContext):
         """Seed database with test data"""
-        from erp_emulator.api.admin import (
-            SUPPLIER_TEMPLATES,
-            MATERIAL_TEMPLATES,
-            ORDER_STATUSES,
-            PAYMENT_STATUSES,
-            PAYMENT_METHODS,
-            PAYMENT_TERMS,
-            generate_code,
-        )
-        from datetime import timedelta
-        import random
+        from erp_emulator.api.admin import seed_data
 
         async with async_session_maker() as db:
-            # Check if data already exists
-            existing = await db.execute(select(func.count()).select_from(Supplier))
-            if existing.scalar() > 0:
-                await context.abort(
-                    grpc.StatusCode.ALREADY_EXISTS, "Database already contains data"
+            try:
+                stats_response = await seed_data(
+                    db,
+                    suppliers_count=request.suppliers_count or 18,
+                    materials_count=request.materials_count or 24,
+                    contracts_count=request.contracts_count or 35,
+                    orders_count=request.orders_count or 220,
                 )
+            except ValueError as e:
+                await context.abort(grpc.StatusCode.ALREADY_EXISTS, str(e))
+                return
 
-            stats = admin_pb2.SeedStats()
-
-            # Use request values or defaults
-            suppliers_count = request.suppliers_count or 18
-            materials_count = request.materials_count or 24
-            orders_count = request.orders_count or 220
-            contracts_count = request.contracts_count or 35
-
-            # Create suppliers
-            suppliers = []
-            for i, template in enumerate(SUPPLIER_TEMPLATES[:suppliers_count], 1):
-                supplier = Supplier(
-                    name=template["name"],
-                    code=generate_code("SUP", i),
-                    contact_person=f"Contact {i}",
-                    email=f"contact{i}@{template['name'].lower().replace(' ', '')}.com",
-                    phone=f"+1-555-{1000 + i:04d}",
-                    address=f"{i} Business Street, City, State",
-                    credit_rating=template["credit_rating"],
-                    status="active",
+            return admin_pb2.SeedResponse(
+                stats=admin_pb2.SeedStats(
+                    suppliers=stats_response.suppliers,
+                    materials=stats_response.materials,
+                    contracts=stats_response.contracts,
+                    orders=stats_response.orders,
+                    order_items=stats_response.order_items,
+                    payments=stats_response.payments,
                 )
-                suppliers.append(supplier)
-                db.add(supplier)
-
-            await db.flush()
-            stats.suppliers = len(suppliers)
-
-            # Create materials
-            materials = []
-            for i, template in enumerate(MATERIAL_TEMPLATES[:materials_count], 1):
-                material = Material(
-                    name=template["name"],
-                    code=generate_code("MAT", i),
-                    category=template["category"],
-                    unit=template["unit"],
-                    standard_price=template["price"],
-                    lead_time_days=random.randint(3, 21),
-                    min_order_quantity=random.choice([1, 10, 50, 100]),
-                    description=f"High quality {template['name'].lower()} for various applications.",
-                )
-                materials.append(material)
-                db.add(material)
-
-            await db.flush()
-            stats.materials = len(materials)
-
-            # Create contracts
-            contracts = []
-            for _ in range(contracts_count):
-                supplier = random.choice(suppliers)
-                material = random.choice(materials)
-                start_date = datetime.now() - timedelta(days=random.randint(30, 365))
-                end_date = start_date + timedelta(days=random.randint(180, 730))
-
-                contract = Contract(
-                    supplier_id=supplier.id,
-                    material_id=material.id,
-                    contract_number=generate_code("CTR", len(contracts) + 1),
-                    start_date=start_date,
-                    end_date=end_date,
-                    agreed_price=material.standard_price * random.uniform(0.85, 0.95),
-                    min_quantity=random.randint(100, 1000),
-                    max_quantity=random.randint(5000, 20000),
-                    status="active" if end_date > datetime.now() else "expired",
-                    terms=f"Annual supply agreement with delivery within {material.lead_time_days} days",
-                )
-                contracts.append(contract)
-                db.add(contract)
-
-            await db.flush()
-            stats.contracts = len(contracts)
-
-            # Create orders
-            orders = []
-            base_date = datetime.now() - timedelta(days=365)
-
-            for i in range(orders_count):
-                supplier = random.choice(suppliers)
-                order_date = base_date + timedelta(days=random.randint(0, 365))
-
-                order = PurchaseOrder(
-                    supplier_id=supplier.id,
-                    order_number=generate_code("PO", i + 1),
-                    status=random.choices(
-                        ORDER_STATUSES,
-                        weights=[15, 20, 30, 15, 15, 5],
-                        k=1,
-                    )[0],
-                    order_date=order_date,
-                    delivery_date=order_date + timedelta(days=random.randint(7, 60)),
-                    payment_terms=random.choice(PAYMENT_TERMS),
-                    shipping_address=f"Company Warehouse, Building {random.randint(1, 5)}",
-                    notes=random.choice(
-                        ["", "Urgent delivery", "Quality check required", ""]
-                    ),
-                )
-                orders.append(order)
-                db.add(order)
-
-            await db.flush()
-            stats.orders = len(orders)
-
-            # Create order items
-            order_items = []
-            for order in orders:
-                num_items = random.randint(1, 5)
-                selected_materials = random.sample(
-                    materials, min(num_items, len(materials))
-                )
-
-                for material in selected_materials:
-                    quantity = random.randint(10, 500)
-                    unit_price = material.standard_price * random.uniform(0.9, 1.1)
-                    discount = random.uniform(0, 15)
-
-                    item = OrderItem(
-                        order_id=order.id,
-                        material_id=material.id,
-                        quantity=quantity,
-                        unit_price=round(unit_price, 2),
-                        subtotal=round(quantity * unit_price * (1 - discount / 100), 2),
-                        discount_percent=round(discount, 2),
-                        delivery_status=random.choices(
-                            ["pending", "partial", "complete"],
-                            weights=[40, 30, 30],
-                            k=1,
-                        )[0],
-                    )
-                    order_items.append(item)
-                    db.add(item)
-
-                    order.total_amount += item.subtotal
-
-            await db.flush()
-            stats.order_items = len(order_items)
-
-            # Create payments
-            payments = []
-            for order in orders:
-                num_payments = random.choices(
-                    [0, 1, 2, 3], weights=[10, 50, 30, 10], k=1
-                )[0]
-
-                for _ in range(num_payments):
-                    payment_amount = min(
-                        order.total_amount * random.uniform(0.3, 1.0),
-                        order.total_amount,
-                    )
-                    payment_date = order.order_date + timedelta(
-                        days=random.randint(0, 90)
-                    )
-
-                    payment = Payment(
-                        order_id=order.id,
-                        payment_date=payment_date,
-                        amount=round(payment_amount, 2),
-                        payment_method=random.choice(PAYMENT_METHODS),
-                        status=random.choices(
-                            PAYMENT_STATUSES,
-                            weights=[25, 15, 50, 5, 5],
-                            k=1,
-                        )[0],
-                        reference=f"TXN-{random.randint(100000, 999999)}",
-                    )
-                    payments.append(payment)
-                    db.add(payment)
-
-            await db.flush()
-            stats.payments = len(payments)
-
-            await db.commit()
-
-            return admin_pb2.SeedResponse(stats=stats)
+            )
 
     async def ResetDatabase(self, request, context: ServicerContext):
         """Reset database"""

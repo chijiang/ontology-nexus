@@ -55,8 +55,7 @@ class ActionRegistry:
             List of ActionDef objects for the entity type
         """
         return [
-            action for (et, _), action in self._actions.items()
-            if et == entity_type
+            action for (et, _), action in self._actions.items() if et == entity_type
         ]
 
     def list_all(self) -> list[ActionDef]:

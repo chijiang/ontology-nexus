@@ -47,7 +47,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>{isLogin ? t('auth.login') : t('auth.register')}</CardTitle>
@@ -91,7 +91,7 @@ export default function LoginPage() {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-primary hover:opacity-90" disabled={loading}>
               {loading ? t('common.loading') : isLogin ? t('auth.login') : t('auth.register')}
             </Button>
           </form>
@@ -100,7 +100,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
-              className="text-blue-600 hover:underline"
+              className="text-primary hover:underline"
             >
               {isLogin ? t('auth.register') : t('auth.login')}
             </button>

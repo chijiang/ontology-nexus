@@ -11,7 +11,7 @@ from app.rule_engine.action_executor import ActionExecutor
 from app.rule_engine.context import EvaluationContext
 from app.services.pg_graph_storage import PGGraphStorage
 from app.rule_engine.parser import RuleParser
-from app.rule_engine.models import ActionDef
+from app.rule_engine.models import ActionDef, CallStatement
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.core.database import get_db
@@ -93,6 +93,7 @@ class ActionInfo(BaseModel):
     parameters: list[dict[str, Any]]
     precondition_count: int
     has_effect: bool
+    has_call: bool = False
     description: str | None = None
 
 
@@ -293,6 +294,13 @@ async def list_actions(
     action_infos = []
 
     for action in actions:
+        # Check if effect contains CALL statements
+        _has_call = False
+        if action.effect and hasattr(action.effect, "statements"):
+            _has_call = any(
+                isinstance(s, CallStatement) for s in action.effect.statements
+            )
+
         action_infos.append(
             ActionInfo(
                 entity_type=action.entity_type,
@@ -304,6 +312,7 @@ async def list_actions(
                 ],
                 precondition_count=len(action.preconditions or []),
                 has_effect=action.effect is not None,
+                has_call=_has_call,
                 description=(
                     action.description if hasattr(action, "description") else None
                 ),
@@ -515,6 +524,13 @@ async def list_entity_actions(
 
     action_infos = []
     for action in actions:
+        # Check if effect contains CALL statements
+        _has_call = False
+        if action.effect and hasattr(action.effect, "statements"):
+            _has_call = any(
+                isinstance(s, CallStatement) for s in action.effect.statements
+            )
+
         action_infos.append(
             ActionInfo(
                 entity_type=action.entity_type,
@@ -526,6 +542,7 @@ async def list_entity_actions(
                 ],
                 precondition_count=len(action.preconditions or []),
                 has_effect=action.effect is not None,
+                has_call=_has_call,
                 description=action.description,
             )
         )

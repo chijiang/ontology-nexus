@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Enterprise Ontology Management Platform",
-  description: "Enterprise ontology management platform",
+  title: "KG Agent",
+  description: "Knowledge Graph Agent Platform",
 };
 
 export default function RootLayout({

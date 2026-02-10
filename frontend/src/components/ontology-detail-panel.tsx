@@ -47,7 +47,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
     const [relationships, setRelationships] = useState<Relationship[]>([])
     const [actions, setActions] = useState<ActionInfo[]>([])
     const [loading, setLoading] = useState(false)
-    const [editingLabel, setEditingLabel] = useState('')
+    const [editingLabels, setEditingLabels] = useState<string[]>([])
     const [editingProperties, setEditingProperties] = useState<string[]>([])
     const [editingColor, setEditingColor] = useState<string>('')
     const [isSaving, setIsSaving] = useState(false)
@@ -73,7 +73,8 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
         setShowColorPicker(false)
         if (node && token) {
             loadDetails()
-            setEditingLabel(node.label || node.name)
+            const labels = node.label ? (Array.isArray(node.label) ? node.label : [node.label]) : []
+            setEditingLabels(labels.length > 0 ? labels : [node.name])
             setEditingProperties(node.dataProperties || [])
             setEditingColor(node.color || '#6366f1')
         } else if (edge) {
@@ -109,6 +110,15 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
             })
             setRelationships(rels)
 
+            // Refresh local state with latest data from schema
+            const currentClass = schemaRes.data.nodes.find((n: any) => n.name === node.name)
+            if (currentClass) {
+                const labels = currentClass.label ? (Array.isArray(currentClass.label) ? currentClass.label : [currentClass.label]) : []
+                setEditingLabels(labels.length > 0 ? labels : [node.name])
+                setEditingProperties(currentClass.dataProperties || [])
+                setEditingColor(currentClass.color || '#6366f1')
+            }
+
             try {
                 const actionsRes = await actionsApi.list()
                 const relatedActions = actionsRes.data.actions?.filter(
@@ -130,8 +140,9 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
         if (!node) return
         setIsSaving(true)
         try {
-            await graphApi.updateClass(node.name, editingLabel, editingProperties, editingColor)
+            await graphApi.updateClass(node.name, editingLabels.filter(l => l.trim() !== '').join(','), editingProperties, editingColor)
             toast.success(t('common.update') + t('common.success'))
+            await loadDetails() // Refresh local state after successful save
             onUpdate?.()
         } catch (err: any) {
             toast.error(`${t('common.update') + t('common.error')}: ${err.response?.data?.detail || err.message}`)
@@ -299,20 +310,45 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                     </div>
                     <div className="flex-1 min-w-0">
                         {isEditMode ? (
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-slate-400">{node.name}</span>
-                                <Input
-                                    value={editingLabel}
-                                    onChange={(e) => setEditingLabel(e.target.value)}
-                                    className="h-6 text-xs py-0 bg-white"
-                                    placeholder="标签"
-                                />
+                            <div className="flex flex-col gap-1.5">
+                                <span className="text-[10px] text-slate-400">{node.name} (别名)</span>
+                                {editingLabels.map((l, idx) => (
+                                    <div key={idx} className="flex gap-1 items-center">
+                                        <Input
+                                            value={l}
+                                            onChange={(e) => {
+                                                const newLabels = [...editingLabels]
+                                                newLabels[idx] = e.target.value
+                                                setEditingLabels(newLabels)
+                                            }}
+                                            className="h-6 text-xs py-0 bg-white"
+                                            placeholder="标签"
+                                        />
+                                        {editingLabels.length > 1 && (
+                                            <button onClick={() => setEditingLabels(editingLabels.filter((_, i) => i !== idx))} className="text-red-400">
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 text-[9px] w-fit px-1 text-primary"
+                                    onClick={() => setEditingLabels([...editingLabels, ''])}
+                                >
+                                    <Plus className="h-2 w-2 mr-1" /> 添加别名
+                                </Button>
                             </div>
                         ) : (
                             <>
                                 <h3 className="text-sm font-medium text-slate-700 truncate">{node.name}</h3>
-                                {node.label && node.label !== node.name && (
-                                    <p className="text-[10px] text-slate-400">{node.label}</p>
+                                {editingLabels.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-0.5">
+                                        {editingLabels.filter(l => l !== node.name).map((l, i) => (
+                                            <span key={i} className="text-[9px] bg-slate-100 text-slate-500 px-1 rounded">{l}</span>
+                                        ))}
+                                    </div>
                                 )}
                             </>
                         )}
@@ -371,17 +407,17 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                         {/* Properties */}
                         <section>
                             <h4 className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                                 {t('components.detailPanel.properties')}
                                 {isEditMode && !isAddingProp && (
-                                    <button onClick={() => setIsAddingProp(true)} className="ml-auto text-blue-500 hover:text-blue-600">
+                                    <button onClick={() => setIsAddingProp(true)} className="ml-auto text-primary hover:opacity-80">
                                         <Plus className="h-3 w-3" />
                                     </button>
                                 )}
                             </h4>
 
                             {isEditMode && isAddingProp && (
-                                <div className="flex flex-col gap-2 mb-2 bg-blue-50 p-2 rounded border border-blue-100">
+                                <div className="flex flex-col gap-2 mb-2 bg-primary/5 p-2 rounded border border-primary/10">
                                     <div className="flex gap-1.5">
                                         <Input
                                             placeholder="属性名, 如: status"
@@ -452,15 +488,15 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                             key={i}
                                             className="flex items-center gap-1 px-2 py-1 bg-slate-50 rounded text-[11px] border border-slate-100"
                                         >
-                                            <span className={`truncate ${rel.direction === 'outgoing' ? 'text-blue-600 font-medium' : 'text-slate-500'}`}>
+                                            <span className={`truncate ${rel.direction === 'outgoing' ? 'text-primary font-medium' : 'text-slate-500'}`}>
                                                 {rel.source}
                                             </span>
                                             <ArrowRight className="h-2.5 w-2.5 flex-shrink-0 text-slate-300" />
-                                            <span className={`px-1 py-0.5 rounded text-[10px] ${rel.direction === 'outgoing' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                                            <span className={`px-1 py-0.5 rounded text-[10px] ${rel.direction === 'outgoing' ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-600'}`}>
                                                 {rel.type}
                                             </span>
                                             <ArrowRight className="h-2.5 w-2.5 flex-shrink-0 text-slate-300" />
-                                            <span className={`truncate ${rel.direction === 'incoming' ? 'text-blue-600 font-medium' : 'text-slate-500'}`}>
+                                            <span className={`truncate ${rel.direction === 'incoming' ? 'text-primary font-medium' : 'text-slate-500'}`}>
                                                 {rel.target}
                                             </span>
                                             {isEditMode && (
@@ -492,6 +528,9 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                             <div className="flex items-center gap-1.5">
                                                 <Zap className="h-3 w-3 text-purple-500" />
                                                 <span className="font-medium text-slate-600">{action.name}</span>
+                                                {(action as any).has_call && (
+                                                    <span className="px-1 py-0.5 rounded text-[8px] bg-blue-100 text-blue-600 font-medium">gRPC</span>
+                                                )}
                                             </div>
                                             <span className={`px-1.5 py-0.5 rounded text-[10px] ${action.is_active ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
                                                 {action.is_active ? '启用' : '禁用'}

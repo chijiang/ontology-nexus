@@ -35,6 +35,10 @@ class Material(Base):
         "Contract",
         back_populates="material",
     )
+    purchase_orders = relationship(
+        "PurchaseOrder",
+        back_populates="material",
+    )
 
     __table_args__ = (
         Index("idx_materials_code", "code"),

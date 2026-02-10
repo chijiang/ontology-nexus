@@ -100,7 +100,7 @@ export default function ImportPage() {
                 id="file-upload"
               />
               <label htmlFor="file-upload" className="cursor-pointer">
-                <span className="text-blue-600 hover:underline">
+                <span className="text-primary hover:underline">
                   {t('graph.import.selectFile')}
                 </span>
                 <span className="text-gray-400 ml-2">{t('graph.import.dragFile')}</span>
@@ -110,7 +110,7 @@ export default function ImportPage() {
               )}
             </div>
 
-            <Button onClick={handleImport} disabled={!file || loading} className="w-full">
+            <Button onClick={handleImport} disabled={!file || loading} className="w-full bg-primary hover:opacity-90">
               {loading ? t('common.loading') : t('graph.import.startImport')}
             </Button>
 
@@ -164,13 +164,13 @@ export default function ImportPage() {
             </Dialog>
 
             {result && (
-              <div className="mt-4 p-4 bg-green-50 rounded-lg">
-                <h3 className="font-semibold text-green-800">{t('graph.import.importSuccess')}</h3>
-                <p className="text-sm text-green-700">
+              <div className="mt-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                <h3 className="font-semibold text-primary">{t('graph.import.importSuccess')}</h3>
+                <p className="text-sm text-slate-700">
                   {t('graph.import.schemaStats')}: {result.schema_stats.classes} {t('graph.import.classes')},
                   {result.schema_stats.properties} {t('graph.import.properties')}
                 </p>
-                <p className="text-sm text-green-700">
+                <p className="text-sm text-slate-700">
                   {t('graph.import.instanceStats')}: {result.instance_stats.nodes} {t('graph.import.nodes')},
                   {result.instance_stats.relationships} {t('graph.import.relationships')}
                 </p>

@@ -108,3 +108,23 @@ def test_parse_sample_rule():
     rule = result[0]
     assert rule.name == "SupplierStatusBlocking"
     assert rule.priority == 100
+
+
+def test_parse_call_with_quoted_service():
+    """Test parsing a CALL statement with a quoted service name (containing spaces)."""
+    dsl_text = """
+    ACTION PurchaseOrder.makeTransfer {
+        PRECONDITION: true ON_FAILURE: "Error"
+        EFFECT {
+            CALL "ERP Orders".UpdateOrder({id: this.id, status: "Done"});
+        }
+    }
+    """
+    parser = RuleParser()
+    result = parser.parse(dsl_text)
+
+    assert len(result) == 1
+    action = result[0]
+    call = action.effect.statements[0]
+    assert call.service_name == "ERP Orders"
+    assert call.method_name == "UpdateOrder"

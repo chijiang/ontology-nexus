@@ -32,9 +32,23 @@ ACTION <EntityType>.<actionName> {
 - **ENTITY TYPE**: The class of node this action applies to (e.g., `PurchaseOrder`).
 - **PRECONDITION**: A logical expression that must evaluate to `true` for the action to proceed.
 - **ON_FAILURE**: The message returned to the user/system if the precondition is not met.
-- **EFFECT**: A block containing property updates (`SET`) or cascading triggers (`TRIGGER`).
+- **EFFECT**: A block containing property updates (`SET`), cascading triggers (`TRIGGER`), or external service calls (`CALL`).
 
-### Typical Use Case: Submitting an Order
+### Statements
+
+- **SET**: Update a property of the current entity.
+  ```javascript
+  SET this.prop = value;
+  ```
+- **CALL**: Invoke an external gRPC method from a registered Data Product.
+  ```javascript
+  CALL ServiceName.MethodName({ field: expression, ... }) [INTO variable];
+  ```
+  - `ServiceName`: The `service_name` of a registered `DataProduct`.
+  - `arguments`: A dictionary of fields and expressions to build the gRPC request.
+  - `INTO variable`: (Optional) Capture the gRPC response into a temporary variable for use in subsequent statements.
+
+### Typical Use Case: Submitting an Order with External Update
 ```javascript
 ACTION PurchaseOrder.submit {
     // 1. Local property check
@@ -46,7 +60,15 @@ ACTION PurchaseOrder.submit {
         ON_FAILURE: "At least one supplier of this order is not active."
 
     EFFECT {
+        // Call external ERP system via gRPC
+        CALL ErpService.UpdateOrder({
+            id: this.id,
+            status: "Submitted"
+        }) INTO erpResult;
+
+        // Update local graph with ERP response if needed
         SET this.status = "Submitted";
+        SET this.erp_ref = erpResult.external_id;
         SET this.submittedAt = NOW();
     }
 }

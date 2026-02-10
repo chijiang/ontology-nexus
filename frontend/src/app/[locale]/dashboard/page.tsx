@@ -79,7 +79,7 @@ export default function DashboardPage() {
         {!sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="absolute left-4 top-4 z-20 p-2.5 bg-white border border-slate-200 rounded-lg shadow-md hover:bg-slate-50 transition-all text-slate-500 hover:text-indigo-600"
+            className="absolute left-4 top-4 z-20 p-2.5 bg-white border border-slate-200 rounded-lg shadow-md hover:bg-slate-50 transition-all text-slate-500 hover:text-primary"
             title={t('layout.showSidebar')}
           >
             <PanelLeft className="h-4 w-4" />
@@ -100,9 +100,9 @@ export default function DashboardPage() {
         <div className="flex-1 min-h-0 bg-slate-50 p-4 lg:p-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-hidden">
             {/* Q&A area */}
-            <div className="flex flex-col bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden h-full min-h-0">
-              <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-slate-50 flex-shrink-0">
-                <div className="p-2 rounded-lg bg-indigo-600">
+            <div className="flex flex-col bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden h-full min-h-0">
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-slate-50/30 flex-shrink-0">
+                <div className="p-2 rounded-lg bg-primary">
                   <MessageSquare className="h-5 w-5 text-white" />
                 </div>
                 <h2 className="text-lg font-semibold text-slate-800">{t('dashboard.title')}</h2>
@@ -118,12 +118,12 @@ export default function DashboardPage() {
             </div>
 
             {/* Graph area */}
-            <div className="flex flex-col bg-slate-900 rounded-2xl shadow-lg overflow-hidden h-full min-h-0">
-              <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-700 flex-shrink-0">
-                <div className="p-2 rounded-lg bg-emerald-600">
-                  <Network className="h-5 w-5 text-white" />
+            <div className="flex flex-col bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden h-full min-h-0">
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-slate-50/30 flex-shrink-0">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Network className="h-5 w-5 text-primary" />
                 </div>
-                <h2 className="text-lg font-semibold text-white">{t('dashboard.graphPreview')}</h2>
+                <h2 className="text-lg font-semibold text-slate-800">{t('dashboard.graphPreview')}</h2>
               </div>
               <div className="flex-1 min-h-0">
                 <GraphPreview data={graphData} />

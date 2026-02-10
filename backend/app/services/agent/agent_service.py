@@ -57,6 +57,7 @@ class EnhancedAgentService:
 
         # Initialize Event Emitter for Graph Data
         from app.rule_engine.event_emitter import GraphEventEmitter
+
         self.event_emitter = GraphEventEmitter()
 
         # Initialize graph (lazy loading)
@@ -94,9 +95,7 @@ class EnhancedAgentService:
             action_tools = []
             if self.action_executor and self.action_registry:
                 action_registry = ActionToolRegistry(
-                    self._get_session,
-                    self.action_executor,
-                    self.action_registry
+                    self._get_session, self.action_executor, self.action_registry
                 )
                 action_tools = action_registry.tools
 
@@ -110,7 +109,9 @@ class EnhancedAgentService:
 
         return self._graph
 
-    async def astream_chat(self, query: str) -> AsyncIterator[StreamEvent]:
+    async def astream_chat(
+        self, query: str, history: list[dict] | None = None
+    ) -> AsyncIterator[StreamEvent]:
         """Stream chat responses with real-time updates.
 
         This method yields events as the agent processes the request,
@@ -118,26 +119,29 @@ class EnhancedAgentService:
 
         Args:
             query: User's query or request
+            history: Optional list of previous messages [{"role": "user", "content": "..."}]
 
         Yields:
             StreamEvent objects with type and content
         """
-        from langchain_core.messages import HumanMessage
+        from langchain_core.messages import HumanMessage, AIMessage
         from app.rule_engine.models import GraphViewEvent
         import asyncio
 
         logger.info(f"=== Agent astream_chat started ===")
         logger.info(f"User query: {query}")
+        if history:
+            logger.info(f"History rounds: {len(history) // 2}")
 
         # Queue for graph events
         graph_events_queue = asyncio.Queue()
 
         def on_graph_event(event: Any):
             if isinstance(event, GraphViewEvent):
-                 try:
+                try:
                     graph_events_queue.put_nowait(event)
-                 except Exception as e:
-                     logger.error(f"Error putting event in queue: {e}")
+                except Exception as e:
+                    logger.error(f"Error putting event in queue: {e}")
 
         # Subscribe to graph events
         self.event_emitter.subscribe(on_graph_event)
@@ -151,103 +155,95 @@ class EnhancedAgentService:
         try:
             # Get the graph
             graph = self._get_graph()
-            action_count = len(self.action_registry._actions) if self.action_registry else 0
+            action_count = (
+                len(self.action_registry._actions) if self.action_registry else 0
+            )
             logger.info(f"Graph created, actions in registry: {action_count}")
+
+            # Prepare initial messages with history
+            messages = []
+            if history:
+                for msg in history:
+                    if msg["role"] == "user":
+                        messages.append(HumanMessage(content=msg["content"]))
+                    elif msg["role"] == "assistant":
+                        messages.append(AIMessage(content=msg["content"]))
+
+            # Add current query
+            messages.append(HumanMessage(content=query))
 
             # Create initial state
             initial_state: AgentState = {
-                "messages": [HumanMessage(content=query)],
+                "messages": messages,
             }
 
-            # Track intent and step
-            current_intent = None
-            processed_messages = set()  # Track already processed messages
+            # Stream the graph execution with granular events
+            async for event in graph.astream_events(initial_state, version="v2"):
 
-            # Stream the graph execution
-            async for event in graph.astream(initial_state):
-                
-                # Check for graph events from queue
+                # Check for graph events from queue (e.g. visualization data from tools)
                 while not graph_events_queue.empty():
                     graph_event = graph_events_queue.get_nowait()
                     yield {
                         "type": "graph_data",
                         "nodes": graph_event.nodes,
-                        "edges": graph_event.edges
+                        "edges": graph_event.edges,
                     }
 
-                # event format: {"node_name": {state_dict}}
-                for node_name, node_state in event.items():
-                    if node_state is None:
-                        continue
+                kind = event["event"]
 
-                    logger.info(f"=== Node: {node_name} ===")
-
-                    # Extract step information
-                    step = node_state.get("current_step", "")
-                    intent = node_state.get("user_intent", "")
-
-                    if intent:
-                        logger.info(f"Intent: {intent}")
-                    if step:
-                        logger.info(f"Step: {step}")
-
-                    # Emit intent change
-                    if intent and intent != current_intent:
-                        current_intent = intent
-                        intent_text = {
-                            UserIntent.QUERY: "查询信息",
-                            UserIntent.ACTION: "执行操作",
-                            UserIntent.DIRECT_ANSWER: "回答问题",
-                        }.get(intent, intent)
-
-                        logger.info(f"Intent changed to: {intent_text}")
+                # 1. Token-level streaming from LLM
+                if kind == "on_chat_model_stream":
+                    content = event["data"]["chunk"].content
+                    if content:
                         yield {
                             "type": "thinking",
-                            "content": f"识别意图: {intent_text}",
+                            "content": content,
                         }
 
-                    # Process messages from the node
-                    messages = node_state.get("messages", [])
-                    logger.info(f"Messages in node: {len(messages)}")
+                # 2. End of a model turn - check if we should emit content
+                elif kind == "on_chat_model_end":
+                    ai_msg = event["data"]["output"]
+                    # If this is a final answer (no tool calls), emit as content
+                    if hasattr(ai_msg, "tool_calls") and not ai_msg.tool_calls:
+                        content = ai_msg.content or ""
+                        # Skip if it's just our placeholder
+                        if "[注意：Action 执行功能将在 Phase 2 中实现]" in content:
+                            content = content.replace(
+                                "\n\n[注意：Action 执行功能将在 Phase 2 中实现]", ""
+                            )
 
-                    for msg in messages:
-                        msg_id = id(msg)
+                        if content:
+                            yield {
+                                "type": "content",
+                                "content": content,
+                            }
 
-                        # Check for tool calls (logging only)
-                        if hasattr(msg, "tool_calls") and msg.tool_calls:
-                            logger.info(f"Tool calls detected: {len(msg.tool_calls)}")
-                            for tc in msg.tool_calls:
-                                logger.info(f"  - Tool: {tc.get('name')}, Args: {tc.get('args')}")
+                    # Log tool calls for debugging
+                    if hasattr(ai_msg, "tool_calls") and ai_msg.tool_calls:
+                        logger.info(f"Tool calls detected: {len(ai_msg.tool_calls)}")
+                        for tc in ai_msg.tool_calls:
+                            logger.info(f"  - Tool: {tc.get('name')}")
 
-                        # Only process new AI messages
-                        if hasattr(msg, "type") and msg.type == "ai":
-                            content = msg.content or ""
+                # 3. Tool execution start events
+                elif kind == "on_tool_start":
+                    yield {
+                        "type": "thinking",
+                        "content": f"\n\n> **正在调用工具**: `{event['name']}`...\n",
+                    }
 
-                            if content and msg_id not in processed_messages:
-                                processed_messages.add(msg_id)
-                                logger.info(f"AI Message (length: {len(content)}): {content[:200]}...")
+                # 4. Node markers (optional, for logging)
+                elif kind == "on_chain_start" and event.get("metadata", {}).get(
+                    "langgraph_node"
+                ):
+                    node_name = event["metadata"]["langgraph_node"]
+                    logger.info(f"=== Entering Node: {node_name} ===")
 
-                                # Skip if it's just our placeholder
-                                if "[注意：Action 执行功能将在 Phase 2 中实现]" in content:
-                                    content = content.replace(
-                                        "\n\n[注意：Action 执行功能将在 Phase 2 中实现]", ""
-                                    )
-
-                                if content:
-                                    # For query results, stream the content
-                                    yield {
-                                        "type": "content",
-                                        "content": content,
-                                    }
-
-                        # Check for tool messages
-                        if hasattr(msg, "type") and msg.type == "tool":
-                            logger.info(f"Tool result: {msg.name[:50] if hasattr(msg, 'name') else 'unknown'}")
-                            if msg.content:
-                                logger.info(f"  Result: {str(msg.content)[:200]}...")
-
-                    # No longer need code here as tool results are processed in the loop above
-                    pass
+                    # For some specific nodes, we can add a separator
+                    if node_name == "tools":
+                        yield {
+                            "type": "thinking",
+                            "content": "\n\n",
+                        }
 
         except Exception as e:
             logger.error(f"Error in astream_chat: {e}", exc_info=True)
@@ -256,14 +252,13 @@ class EnhancedAgentService:
                 "content": f"\n\n抱歉，处理请求时发生错误: {str(e)}",
             }
         finally:
-             try:
-                 self.event_emitter.unsubscribe(on_graph_event)
-             except Exception:
-                 pass
+            try:
+                self.event_emitter.unsubscribe(on_graph_event)
+            except Exception:
+                pass
 
         # Final done event
         yield {"type": "done"}
-
 
     async def ainvoke(self, query: str) -> AgentState:
         """Invoke the agent and return the final state.

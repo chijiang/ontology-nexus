@@ -6,7 +6,7 @@ import cytoscape, { Core, ElementDefinition } from 'cytoscape'
 import { graphApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
+import { ZoomIn, ZoomOut, Maximize2, Link as LinkIcon, Info } from 'lucide-react'
 import { SearchParams } from './instance-filter'
 
 // Neo4j-style color palette for different node labels
@@ -76,25 +76,25 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                         'text-halign': 'center',
                         'background-color': 'data(color)',
                         'color': '#fff',
-                        'width': 65,
-                        'height': 65,
-                        'font-size': 12,
-                        'font-weight': 500,
+                        'width': 50,
+                        'height': 50,
+                        'font-size': 10,
+                        'font-weight': 600,
                         'text-wrap': 'ellipsis',
                         'text-max-width': '60px',
-                        'border-width': 3,
+                        'border-width': 2,
                         'border-color': 'data(borderColor)',
                         'text-outline-color': 'data(color)',
-                        'text-outline-width': 2,
+                        'text-outline-width': 1,
                     },
                 },
                 {
                     selector: 'node:selected',
                     style: {
-                        'border-width': 4,
-                        'border-color': '#FFD700',
-                        'width': 75,
-                        'height': 75,
+                        'border-width': 3,
+                        'border-color': '#A100FF',
+                        'width': 60,
+                        'height': 60,
                     },
                 },
                 {
@@ -108,8 +108,8 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                         'curve-style': 'bezier',
                         'label': 'data(label)',
                         'font-size': 10,
-                        'color': '#333',
-                        'text-background-color': '#fff',
+                        'color': '#64748b',
+                        'text-background-color': '#ffffff',
                         'text-background-opacity': 0.9,
                         'text-background-padding': '3px',
                         'text-rotation': 'autorotate',
@@ -120,8 +120,8 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                     selector: 'edge:selected',
                     style: {
                         'width': 3,
-                        'line-color': '#FFD700',
-                        'target-arrow-color': '#FFD700',
+                        'line-color': '#A100FF',
+                        'target-arrow-color': '#A100FF',
                     },
                 },
             ],
@@ -400,21 +400,22 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
             </div>
 
             {/* 标题 */}
-            <div className="absolute top-2 right-2 z-10 bg-white/90 px-3 py-1 rounded-lg shadow text-sm font-semibold text-emerald-700">
-                🔗 实例图谱
+            <div className="absolute top-4 right-4 z-10 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-widest">
+                <LinkIcon className="h-3 w-3 text-primary" />
+                实例图谱
             </div>
 
             {/* 图例 */}
-            <div className="absolute bottom-4 left-4 z-10 bg-white/95 p-3 rounded-lg shadow-lg">
-                <h4 className="text-xs font-semibold mb-2 text-gray-600">节点类型</h4>
+            <div className="absolute bottom-4 left-4 z-10 bg-white/95 p-3 rounded-lg shadow-sm border border-slate-200">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 text-slate-400">节点类型</h4>
                 <div className="flex flex-wrap gap-2">
                     {Array.from(labelColorMap.entries()).map(([label, color]) => (
                         <div key={label} className="flex items-center gap-1">
                             <div
-                                className="w-3 h-3 rounded-full"
+                                className="w-2.5 h-2.5 rounded-full"
                                 style={{ backgroundColor: color }}
                             />
-                            <span className="text-xs text-gray-700">{label}</span>
+                            <span className="text-[10px] font-medium text-slate-600">{label}</span>
                         </div>
                     ))}
                 </div>
@@ -444,7 +445,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
             <div
                 ref={containerRef}
                 className="w-full h-full"
-                style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)' }}
+                style={{ background: '#ffffff' }}
             />
         </div>
     )

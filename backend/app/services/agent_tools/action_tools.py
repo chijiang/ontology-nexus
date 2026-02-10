@@ -1,6 +1,7 @@
 """Action tools for the enhanced agent.
 
 These tools enable the agent to execute actions on entity instances.
+Business logic is delegated to the shared action_service module.
 """
 
 import logging
@@ -12,6 +13,7 @@ from app.rule_engine.action_executor import ActionExecutor, ExecutionResult
 from app.rule_engine.action_registry import ActionRegistry
 from app.rule_engine.context import EvaluationContext
 from app.rule_engine.models import ActionDef, Precondition
+from app.services import action_service
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,9 @@ logger = logging.getLogger(__name__)
 class ListAvailableActionsInput(BaseModel):
     """Input for list_available_actions tool."""
 
-    entity_type: str = Field(description="Entity type, e.g., PurchaseOrder, Supplier, Invoice")
+    entity_type: str = Field(
+        description="Entity type, e.g., PurchaseOrder, Supplier, Invoice"
+    )
 
 
 class GetActionDetailsInput(BaseModel):
@@ -43,7 +47,9 @@ class ExecuteActionInput(BaseModel):
     entity_type: str = Field(description="Entity type, e.g., PurchaseOrder")
     action_name: str = Field(description="Action name, e.g., submit")
     entity_id: str = Field(description="Entity ID (name property)")
-    params: dict[str, Any] = Field(default_factory=dict, description="Optional action parameters")
+    params: dict[str, Any] = Field(
+        default_factory=dict, description="Optional action parameters"
+    )
 
 
 class BatchExecuteActionInput(BaseModel):
@@ -52,11 +58,15 @@ class BatchExecuteActionInput(BaseModel):
     entity_type: str = Field(description="Entity type, e.g., PurchaseOrder")
     action_name: str = Field(description="Action name, e.g., submit")
     entity_ids: List[str] = Field(description="List of entity IDs")
-    params: dict[str, Any] = Field(default_factory=dict, description="Optional shared parameters")
+    params: dict[str, Any] = Field(
+        default_factory=dict, description="Optional shared parameters"
+    )
 
 
 def format_action_def(action: ActionDef) -> str:
     """Format an action definition for display.
+
+    Delegates to action_service.format_action_as_text for consistency.
 
     Args:
         action: ActionDef to format
@@ -64,41 +74,15 @@ def format_action_def(action: ActionDef) -> str:
     Returns:
         Formatted string representation
     """
-    output = [f"Action: {action.entity_type}.{action.action_name}"]
-
-    # Parameters
-    if action.parameters:
-        output.append("  Parameters:")
-        for param in action.parameters:
-            optional = "optional" if param.optional else "required"
-            output.append(f"    - {param.name} ({param.param_type}, {optional})")
-    else:
-        output.append("  Parameters: None")
-
-    # Preconditions
-    if action.preconditions:
-        output.append("  Preconditions:")
-        for i, precond in enumerate(action.preconditions, 1):
-            name = precond.name or f"Precondition {i}"
-            output.append(f"    {i}. {name}: {precond.on_failure}")
-    else:
-        output.append("  Preconditions: None")
-
-    # Effect
-    if action.effect:
-        output.append("  Effect: Yes (modifies state)")
-    else:
-        output.append("  Effect: None (read-only)")
-
-    return "\n".join(output)
+    return action_service.format_action_as_text(action)
 
 
 async def _get_entity_data(
-    entity_type: str,
-    entity_id: str,
-    get_session_func: Callable
+    entity_type: str, entity_id: str, get_session_func: Callable
 ) -> dict[str, Any]:
     """Get entity data from PostgreSQL.
+
+    Delegates to action_service.get_entity_data.
 
     Args:
         entity_type: Entity type
@@ -108,36 +92,10 @@ async def _get_entity_data(
     Returns:
         Entity data dict
     """
-    from app.services.pg_graph_storage import PGGraphStorage
-
-    async def _execute(session) -> dict:
-        storage = PGGraphStorage(session)
-        results = await storage.search_instances(entity_id, entity_type, limit=1)
-        if results:
-            return results[0].get("properties", {})
-        return {}
-
-    return await _execute_with_session(get_session_func, _execute)
-
-
-async def _execute_with_session(
-    get_session_func: Callable,
-    func: Callable
-) -> Any:
-    """Execute a function with a database session.
-
-    Args:
-        get_session_func: Function that returns a session
-        func: Function to execute with session
-
-    Returns:
-        Result of the function
-    """
-    session = await get_session_func()
-    try:
-        return await func(session)
-    finally:
-        pass  # Session managed by caller
+    session_cm = get_session_func()
+    async with session_cm as session:
+        data = await action_service.get_entity_data(session, entity_type, entity_id)
+        return data or {}
 
 
 def create_action_tools(
@@ -197,9 +155,7 @@ def create_action_tools(
         return format_action_def(action)
 
     async def validate_action_preconditions(
-        entity_type: str,
-        action_name: str,
-        entity_id: str
+        entity_type: str, action_name: str, entity_id: str
     ) -> str:
         """Validate if an action can be executed on an entity.
 
@@ -220,7 +176,9 @@ def create_action_tools(
 
         # Get entity data
         try:
-            entity_data = await _get_entity_data(entity_type, entity_id, get_session_func)
+            entity_data = await _get_entity_data(
+                entity_type, entity_id, get_session_func
+            )
         except Exception as e:
             return f"错误: 无法获取实体 '{entity_id}' 的数据: {str(e)}"
 
@@ -233,11 +191,12 @@ def create_action_tools(
             entity={"id": entity_id, **entity_data},
             old_values={},
             session=session,
-            variables={}
+            variables={},
         )
 
         # Check preconditions
         from app.rule_engine.evaluator import ExpressionEvaluator
+
         evaluator = ExpressionEvaluator(context)
 
         output = [f"验证操作 {entity_type}.{action_name} 在实体 {entity_id} 上:\n"]
@@ -253,7 +212,9 @@ def create_action_tools(
                     output.append(f"     原因: {precond.on_failure}")
                     all_passed = False
             except Exception as e:
-                output.append(f"  {i}. {precond.name or f'前置条件 {i}'}: ✗ 错误: {str(e)}")
+                output.append(
+                    f"  {i}. {precond.name or f'前置条件 {i}'}: ✗ 错误: {str(e)}"
+                )
                 all_passed = False
 
         if all_passed:
@@ -267,7 +228,7 @@ def create_action_tools(
         entity_type: str,
         action_name: str,
         entity_id: str,
-        params: dict[str, Any] | None = None
+        params: dict[str, Any] | None = None,
     ) -> str:
         """Execute a single action on an entity instance.
 
@@ -286,26 +247,25 @@ def create_action_tools(
 
         # Get entity data
         try:
-            entity_data = await _get_entity_data(entity_type, entity_id, get_session_func)
+            entity_data = await _get_entity_data(
+                entity_type, entity_id, get_session_func
+            )
         except Exception as e:
             return f"错误: 无法获取实体 '{entity_id}' 的数据: {str(e)}"
 
         if not entity_data:
             return f"错误: 未找到实体 '{entity_id}' (类型: {entity_type})"
 
-        # Create evaluation context
         # Execute the action using the session from get_session_func
-        session = await get_session_func()
-        try:
+        session_cm = get_session_func()
+        async with session_cm as session:
             context = EvaluationContext(
                 entity={"id": entity_id, **entity_data},
                 old_values={},
                 session=session,
-                variables=params
+                variables=params,
             )
             result = await action_executor.execute(entity_type, action_name, context)
-        finally:
-            pass  # Session managed by caller
 
         if result.success:
             changes_str = ", ".join([f"{k}={v}" for k, v in result.changes.items()])
@@ -317,7 +277,7 @@ def create_action_tools(
         entity_type: str,
         action_name: str,
         entity_ids: List[str],
-        params: dict[str, Any] | None = None
+        params: dict[str, Any] | None = None,
     ) -> str:
         """Execute an action on multiple entities concurrently (preferred for bulk).
 
@@ -373,7 +333,9 @@ def create_action_tools(
         if results["successes"]:
             output.append("成功的实体:")
             for success in results["successes"][:10]:  # Show first 10
-                changes_str = ", ".join([f"{k}={v}" for k, v in success["changes"].items()])
+                changes_str = ", ".join(
+                    [f"{k}={v}" for k, v in success["changes"].items()]
+                )
                 output.append(f"  - {success['entity_id']}: {changes_str}")
             if len(results["successes"]) > 10:
                 output.append(f"  ... 还有 {len(results['successes']) - 10} 个")

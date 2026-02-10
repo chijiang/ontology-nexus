@@ -97,15 +97,17 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
                     <select
                         value={selectedClass}
                         onChange={(e) => setSelectedClass(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         disabled={loadingClasses}
                     >
                         <option value="">{t('selectType')}</option>
-                        {classes.map((cls) => (
-                            <option key={cls.name} value={cls.name}>
-                                {cls.name}
-                            </option>
-                        ))}
+                        {[...classes]
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map((cls) => (
+                                <option key={cls.name} value={cls.name}>
+                                    {cls.name}
+                                </option>
+                            ))}
                     </select>
                 </div>
 
@@ -123,7 +125,7 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
                     <Button
                         onClick={handleSearch}
                         disabled={!selectedClass || loading}
-                        className="w-full"
+                        className="w-full bg-primary hover:opacity-90"
                     >
                         {loading ? (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
@@ -157,7 +159,7 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
                         <select
                             value={filter.key}
                             onChange={(e) => handleFilterChange(index, 'key', e.target.value)}
-                            className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         >
                             <option value="">{t('selectProperty')}</option>
                             {selectedClassData?.dataProperties?.map((prop) => (

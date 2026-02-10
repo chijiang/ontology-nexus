@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { dataProductsApi, DataProduct, GrpcServiceSchema, GrpcMethodInfo } from '@/lib/api';
+import { Loader2, ExternalLink } from 'lucide-react';
 
 // --- Types ---
 
@@ -51,7 +53,7 @@ export interface Schema {
     relationships: SchemaRelationship[];
 }
 
-export type BlockType = 'SET' | 'TRIGGER' | 'FOR' | 'PRECONDITION';
+export type BlockType = 'SET' | 'TRIGGER' | 'FOR' | 'PRECONDITION' | 'CALL';
 
 export interface LogicBlockData {
     id: string;
@@ -65,6 +67,9 @@ export interface LogicBlockData {
     conditions?: string;
     label?: string; // For PRECONDITION
     onFailure?: string; // For PRECONDITION
+    dataProduct?: string; // For CALL
+    methodName?: string; // For CALL
+    args?: { name: string; value: string }[]; // For CALL
     children?: LogicBlockData[];
 }
 
@@ -230,6 +235,32 @@ const parseDslToBlocks = (dsl: string, mode: 'RULE' | 'ACTION'): { statements: L
                 };
                 stack[stack.length - 1].push(newBlock);
                 stack.push(newBlock.children!);
+            }
+        }
+        // CALL
+        else if (line.startsWith('CALL')) {
+            const match = line.match(/CALL\s+(?:"([^"]+)"|([\w.]+))\.([\w.]+)\s*\(\s*{?(.*?)}?\s*\);/);
+            if (match) {
+                const productName = match[1] || match[2];
+                const methodName = match[3];
+                const argsStr = match[4];
+                const args: { name: string; value: string }[] = [];
+                if (argsStr.trim()) {
+                    const argParts = argsStr.split(',').map(p => p.trim());
+                    argParts.forEach(p => {
+                        const [name, ...valParts] = p.split(':').map(x => x.trim());
+                        if (name && valParts.length > 0) {
+                            args.push({ name, value: valParts.join(':').trim() });
+                        }
+                    });
+                }
+                stack[stack.length - 1].push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    type: 'CALL',
+                    dataProduct: productName,
+                    methodName: methodName,
+                    args: args
+                });
             }
         }
         // End of Block
@@ -450,6 +481,13 @@ const LogicBlock = ({
                                 />
                             </>
                         )}
+
+                        {data.type === 'CALL' && (
+                            <CallBlockConfig
+                                data={data}
+                                updateStatement={(field, value) => updateStatement(id, field, value)}
+                            />
+                        )}
                     </div>
 
                     {/* Recursive Children Container */}
@@ -497,6 +535,12 @@ const LogicBlock = ({
                                 >
                                     <Plus size={10} /> Loop
                                 </button>
+                                <button
+                                    onClick={() => addStatement(id, 'CALL')}
+                                    className="text-[10px] flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded hover:border-indigo-500 text-slate-600 transition-colors"
+                                >
+                                    <Plus size={10} /> Call
+                                </button>
                             </div>
                         </div>
                     )}
@@ -510,6 +554,159 @@ const LogicBlock = ({
                     <Trash2 size={14} />
                 </button>
             </div>
+        </div>
+    );
+};
+
+// --- Sub-component for CALL configuration ---
+const CallBlockConfig = ({ data, updateStatement }: { data: LogicBlockData, updateStatement: (field: string, value: any) => void }) => {
+    const [products, setProducts] = useState<DataProduct[]>([]);
+    const [schema, setSchema] = useState<GrpcServiceSchema | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [isManual, setIsManual] = useState(false);
+
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const res = await dataProductsApi.list(true);
+                setProducts(res.data.items);
+            } catch (err) {
+                console.error('Failed to fetch data products', err);
+            }
+        };
+        fetchProducts();
+    }, []);
+
+    useEffect(() => {
+        const fetchSchema = async () => {
+            if (!data.dataProduct) return;
+            const product = products.find(p => p.name === data.dataProduct);
+            if (!product) return;
+
+            setLoading(true);
+            try {
+                const res = await dataProductsApi.getSchema(product.id);
+                setSchema(res.data);
+            } catch (err) {
+                console.error('Failed to fetch schema', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchSchema();
+    }, [data.dataProduct, products]);
+
+    const activeMethod = useMemo(() => {
+        return schema?.methods.find(m => m.name === data.methodName);
+    }, [schema, data.methodName]);
+
+    const methodParams = useMemo(() => {
+        if (!activeMethod || !schema) return [];
+        const inputType = activeMethod.input_type;
+        const msgType = schema.message_types.find(mt => mt.name === inputType);
+        return msgType?.fields || [];
+    }, [activeMethod, schema]);
+
+    const handleParamChange = (name: string, value: string) => {
+        const newArgs = [...(data.args || [])];
+        const idx = newArgs.findIndex(a => a.name === name);
+        if (idx >= 0) {
+            newArgs[idx] = { ...newArgs[idx], value };
+        } else {
+            newArgs.push({ name, value });
+        }
+        updateStatement('args', newArgs);
+    };
+
+    return (
+        <div className="flex flex-col gap-2 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+                <select
+                    value={data.dataProduct || ''}
+                    onChange={(e) => {
+                        updateStatement('dataProduct', e.target.value);
+                        updateStatement('methodName', '');
+                        updateStatement('args', []);
+                    }}
+                    className="px-2 py-1 border border-slate-200 rounded text-slate-700 outline-none text-xs bg-white w-32"
+                >
+                    <option value="">Select Product</option>
+                    {products.map((p) => (
+                        <option key={p.id} value={p.name}>
+                            {p.name}
+                        </option>
+                    ))}
+                </select>
+                <span className="text-slate-400">.</span>
+                <select
+                    value={data.methodName || ''}
+                    onChange={(e) => {
+                        updateStatement('methodName', e.target.value);
+                        updateStatement('args', []);
+                    }}
+                    className="px-2 py-1 border border-slate-200 rounded text-slate-700 outline-none text-xs bg-white w-40"
+                    disabled={!data.dataProduct || loading}
+                >
+                    <option value="">Select Method</option>
+                    {loading ? (
+                        <option>Loading...</option>
+                    ) : (
+                        schema?.methods.map((m) => (
+                            <option key={m.name} value={m.name}>
+                                {m.name}
+                            </option>
+                        ))
+                    )}
+                </select>
+
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsManual(!isManual)}
+                    className="h-7 text-[10px] text-slate-500 hover:text-indigo-600 px-2"
+                >
+                    {isManual ? 'Use Form' : 'Manual Edit'}
+                </Button>
+            </div>
+
+            {!isManual && methodParams.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1 p-2 bg-slate-50 rounded border border-slate-100">
+                    {methodParams.map((param: any) => (
+                        <div key={param.name} className="flex items-center gap-2 overflow-hidden">
+                            <span className="text-[10px] font-mono text-slate-500 w-20 truncate" title={param.name}>
+                                {param.name}:
+                            </span>
+                            <input
+                                type="text"
+                                value={data.args?.find(a => a.name === param.name)?.value || ''}
+                                onChange={(e) => handleParamChange(param.name, e.target.value)}
+                                placeholder={param.type}
+                                className="flex-1 px-2 py-0.5 border border-slate-200 rounded text-xs outline-none focus:border-indigo-400 font-mono"
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {isManual && (
+                <div className="mt-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Arguments (JSON-like)</span>
+                    <textarea
+                        value={data.args?.map(a => `${a.name}: ${a.value}`).join(', ') || ''}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            const pairs = val.split(',').map(p => p.trim()).filter(p => p);
+                            const newArgs = pairs.map(p => {
+                                const [name, ...v] = p.split(':').map(x => x.trim());
+                                return { name, value: v.join(':') };
+                            });
+                            updateStatement('args', newArgs);
+                        }}
+                        placeholder="arg1: val1, arg2: val2"
+                        className="w-full mt-1 px-2 py-1 border border-slate-200 rounded text-xs font-mono outline-none focus:border-indigo-400 bg-white h-16 resize-none"
+                    />
+                </div>
+            )}
         </div>
     );
 };
@@ -554,6 +751,8 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
             newStmt = { id: newId, type: 'FOR', variable: '', entity: '', conditions: '', children: [] };
         } else if (type === 'PRECONDITION') {
             newStmt = { id: newId, type: 'PRECONDITION', label: 'check', conditions: '' };
+        } else if (type === 'CALL') {
+            newStmt = { id: newId, type: 'CALL', dataProduct: '', methodName: '', args: [] };
         } else {
             return;
         }
@@ -608,6 +807,13 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
                         ? `${stmt.actionEntity}.${stmt.actionName}`
                         : 'Action.unknown';
                     str += `${indent}TRIGGER ${actionFull} ON ${stmt.target || 'target'};\n`;
+                } else if (stmt.type === 'CALL') {
+                    const argsStr = stmt.args && stmt.args.length > 0
+                        ? `{ ${stmt.args.map(a => `${a.name}: ${a.value || '""'}`).join(', ')} }`
+                        : '{}';
+                    const productName = stmt.dataProduct || 'Product';
+                    const displayProduct = productName.includes(' ') ? `"${productName}"` : productName;
+                    str += `${indent}CALL ${displayProduct}.${stmt.methodName || 'Method'}(${argsStr});\n`;
                 } else if (stmt.type === 'FOR') {
                     str += `\n${indent}FOR (${stmt.variable || 'v'}: ${stmt.entity || 'Entity'}`;
                     if (stmt.conditions) str += ` WHERE ${stmt.conditions}`;
@@ -701,6 +907,12 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
                         className="text-xs flex items-center gap-1 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 text-indigo-700 transition-colors font-medium"
                     >
                         <Repeat size={12} /> 添加循环
+                    </button>
+                    <button
+                        onClick={() => addStatement(null, 'CALL')}
+                        className="text-xs flex items-center gap-1 px-3 py-1.5 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100 text-sky-700 transition-colors font-medium"
+                    >
+                        <ExternalLink size={12} /> 添加调用
                     </button>
                 </div>
             </div>

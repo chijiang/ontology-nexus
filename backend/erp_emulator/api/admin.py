@@ -43,29 +43,94 @@ SUPPLIER_TEMPLATES = [
 ]
 
 MATERIAL_TEMPLATES = [
-    {"name": "LED Display 5 inch", "category": "electronics", "unit": "pcs", "price": 25.00},
-    {"name": "Microcontroller Arduino", "category": "electronics", "unit": "pcs", "price": 35.00},
-    {"name": "Power Adapter 12V", "category": "electronics", "unit": "pcs", "price": 15.00},
-    {"name": "USB Type-C Cable", "category": "electronics", "unit": "pcs", "price": 5.00},
-    {"name": "PCB Board 10x10cm", "category": "electronics", "unit": "pcs", "price": 8.00},
+    {
+        "name": "LED Display 5 inch",
+        "category": "electronics",
+        "unit": "pcs",
+        "price": 25.00,
+    },
+    {
+        "name": "Microcontroller Arduino",
+        "category": "electronics",
+        "unit": "pcs",
+        "price": 35.00,
+    },
+    {
+        "name": "Power Adapter 12V",
+        "category": "electronics",
+        "unit": "pcs",
+        "price": 15.00,
+    },
+    {
+        "name": "USB Type-C Cable",
+        "category": "electronics",
+        "unit": "pcs",
+        "price": 5.00,
+    },
+    {
+        "name": "PCB Board 10x10cm",
+        "category": "electronics",
+        "unit": "pcs",
+        "price": 8.00,
+    },
     {"name": "Steel Sheet 2mm", "category": "materials", "unit": "pcs", "price": 45.00},
-    {"name": "Aluminum Extrusion", "category": "materials", "unit": "m", "price": 12.00},
+    {
+        "name": "Aluminum Extrusion",
+        "category": "materials",
+        "unit": "m",
+        "price": 12.00,
+    },
     {"name": "Copper Wire 1mm", "category": "materials", "unit": "m", "price": 0.50},
-    {"name": "Plastic Pellets ABS", "category": "materials", "unit": "kg", "price": 3.50},
-    {"name": "Rubber Sheet 5mm", "category": "materials", "unit": "pcs", "price": 22.00},
+    {
+        "name": "Plastic Pellets ABS",
+        "category": "materials",
+        "unit": "kg",
+        "price": 3.50,
+    },
+    {
+        "name": "Rubber Sheet 5mm",
+        "category": "materials",
+        "unit": "pcs",
+        "price": 22.00,
+    },
     {"name": "Office Paper A4", "category": "office", "unit": "ream", "price": 6.00},
-    {"name": "Ink Cartridge Black", "category": "office", "unit": "pcs", "price": 45.00},
+    {
+        "name": "Ink Cartridge Black",
+        "category": "office",
+        "unit": "pcs",
+        "price": 45.00,
+    },
     {"name": "Filing Cabinet", "category": "office", "unit": "pcs", "price": 120.00},
     {"name": "Desk Lamp LED", "category": "office", "unit": "pcs", "price": 35.00},
     {"name": "Notebook Spiral", "category": "office", "unit": "pcs", "price": 3.00},
     {"name": "Ballpoint Pens Box", "category": "office", "unit": "box", "price": 12.00},
-    {"name": "Industrial Motor 1HP", "category": "industrial", "unit": "pcs", "price": 250.00},
-    {"name": "Hydraulic Cylinder", "category": "industrial", "unit": "pcs", "price": 180.00},
+    {
+        "name": "Industrial Motor 1HP",
+        "category": "industrial",
+        "unit": "pcs",
+        "price": 250.00,
+    },
+    {
+        "name": "Hydraulic Cylinder",
+        "category": "industrial",
+        "unit": "pcs",
+        "price": 180.00,
+    },
     {"name": "Conveyor Belt 1m", "category": "industrial", "unit": "m", "price": 85.00},
     {"name": "Safety Gloves", "category": "industrial", "unit": "pair", "price": 8.00},
-    {"name": "Welding Electrodes", "category": "industrial", "unit": "kg", "price": 15.00},
+    {
+        "name": "Welding Electrodes",
+        "category": "industrial",
+        "unit": "kg",
+        "price": 15.00,
+    },
     {"name": "Cardboard Boxes", "category": "logistics", "unit": "pcs", "price": 2.50},
-    {"name": "Bubble Wrap 100m", "category": "logistics", "unit": "roll", "price": 35.00},
+    {
+        "name": "Bubble Wrap 100m",
+        "category": "logistics",
+        "unit": "roll",
+        "price": 35.00,
+    },
     {"name": "Packing Tape", "category": "logistics", "unit": "roll", "price": 4.00},
     {"name": "Wooden Pallet", "category": "logistics", "unit": "pcs", "price": 25.00},
 ]
@@ -81,24 +146,34 @@ def generate_code(prefix: str, id: int) -> str:
     return f"{prefix}-{str(id).zfill(4)}"
 
 
-@router.post("/seed", response_model=SeedStatsResponse)
-async def seed_database(db: AsyncSession = Depends(get_db)):
+async def seed_data(
+    db: AsyncSession,
+    suppliers_count: int = 18,
+    materials_count: int = 24,
+    contracts_count: int = 35,
+    orders_count: int = 220,
+) -> SeedStatsResponse:
     """Generate and insert seed data into the database"""
 
     # Check if data already exists
     existing_suppliers = await db.execute(select(func.count()).select_from(Supplier))
     if existing_suppliers.scalar() > 0:
-        raise HTTPException(
-            status_code=400, detail="Database already contains data. Use /reset first."
-        )
+        raise ValueError("Database already contains data")
 
     stats = SeedStatsResponse()
 
     # Create suppliers
     suppliers = []
-    for i, template in enumerate(
-        SUPPLIER_TEMPLATES[: settings.SEED_SUPPLIERS_COUNT], 1
-    ):
+    # Use template length if count is small, otherwise cycle through templates
+    items_to_create = (
+        SUPPLIER_TEMPLATES[:suppliers_count]
+        if suppliers_count <= len(SUPPLIER_TEMPLATES)
+        else (SUPPLIER_TEMPLATES * (suppliers_count // len(SUPPLIER_TEMPLATES) + 1))[
+            :suppliers_count
+        ]
+    )
+
+    for i, template in enumerate(items_to_create, 1):
         supplier = Supplier(
             name=template["name"],
             code=generate_code("SUP", i),
@@ -117,7 +192,15 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
 
     # Create materials
     materials = []
-    for i, template in enumerate(MATERIAL_TEMPLATES[: settings.SEED_MATERIALS_COUNT], 1):
+    items_to_create = (
+        MATERIAL_TEMPLATES[:materials_count]
+        if materials_count <= len(MATERIAL_TEMPLATES)
+        else (MATERIAL_TEMPLATES * (materials_count // len(MATERIAL_TEMPLATES) + 1))[
+            :materials_count
+        ]
+    )
+
+    for i, template in enumerate(items_to_create, 1):
         material = Material(
             name=template["name"],
             code=generate_code("MAT", i),
@@ -136,7 +219,7 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
 
     # Create contracts
     contracts = []
-    for _ in range(settings.SEED_CONTRACTS_COUNT):
+    for _ in range(contracts_count):
         supplier = random.choice(suppliers)
         material = random.choice(materials)
         start_date = datetime.now() - timedelta(days=random.randint(30, 365))
@@ -164,12 +247,21 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
     orders = []
     base_date = datetime.now() - timedelta(days=365)
 
-    for i in range(settings.SEED_ORDERS_COUNT):
-        supplier = random.choice(suppliers)
+    # Create material lookup map
+    material_map = {m.id: m for m in materials}
+
+    for i in range(orders_count):
+        # Link order to a contract
+        contract = random.choice(contracts)
+        supplier_id = contract.supplier_id
+        material_id = contract.material_id
+
         order_date = base_date + timedelta(days=random.randint(0, 365))
 
         order = PurchaseOrder(
-            supplier_id=supplier.id,
+            supplier_id=supplier_id,
+            contract_id=contract.id,
+            material_id=material_id,
             order_number=generate_code("PO", i + 1),
             status=random.choices(
                 ORDER_STATUSES,
@@ -191,32 +283,32 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
     # Create order items
     order_items = []
     for order in orders:
-        num_items = random.randint(1, 5)
-        selected_materials = random.sample(materials, min(num_items, len(materials)))
+        # Order is tied to a specific material via contract
+        material = material_map[order.material_id]
 
-        for material in selected_materials:
-            quantity = random.randint(10, 500)
-            unit_price = material.standard_price * random.uniform(0.9, 1.1)
-            discount = random.uniform(0, 15)
+        # Generate 1 item for the contract material
+        quantity = random.randint(10, 500)
+        unit_price = material.standard_price * random.uniform(0.9, 1.1)
+        discount = random.uniform(0, 15)
 
-            item = OrderItem(
-                order_id=order.id,
-                material_id=material.id,
-                quantity=quantity,
-                unit_price=round(unit_price, 2),
-                subtotal=round(quantity * unit_price * (1 - discount / 100), 2),
-                discount_percent=round(discount, 2),
-                delivery_status=random.choices(
-                    ["pending", "partial", "complete"],
-                    weights=[40, 30, 30],
-                    k=1,
-                )[0],
-            )
-            order_items.append(item)
-            db.add(item)
+        item = OrderItem(
+            order_id=order.id,
+            material_id=material.id,
+            quantity=quantity,
+            unit_price=round(unit_price, 2),
+            subtotal=round(quantity * unit_price * (1 - discount / 100), 2),
+            discount_percent=round(discount, 2),
+            delivery_status=random.choices(
+                ["pending", "partial", "complete"],
+                weights=[40, 30, 30],
+                k=1,
+            )[0],
+        )
+        order_items.append(item)
+        db.add(item)
 
-            # Update order total
-            order.total_amount += item.subtotal
+        # Update order total
+        order.total_amount += item.subtotal
 
     await db.flush()
     stats.order_items = len(order_items)
@@ -255,6 +347,21 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return stats
+
+
+@router.post("/seed", response_model=SeedStatsResponse)
+async def seed_database(db: AsyncSession = Depends(get_db)):
+    """Generate and insert seed data into the database"""
+    try:
+        return await seed_data(
+            db,
+            settings.SEED_SUPPLIERS_COUNT,
+            settings.SEED_MATERIALS_COUNT,
+            settings.SEED_CONTRACTS_COUNT,
+            settings.SEED_ORDERS_COUNT,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.delete("/reset", response_model=MessageResponse)

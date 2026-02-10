@@ -78,7 +78,7 @@ export function ConversationSidebar({ activeId, onSelect, onNewChat, onToggle }:
             <div className="p-3 border-b border-slate-200 flex items-center gap-2">
                 <button
                     onClick={onNewChat}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors text-sm font-medium shadow-sm"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-primary hover:opacity-90 text-white rounded-lg transition-colors text-sm font-medium shadow-sm"
                 >
                     <Plus className="h-4 w-4" />
                     {t('newChat')}
@@ -105,12 +105,12 @@ export function ConversationSidebar({ activeId, onSelect, onNewChat, onToggle }:
                                 key={conv.id}
                                 onClick={() => onSelect(conv.id)}
                                 className={`group relative mb-1 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${activeId === conv.id
-                                    ? 'bg-indigo-100 text-indigo-900 ring-1 ring-indigo-200'
+                                    ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
                                     : 'hover:bg-slate-200 hover:shadow-sm text-slate-700'
                                     }`}
                             >
                                 <div className="flex items-center gap-2 overflow-hidden">
-                                    <MessageSquare className={`h-4 w-4 flex-shrink-0 ${activeId === conv.id ? 'text-indigo-600' : 'text-slate-400'}`} />
+                                    <MessageSquare className={`h-4 w-4 flex-shrink-0 ${activeId === conv.id ? 'text-primary' : 'text-slate-400'}`} />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium truncate leading-tight">{conv.title}</p>
                                         <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">{formatDate(conv.updated_at)}</p>

@@ -351,8 +351,8 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <div className="flex items-center gap-2">
                     {node ? (
-                        <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                            <Database className="h-4 w-4 text-indigo-600" />
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Database className="h-4 w-4 text-primary" />
                         </div>
                     ) : (
                         <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -381,11 +381,10 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                     <>
                         <section>
                             <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">数据产品绑定</h4>
                                 <Button
                                     size="sm"
                                     variant="ghost"
-                                    className="h-8 px-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                                    className="h-8 px-2 text-primary hover:bg-primary/5"
                                     onClick={() => setIsAddingMapping(true)}
                                     disabled={isAddingMapping}
                                 >
@@ -395,7 +394,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                             </div>
 
                             {isAddingMapping && (
-                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 space-y-4 shadow-inner">
+                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4 space-y-4 shadow-inner">
                                     <div className="space-y-2">
                                         <Label className="text-xs font-medium">选择数据产品</Label>
                                         <Select onValueChange={handleProductSelect}>
@@ -452,7 +451,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                 <Button
                                                     size="sm"
                                                     onClick={handleCreateEntityMapping}
-                                                    className="h-9 bg-indigo-600 hover:bg-indigo-700"
+                                                    className="h-9 bg-primary hover:opacity-90"
                                                     disabled={!newMapping.grpc_message_type}
                                                 >
                                                     确认绑定
@@ -469,7 +468,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                         <div key={m.id} className="group border border-slate-200 rounded-lg p-3 hover:border-indigo-200 hover:shadow-sm transition-all bg-white">
                                             <div className="flex items-start justify-between mb-2">
                                                 <div className="flex items-center gap-2">
-                                                    <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-100">
+                                                    <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/10">
                                                         {products.find(p => p.id === m.data_product_id)?.name || '未知产品'}
                                                     </Badge>
                                                     <ArrowRight className="h-3 w-3 text-slate-300" />
@@ -515,9 +514,9 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                                     <span className="font-medium text-slate-600 truncate">{pm.ontology_property.split(':')[0]}</span>
                                                                     <ArrowRight className="h-2 w-2 text-slate-300" />
                                                                     <div className="flex items-center gap-1 min-w-0">
-                                                                        <span className="font-mono text-indigo-600 truncate">{pm.grpc_field}</span>
+                                                                        <span className="font-mono text-primary truncate">{pm.grpc_field}</span>
                                                                         {pm.transform_expression && (
-                                                                            <span className="text-[8px] bg-blue-50 text-blue-500 px-1 rounded flex-shrink-0">
+                                                                            <span className="text-[8px] bg-primary/10 text-primary px-1 rounded flex-shrink-0">
                                                                                 {pm.transform_expression}
                                                                             </span>
                                                                         )}
@@ -608,7 +607,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
 
                                                                 <div className="flex gap-2">
                                                                     <Button variant="outline" size="sm" onClick={() => setIsAddingProp(false)} className="h-7 flex-1 text-[10px]">取消</Button>
-                                                                    <Button size="sm" onClick={handleCreatePropertyMapping} className="h-7 flex-1 text-[10px] bg-indigo-600">添加</Button>
+                                                                    <Button size="sm" onClick={handleCreatePropertyMapping} className="h-7 flex-1 text-[10px] bg-primary hover:opacity-90">添加</Button>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -745,7 +744,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                         <Button
                                             size="sm"
                                             onClick={handleCreateRelMapping}
-                                            className="h-9 bg-amber-600 hover:bg-amber-700"
+                                            className="h-9 bg-primary hover:opacity-90"
                                             disabled={!newRel.source_entity_mapping_id || !newRel.target_entity_mapping_id || !newRel.source_fk_field}
                                         >
                                             确认关联

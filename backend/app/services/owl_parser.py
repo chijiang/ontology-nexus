@@ -33,8 +33,15 @@ class OWLParser:
         OWL.AnnotationProperty,
     }
 
-    def __init__(self, graph: Graph | None = None):
-        self.graph = graph or Graph()
+    def __init__(self, data: bytes | str | Graph | None = None):
+        if isinstance(data, Graph):
+            self.graph = data
+        else:
+            self.graph = Graph()
+            if isinstance(data, bytes):
+                self.graph.parse(data=data, format="turtle")
+            elif isinstance(data, str):
+                self.graph.parse(data=data, format="turtle")
         self._schema_entities = set()
 
     def load_from_file(self, file_path: str) -> None:
@@ -96,7 +103,7 @@ class OWLParser:
                 {
                     "uri": str(s),
                     "name": s.split("#")[-1].split("/")[-1],
-                    "label": self._get_label(s),
+                    "label": self._get_labels(s),
                 }
             )
         return classes
@@ -106,10 +113,13 @@ class OWLParser:
         properties = []
 
         for s, _, o in self.graph.triples((None, RDF.type, OWL.ObjectProperty)):
+            name = s.split("#")[-1].split("/")[-1]
+            while name.startswith("prop_"):
+                name = name[len("prop_") :]
             properties.append(
                 {
                     "uri": str(s),
-                    "name": s.split("#")[-1].split("/")[-1],
+                    "name": name,
                     "label": self._get_label(s),
                     "type": "object",
                     "domain": self._get_domain(s),
@@ -118,10 +128,13 @@ class OWLParser:
             )
 
         for s, _, o in self.graph.triples((None, RDF.type, OWL.DatatypeProperty)):
+            name = s.split("#")[-1].split("/")[-1]
+            while name.startswith("prop_"):
+                name = name[len("prop_") :]
             properties.append(
                 {
                     "uri": str(s),
-                    "name": s.split("#")[-1].split("/")[-1],
+                    "name": name,
                     "label": self._get_label(s),
                     "type": "data",
                     "domain": self._get_domain(s),
@@ -130,6 +143,12 @@ class OWLParser:
             )
 
         return properties
+
+    def _get_labels(self, uri) -> List[str]:
+        labels = []
+        for _, _, label in self.graph.triples((uri, RDFS.label, None)):
+            labels.append(str(label))
+        return labels
 
     def _get_label(self, uri) -> str | None:
         for _, _, label in self.graph.triples((uri, RDFS.label, None)):
@@ -143,5 +162,21 @@ class OWLParser:
 
     def _get_range(self, uri) -> str | None:
         for _, _, range_val in self.graph.triples((uri, RDFS.range, None)):
-            return str(range_val)
+            range_str = str(range_val)
+            # Check if it's an XSD type for DatatypeProperty
+            if "XMLSchema#" in range_str or "XMLSchema/" in range_str:
+                suffix = range_str.split("#")[-1].split("/")[-1]
+                if suffix in ["integer", "int"]:
+                    return "int"
+                if suffix in ["double", "float"]:
+                    return "float"
+                if suffix == "boolean":
+                    return "boolean"
+                if suffix == "date":
+                    return "date"
+                if suffix == "dateTime":
+                    return "datetime"
+                return "string"
+            # For ObjectProperty, return full URI
+            return range_str
         return None

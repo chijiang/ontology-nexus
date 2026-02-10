@@ -70,11 +70,11 @@ class PGGraphImporter:
                 existing = result.scalar_one_or_none()
 
                 if existing:
-                    existing.label = cls.get("label")
+                    existing.label = cls.get("label", [])
                     existing.data_properties = []
                 else:
                     new_class = SchemaClass(
-                        name=cls["name"], label=cls.get("label"), data_properties=[]
+                        name=cls["name"], label=cls.get("label", []), data_properties=[]
                     )
                     self.db.add(new_class)
                 stats["classes"] += 1
@@ -184,6 +184,15 @@ class PGGraphImporter:
             ):
                 class_name = triple.obj.split("#")[-1].split("/")[-1]
                 type_map[triple.subject] = class_name
+
+            # 别名 (rdfs:label)
+            elif pred.endswith("label") or pred.endswith("#label"):
+                subject_name = triple.subject.split("#")[-1].split("/")[-1]
+                if subject_name not in node_properties:
+                    node_properties[subject_name] = {}
+                if "__aliases__" not in node_properties[subject_name]:
+                    node_properties[subject_name]["__aliases__"] = []
+                node_properties[subject_name]["__aliases__"].append(triple.obj)
 
             # ObjectProperty -> 关系
             elif pred in self.object_property_uris:

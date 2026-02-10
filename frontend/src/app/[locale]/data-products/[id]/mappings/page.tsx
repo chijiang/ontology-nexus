@@ -18,7 +18,8 @@ import {
     X,
     Activity,
     ClipboardList,
-    History
+    History,
+    AlertTriangle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -113,6 +114,16 @@ export default function DataMappingsPage({ params }: { params: Promise<{ id: str
         grpc_field: '',
         transformation: 'None',
     })
+
+    const RESERVED_KEYWORDS = [
+        'id', 'name', 'entity_type', 'is_instance', 'uri',
+        'properties', 'created_at', 'updated_at'
+    ]
+
+    const isReservedKeyword = (prop: string) => {
+        const cleanName = prop.split(':')[0].trim().toLowerCase()
+        return RESERVED_KEYWORDS.includes(cleanName)
+    }
 
     const TRANSFORMATION_OPTIONS = [
         { label: t('mappings.transformNone'), value: 'None' },
@@ -274,6 +285,11 @@ export default function DataMappingsPage({ params }: { params: Promise<{ id: str
                 description: tDataProducts('fillRequired'),
             })
             return
+        }
+
+        if (isReservedKeyword(propertyForm.ontology_property)) {
+            const proceed = confirm(`注意：属性名称 "${propertyForm.ontology_property}" 是系统保留关键字，直接使用可能会导致不可预知的冲突。确定要继续吗？`)
+            if (!proceed) return
         }
 
         try {
@@ -953,6 +969,16 @@ export default function DataMappingsPage({ params }: { params: Promise<{ id: str
                     </DialogHeader>
 
                     <div className="grid gap-4 py-4">
+                        {isReservedKeyword(propertyForm.ontology_property) && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-3 animate-in fade-in slide-in-from-top-2">
+                                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                                <div className="text-xs text-amber-800">
+                                    <p className="font-bold mb-1">系统保留字警告</p>
+                                    <p>属性名称 "{propertyForm.ontology_property}" 是系统保留字段。映射到此字段可能会导致数据冲突或同步失败。建议使用其他名称（例如 "source_id"）。</p>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="grid gap-2">
                             <Label>{tMappings('ontologyProperty')}</Label>
                             {getSelectedMappingClass()?.data_properties?.length ? (

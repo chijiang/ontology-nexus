@@ -26,10 +26,16 @@ class Contract(Base):
     id = Column(Integer, primary_key=True, autoincrement="auto")
     contract_number = Column(String(50), unique=True, nullable=False, index=True)
     supplier_id = Column(
-        Integer, ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=False, index=True
+        Integer,
+        ForeignKey("suppliers.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
     material_id = Column(
-        Integer, ForeignKey("materials.id", ondelete="RESTRICT"), nullable=False, index=True
+        Integer,
+        ForeignKey("materials.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
     start_date = Column(DateTime, nullable=False)
     end_date = Column(DateTime)
@@ -45,7 +51,10 @@ class Contract(Base):
 
     # Relationships
     supplier = relationship("Supplier", back_populates="contracts")
+    # Relationships
+    supplier = relationship("Supplier", back_populates="contracts")
     material = relationship("Material", back_populates="contracts")
+    purchase_orders = relationship("PurchaseOrder", back_populates="contract")
 
     __table_args__ = (
         Index("idx_contracts_supplier", "supplier_id"),

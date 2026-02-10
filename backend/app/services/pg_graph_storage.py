@@ -160,7 +160,11 @@ class PGGraphStorage:
         return [
             {
                 "name": c.name,
-                "label": c.label,
+                "label": (
+                    c.label
+                    if isinstance(c.label, list)
+                    else ([c.label] if c.label else [])
+                ),
                 "dataProperties": c.data_properties or [],
                 "color": c.color,
             }
@@ -259,9 +263,17 @@ class PGGraphStorage:
         if result.scalar_one_or_none():
             return {"error": f"Class '{name}' already exists"}
 
+        # 确保 label 是列表
+        if isinstance(label, str):
+            label_list = [label]
+        elif isinstance(label, list):
+            label_list = label
+        else:
+            label_list = [name]
+
         new_class = SchemaClass(
             name=name,
-            label=label or name,
+            label=label_list,
             data_properties=data_properties or [],
             color=color,
         )
@@ -290,7 +302,11 @@ class PGGraphStorage:
             return {"error": f"Class '{name}' not found"}
 
         if label is not None:
-            cls.label = label
+            if isinstance(label, str):
+                # 支持逗号分隔的别名
+                cls.label = [l.strip() for l in label.split(",") if l.strip()]
+            else:
+                cls.label = label
         if data_properties is not None:
             cls.data_properties = data_properties
         if color is not None:
@@ -398,21 +414,33 @@ class PGGraphStorage:
         self, search_term: str, class_name: Optional[str] = None, limit: int = 10
     ) -> List[Dict]:
         """根据名称搜索实例节点"""
+        from sqlalchemy import or_
+
+        # 搜索名称或别名
+        # 因为 properties['__aliases__'] 是 JSONB 数组，我们检查是否包含该词或数组元素匹配
         query = select(GraphEntity).where(
-            GraphEntity.name.ilike(f"%{search_term}%"), GraphEntity.is_instance == True
+            or_(
+                GraphEntity.name.ilike(f"%{search_term}%"),
+                # PostgreSQL JSONB 搜索：由于 ILIKE 很难直接应用于数组元素，这里我们使用通用 SQL
+                text(
+                    "id IN (SELECT id FROM graph_entities, jsonb_array_elements_text(properties->'__aliases__') as a WHERE a ILIKE :term)"
+                ),
+            ),
+            GraphEntity.is_instance == True,
         )
 
         if class_name:
             query = query.where(GraphEntity.entity_type == class_name)
 
         query = query.limit(limit)
-        result = await self.db.execute(query)
+        result = await self.db.execute(query, {"term": f"%{search_term}%"})
         entities = result.scalars().all()
 
         results = [
             {
                 "name": e.name,
                 "labels": [e.entity_type],
+                "aliases": (e.properties or {}).get("__aliases__", []),
                 "properties": {
                     k: v
                     for k, v in (e.properties or {}).items()
@@ -429,6 +457,7 @@ class PGGraphStorage:
                 {
                     "id": r["name"],
                     "label": r["name"],
+                    "aliases": r["aliases"],
                     "type": r["labels"][0] if r["labels"] else "Entity",
                     "properties": r["properties"],
                 }
@@ -783,6 +812,7 @@ class PGGraphStorage:
                 "properties": {
                     k: v for k, v in (row[3] or {}).items() if not k.startswith("__")
                 },
+                "aliases": (row[3] or {}).get("__aliases__", []),
                 "relationships": (
                     [{"type": row[4], "source": instance_name, "target": row[1]}]
                     if row[4]
@@ -981,12 +1011,15 @@ class PGGraphStorage:
 
         results = [
             {
+                "id": e.id,
                 "name": e.name,
+                "entity_type": e.entity_type,
                 "properties": {
                     k: v
                     for k, v in (e.properties or {}).items()
                     if not k.startswith("__")
                 },
+                "aliases": (e.properties or {}).get("__aliases__", []),
             }
             for e in entities
         ]
@@ -1028,7 +1061,12 @@ class PGGraphStorage:
             "id": entity.id,
             "name": entity.name,
             "entity_type": entity.entity_type,
-            "properties": entity.properties or {},
+            "properties": {
+                k: v
+                for k, v in (entity.properties or {}).items()
+                if not k.startswith("__")
+            },
+            "aliases": (entity.properties or {}).get("__aliases__", []),
         }
 
     # ==================== 统计查询 ====================

@@ -130,7 +130,7 @@ class SchemaClass(Base):
 
     id = Column(Integer, primary_key=True, autoincrement="auto")
     name = Column(String(255), unique=True, nullable=False)
-    label = Column(String(500))  # 人类可读的标签/描述
+    label = Column(JSONB, default=list)  # 人类可读的标签/描述（列表存储多个别名）
     color = Column(String(20))  # 用户自定义颜色，如 "#6366f1"
     data_properties = Column(
         JSONB, default=list

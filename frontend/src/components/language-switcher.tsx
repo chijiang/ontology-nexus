@@ -25,7 +25,16 @@ export function LanguageSwitcher() {
 
   const switchLocale = (newLocale: Locale) => {
     const segments = pathname.split('/');
-    segments[1] = newLocale;
+    // Check if segments[1] is already a locale prefix
+    const currentFirstSegment = segments[1];
+    const isLocalePrefix = locales.includes(currentFirstSegment as Locale);
+    if (isLocalePrefix) {
+      // Replace existing locale prefix
+      segments[1] = newLocale;
+    } else {
+      // No locale prefix exists — insert one after the leading '/'
+      segments.splice(1, 0, newLocale);
+    }
     const newPathname = segments.join('/');
     router.push(newPathname);
     setIsOpen(false);
@@ -52,8 +61,8 @@ export function LanguageSwitcher() {
                   key={loc}
                   onClick={() => switchLocale(loc as Locale)}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                     }`}
                 >
                   <span>{localeNames[loc as Locale]}</span>

@@ -3,12 +3,19 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import cytoscape, { Core, ElementDefinition } from 'cytoscape'
+// @ts-ignore
+import d3Force from 'cytoscape-d3-force'
 import { graphApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
-import { ZoomIn, ZoomOut, Maximize2, Link as LinkIcon, Info } from 'lucide-react'
+import { ZoomIn, ZoomOut, Maximize2, Link as LinkIcon, Info, Play, Pause } from 'lucide-react'
 import { SearchParams } from './instance-filter'
 import { useTranslations } from 'next-intl'
+
+// Register d3-force layout for continuous physics with center gravity
+if (typeof cytoscape !== 'undefined') {
+    cytoscape.use(d3Force)
+}
 
 // Neo4j-style color palette for different node labels
 const NEO4J_COLORS = [
@@ -55,9 +62,12 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
     const token = useAuthStore((state) => state.token)
     const containerRef = useRef<HTMLDivElement>(null)
     const cyRef = useRef<Core | null>(null)
+    const layoutRef = useRef<any>(null)
     const [isMounted, setIsMounted] = useState(true)
     const [loading, setLoading] = useState(false)
     const [noData, setNoData] = useState(true)
+    const [physicsEnabled, setPhysicsEnabled] = useState(true)
+    const physicsEnabledRef = useRef(true)
 
     useEffect(() => {
         setIsMounted(true)
@@ -128,12 +138,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                 },
             ],
             layout: {
-                name: 'cose',
-                animate: true,
-                animationDuration: 500,
-                nodeRepulsion: () => 8000,
-                idealEdgeLength: () => 120,
-                gravity: 0.25,
+                name: 'preset',
             },
             wheelSensitivity: 0.3,
             minZoom: 0.2,
@@ -166,6 +171,42 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
         cyRef.current.on('tap', (evt) => {
             if (evt.target === cyRef.current) {
                 onNodeSelect?.(null)
+            }
+        })
+
+        // 拖拽节点时重新激活物理模拟（仅在动态效果开启时）
+        cyRef.current.on('grab', 'node', () => {
+            if (!physicsEnabledRef.current) return
+            if (layoutRef.current) {
+                layoutRef.current.stop()
+            }
+            if (cyRef.current) {
+                layoutRef.current = cyRef.current.layout({
+                    name: 'd3-force',
+                    animate: true,
+                    fixedAfterDragging: false,
+                    ungrabifyWhileSimulating: false,
+                    fit: false,
+                    alpha: 0.3,
+                    alphaMin: 0.001,
+                    alphaDecay: 1 - Math.pow(0.001, 1 / 300),
+                    alphaTarget: 0.02,
+                    velocityDecay: 0.4,
+                    collideRadius: 50,
+                    collideStrength: 0.7,
+                    collideIterations: 1,
+                    linkId: function (d: any) { return d.id },
+                    linkDistance: 150,
+                    linkStrength: 0.7,
+                    manyBodyStrength: -300,
+                    manyBodyTheta: 0.9,
+                    manyBodyDistanceMin: 1,
+                    manyBodyDistanceMax: Infinity,
+                    xStrength: 0.05,
+                    yStrength: 0.05,
+                    randomize: false,
+                } as any)
+                layoutRef.current.run()
             }
         })
 
@@ -246,14 +287,42 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
             if (!cyRef.current || !isMounted) return
 
             cyRef.current.json({ elements })
-            cyRef.current.layout({
-                name: 'cose',
+
+            // 首次 fit 一次，之后不再干扰用户的缩放/平移
+            let hasFitted = false
+            const layout = cyRef.current.layout({
+                name: 'd3-force',
                 animate: true,
-                animationDuration: 500,
-                nodeRepulsion: () => 10000,
-                idealEdgeLength: () => 150,
-                gravity: 0.15,
-            }).run()
+                fixedAfterDragging: false,
+                ungrabifyWhileSimulating: false,
+                fit: false,
+                // d3-force 参数
+                alpha: 1,
+                alphaMin: 0.001,
+                alphaDecay: 1 - Math.pow(0.001, 1 / 300),
+                alphaTarget: 0.02,
+                velocityDecay: 0.4,
+                collideRadius: 50,
+                collideStrength: 0.7,
+                collideIterations: 1,
+                linkId: function (d: any) { return d.id },
+                linkDistance: 150,
+                linkStrength: 0.7,
+                manyBodyStrength: -300,
+                manyBodyTheta: 0.9,
+                manyBodyDistanceMin: 1,
+                manyBodyDistanceMax: Infinity,
+                xStrength: 0.05,
+                yStrength: 0.05,
+                randomize: false,
+            } as any)
+            layout.on('layoutready', () => {
+                if (!hasFitted && cyRef.current) {
+                    cyRef.current.fit(undefined, 30)
+                    hasFitted = true
+                }
+            })
+            layout.run()
 
         } catch (err) {
             console.error('Failed to load random graph:', err)
@@ -372,14 +441,40 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
             if (!cyRef.current || !isMounted) return
 
             cyRef.current.json({ elements })
-            cyRef.current.layout({
-                name: 'cose',
+
+            let hasFitted = false
+            const layout = cyRef.current.layout({
+                name: 'd3-force',
                 animate: true,
-                animationDuration: 500,
-                nodeRepulsion: () => 8000,
-                idealEdgeLength: () => 120,
-                gravity: 0.25,
-            }).run()
+                fixedAfterDragging: false,
+                ungrabifyWhileSimulating: false,
+                fit: false,
+                alpha: 1,
+                alphaMin: 0.001,
+                alphaDecay: 1 - Math.pow(0.001, 1 / 300),
+                alphaTarget: 0.02,
+                velocityDecay: 0.4,
+                collideRadius: 50,
+                collideStrength: 0.7,
+                collideIterations: 1,
+                linkId: function (d: any) { return d.id },
+                linkDistance: 150,
+                linkStrength: 0.7,
+                manyBodyStrength: -300,
+                manyBodyTheta: 0.9,
+                manyBodyDistanceMin: 1,
+                manyBodyDistanceMax: Infinity,
+                xStrength: 0.05,
+                yStrength: 0.05,
+                randomize: false,
+            } as any)
+            layout.on('layoutready', () => {
+                if (!hasFitted && cyRef.current) {
+                    cyRef.current.fit(undefined, 30)
+                    hasFitted = true
+                }
+            })
+            layout.run()
 
         } catch (err) {
             console.error('Failed to load instances:', err)
@@ -450,13 +545,30 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
             if (newElements.length > 0) {
                 cyRef.current?.add(newElements)
                 cyRef.current?.layout({
-                    name: 'cose',
+                    name: 'd3-force',
                     animate: true,
-                    animationDuration: 500,
-                    nodeRepulsion: () => 8000,
-                    idealEdgeLength: () => 120,
-                    gravity: 0.25,
-                }).run()
+                    fixedAfterDragging: false,
+                    ungrabifyWhileSimulating: false,
+                    fit: false,
+                    alpha: 1,
+                    alphaMin: 0.001,
+                    alphaDecay: 1 - Math.pow(0.001, 1 / 300),
+                    alphaTarget: 0.02,
+                    velocityDecay: 0.4,
+                    collideRadius: 50,
+                    collideStrength: 0.7,
+                    collideIterations: 1,
+                    linkId: function (d: any) { return d.id },
+                    linkDistance: 150,
+                    linkStrength: 0.7,
+                    manyBodyStrength: -300,
+                    manyBodyTheta: 0.9,
+                    manyBodyDistanceMin: 1,
+                    manyBodyDistanceMax: Infinity,
+                    xStrength: 0.05,
+                    yStrength: 0.05,
+                    randomize: false,
+                } as any).run()
             }
         } catch (err) {
             console.error('Failed to expand node:', err)
@@ -466,6 +578,49 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
     const handleZoomIn = () => cyRef.current?.zoom(cyRef.current.zoom() * 1.2)
     const handleZoomOut = () => cyRef.current?.zoom(cyRef.current.zoom() * 0.8)
     const handleFit = () => cyRef.current?.fit()
+
+    const handleTogglePhysics = () => {
+        const newEnabled = !physicsEnabled
+        setPhysicsEnabled(newEnabled)
+        physicsEnabledRef.current = newEnabled
+        if (newEnabled) {
+            // 启动物理模拟
+            if (cyRef.current) {
+                layoutRef.current = cyRef.current.layout({
+                    name: 'd3-force',
+                    animate: true,
+                    fixedAfterDragging: false,
+                    ungrabifyWhileSimulating: false,
+                    fit: false,
+                    alpha: 0.3,
+                    alphaMin: 0.001,
+                    alphaDecay: 1 - Math.pow(0.001, 1 / 300),
+                    alphaTarget: 0.02,
+                    velocityDecay: 0.4,
+                    collideRadius: 50,
+                    collideStrength: 0.7,
+                    collideIterations: 1,
+                    linkId: function (d: any) { return d.id },
+                    linkDistance: 150,
+                    linkStrength: 0.7,
+                    manyBodyStrength: -300,
+                    manyBodyTheta: 0.9,
+                    manyBodyDistanceMin: 1,
+                    manyBodyDistanceMax: Infinity,
+                    xStrength: 0.05,
+                    yStrength: 0.05,
+                    randomize: false,
+                } as any)
+                layoutRef.current.run()
+            }
+        } else {
+            // 停止物理模拟
+            if (layoutRef.current) {
+                layoutRef.current.stop()
+                layoutRef.current = null
+            }
+        }
+    }
 
     return (
         <div className="relative h-full">
@@ -479,6 +634,15 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                 </Button>
                 <Button size="icon" variant="secondary" onClick={handleFit} className="bg-white/90 hover:bg-white shadow-md">
                     <Maximize2 className="h-4 w-4" />
+                </Button>
+                <Button
+                    size="icon"
+                    variant="secondary"
+                    onClick={handleTogglePhysics}
+                    className={`shadow-md ${physicsEnabled ? 'bg-primary/10 hover:bg-primary/20 text-primary' : 'bg-white/90 hover:bg-white'}`}
+                    title={physicsEnabled ? '关闭动态效果' : '开启动态效果'}
+                >
+                    {physicsEnabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                 </Button>
             </div>
 

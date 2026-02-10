@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { AppLayout } from '@/components/layout'
 import { Chat } from '@/components/chat'
 import { GraphPreview } from '@/components/graph-preview'
@@ -13,6 +14,7 @@ import { MessageSquare, Network, PanelLeftClose, PanelLeft } from 'lucide-react'
 
 export default function DashboardPage() {
   const router = useRouter()
+  const t = useTranslations()
   const token = useAuthStore((state) => state.token)
   const [graphData, setGraphData] = useState<any>(null)
   const [isHydrated, setIsHydrated] = useState(false)
@@ -30,7 +32,7 @@ export default function DashboardPage() {
     }
   }, [isHydrated, token, router])
 
-  // 加载对话消息
+  // Load conversation messages
   const loadConversation = useCallback(async (id: number | null) => {
     setActiveConversationId(id)
     setGraphData(null)
@@ -40,7 +42,7 @@ export default function DashboardPage() {
         const res = await conversationApi.get(id)
         setInitialMessages(res.data.messages)
 
-        // 如果有 graph_data，显示最后一个
+        // If there is graph_data, display the last one
         const lastWithGraph = [...res.data.messages]
           .reverse()
           .find(m => m.extra_metadata?.graph_data)
@@ -78,7 +80,7 @@ export default function DashboardPage() {
           <button
             onClick={() => setSidebarOpen(true)}
             className="absolute left-4 top-4 z-20 p-2.5 bg-white border border-slate-200 rounded-lg shadow-md hover:bg-slate-50 transition-all text-slate-500 hover:text-indigo-600"
-            title="显示侧边栏"
+            title={t('layout.showSidebar')}
           >
             <PanelLeft className="h-4 w-4" />
           </button>
@@ -97,13 +99,13 @@ export default function DashboardPage() {
         {/* Main content */}
         <div className="flex-1 min-h-0 bg-slate-50 p-4 lg:p-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-hidden">
-            {/* 问答区域 */}
+            {/* Q&A area */}
             <div className="flex flex-col bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden h-full min-h-0">
               <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-slate-50 flex-shrink-0">
                 <div className="p-2 rounded-lg bg-indigo-600">
                   <MessageSquare className="h-5 w-5 text-white" />
                 </div>
-                <h2 className="text-lg font-semibold text-slate-800">智能问答</h2>
+                <h2 className="text-lg font-semibold text-slate-800">{t('dashboard.title')}</h2>
               </div>
               <div className="flex-1 min-h-0">
                 <Chat
@@ -115,13 +117,13 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 图谱区域 */}
+            {/* Graph area */}
             <div className="flex flex-col bg-slate-900 rounded-2xl shadow-lg overflow-hidden h-full min-h-0">
               <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-700 flex-shrink-0">
                 <div className="p-2 rounded-lg bg-emerald-600">
                   <Network className="h-5 w-5 text-white" />
                 </div>
-                <h2 className="text-lg font-semibold text-white">相关图谱预览</h2>
+                <h2 className="text-lg font-semibold text-white">{t('dashboard.graphPreview')}</h2>
               </div>
               <div className="flex-1 min-h-0">
                 <GraphPreview data={graphData} />

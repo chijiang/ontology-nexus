@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { AppLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -54,6 +55,9 @@ function RuleCard({
     onEdit: () => void
     onDelete: () => void
 }) {
+    const t = useTranslations('rules')
+    const tCommon = useTranslations('common')
+
     return (
         <Card className="group hover:shadow-lg transition-all duration-200 border-slate-200 hover:border-indigo-300">
             <CardHeader className="pb-3">
@@ -67,7 +71,7 @@ function RuleCard({
                                 {rule.name}
                             </CardTitle>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                优先级: {rule.priority}
+                                {t('priority')}: {rule.priority}
                             </p>
                         </div>
                     </div>
@@ -77,6 +81,7 @@ function RuleCard({
                             size="sm"
                             onClick={onEdit}
                             className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-600"
+                            title={tCommon('edit')}
                         >
                             <Edit className="h-4 w-4" />
                         </Button>
@@ -85,6 +90,7 @@ function RuleCard({
                             size="sm"
                             onClick={onDelete}
                             className="h-8 w-8 p-0 text-slate-500 hover:text-red-600"
+                            title={tCommon('delete')}
                         >
                             <Trash2 className="h-4 w-4" />
                         </Button>
@@ -103,12 +109,12 @@ function RuleCard({
                     {rule.is_active ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             <CheckCircle className="h-3 w-3 mr-1" />
-                            激活
+                            {t('active')}
                         </span>
                     ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                             <XCircle className="h-3 w-3 mr-1" />
-                            禁用
+                            {t('inactive')}
                         </span>
                     )}
                 </div>
@@ -127,6 +133,9 @@ function ActionCard({
     onEdit: () => void
     onDelete: () => void
 }) {
+    const t = useTranslations('rules')
+    const tCommon = useTranslations('common')
+
     return (
         <Card className="group hover:shadow-lg transition-all duration-200 border-slate-200 hover:border-emerald-300">
             <CardHeader className="pb-3">
@@ -155,6 +164,7 @@ function ActionCard({
                             size="sm"
                             onClick={onEdit}
                             className="h-8 w-8 p-0 text-slate-500 hover:text-emerald-600"
+                            title={tCommon('edit')}
                         >
                             <Edit className="h-4 w-4" />
                         </Button>
@@ -163,6 +173,7 @@ function ActionCard({
                             size="sm"
                             onClick={onDelete}
                             className="h-8 w-8 p-0 text-slate-500 hover:text-red-600"
+                            title={tCommon('delete')}
                         >
                             <Trash2 className="h-4 w-4" />
                         </Button>
@@ -177,12 +188,12 @@ function ActionCard({
                     {action.is_active ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             <CheckCircle className="h-3 w-3 mr-1" />
-                            激活
+                            {t('active')}
                         </span>
                     ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                             <XCircle className="h-3 w-3 mr-1" />
-                            禁用
+                            {t('inactive')}
                         </span>
                     )}
                 </div>
@@ -244,6 +255,8 @@ function RuleEditorDialog({
     rule: RuleDetail | null
     onSave: () => void
 }) {
+    const t = useTranslations('rules')
+    const tCommon = useTranslations('common')
     const [name, setName] = useState('')
     const [priority, setPriority] = useState(0)
     const [isActive, setIsActive] = useState(true)
@@ -288,7 +301,7 @@ function RuleEditorDialog({
                 entity: 'Entity',
                 property: ''
             })
-            setDslContent(`// 新规则示例
+            setDslContent(`// ${t('newRuleExample')}
 RULE NewRule PRIORITY 100 {
     ON UPDATE(Entity.property)
     FOR (e: Entity WHERE e.status == "Active") {
@@ -319,11 +332,11 @@ RULE NewRule PRIORITY 100 {
                     priority,
                     is_active: isActive,
                 })
-                toast.success('规则更新成功')
+                toast.success(t('ruleUpdated'))
             } else {
                 // Create new rule
                 if (!name.trim()) {
-                    setError('请输入规则名称')
+                    setError(t('inputRuleName'))
                     setSaving(false)
                     return
                 }
@@ -333,12 +346,12 @@ RULE NewRule PRIORITY 100 {
                     priority,
                     is_active: isActive,
                 })
-                toast.success('规则创建成功')
+                toast.success(t('ruleCreated'))
             }
             onSave()
             onClose()
         } catch (err: any) {
-            const message = err.response?.data?.detail || '操作失败'
+            const message = err.response?.data?.detail || t('operationFailed')
             setError(message)
             toast.error(message)
         } finally {
@@ -352,10 +365,10 @@ RULE NewRule PRIORITY 100 {
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Zap className="h-5 w-5 text-indigo-600" />
-                        {rule ? '编辑规则' : '创建规则'}
+                        {rule ? t('editRule') : t('createRule')}
                     </DialogTitle>
                     <DialogDescription>
-                        使用 DSL 语法定义规则。规则会在触发条件满足时自动执行。
+                        {t('useDsl')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -363,25 +376,25 @@ RULE NewRule PRIORITY 100 {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-700">
-                                规则名称
+                                {t('ruleName')}
                             </label>
                             <Input
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="例如: SupplierStatusBlocking"
+                                placeholder={t('ruleNamePlaceholder')}
                                 disabled={!!rule}
                                 className={rule ? 'bg-slate-100' : ''}
                             />
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-700">
-                                优先级
+                                {t('priority')}
                             </label>
                             <Input
                                 type="number"
                                 value={priority}
                                 onChange={(e) => setPriority(parseInt(e.target.value) || 0)}
-                                placeholder="100"
+                                placeholder={t('priorityPlaceholder')}
                             />
                         </div>
                     </div>
@@ -395,17 +408,17 @@ RULE NewRule PRIORITY 100 {
                             className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
                         <label htmlFor="isActive" className="text-sm text-slate-700">
-                            激活规则
+                            {t('activateRule')}
                         </label>
                     </div>
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="grid w-full grid-cols-2 mb-4">
                             <TabsTrigger value="dsl" className="flex items-center gap-2">
-                                <Code className="h-4 w-4" /> 源码编辑器
+                                <Code className="h-4 w-4" /> {t('dslEditor')}
                             </TabsTrigger>
                             <TabsTrigger value="business" className="flex items-center gap-2">
-                                <Layers className="h-4 w-4" /> 业务编辑器
+                                <Layers className="h-4 w-4" /> {t('businessEditor')}
                             </TabsTrigger>
                         </TabsList>
 
@@ -413,43 +426,43 @@ RULE NewRule PRIORITY 100 {
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-slate-700">
-                                        DSL 内容
+                                        {t('dslContent')}
                                     </label>
                                     <DslEditor
                                         value={dslContent}
                                         onChange={setDslContent}
                                         error={error}
-                                        placeholder="请输入规则 DSL..."
+                                        placeholder={t('dslPlaceholder')}
                                     />
                                 </div>
 
                                 {/* DSL Help */}
                                 <div className="bg-slate-50 rounded-lg p-4 text-sm">
-                                    <h4 className="font-medium text-slate-700 mb-2">DSL 语法提示</h4>
+                                    <h4 className="font-medium text-slate-700 mb-2">{t('dslSyntax')}</h4>
                                     <div className="grid grid-cols-2 gap-4 text-slate-600">
                                         <div>
                                             <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                                ON UPDATE(Entity.prop)
+                                                {t('triggerOnUpdate')}
                                             </p>
-                                            <p className="text-xs">属性更新触发器</p>
+                                            <p className="text-xs">{t('triggerOnUpdateDesc')}</p>
                                         </div>
                                         <div>
                                             <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                                FOR (v: Entity WHERE condition)
+                                                {t('scopeDefinition')}
                                             </p>
-                                            <p className="text-xs">作用域定义</p>
+                                            <p className="text-xs">{t('scopeDefinitionDesc')}</p>
                                         </div>
                                         <div>
                                             <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                                SET entity.prop = value;
+                                                {t('setProperty')}
                                             </p>
-                                            <p className="text-xs">设置属性值</p>
+                                            <p className="text-xs">{t('setPropertyDesc')}</p>
                                         </div>
                                         <div>
                                             <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                                TRIGGER Action.name ON target;
+                                                {t('triggerAction')}
                                             </p>
-                                            <p className="text-xs">触发动作</p>
+                                            <p className="text-xs">{t('triggerActionDesc')}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -460,11 +473,11 @@ RULE NewRule PRIORITY 100 {
                             <div className="space-y-6">
                                 <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
                                     <h4 className="text-xs font-bold text-amber-800 uppercase mb-3 flex items-center gap-1.5">
-                                        <Zap size={14} /> 触发配置
+                                        <Zap size={14} /> {t('triggerConfig')}
                                     </h4>
                                     <div className="grid grid-cols-3 gap-3">
                                         <div className="space-y-1.5">
-                                            <label className="text-[10px] font-bold text-amber-700 uppercase">触发类型</label>
+                                            <label className="text-[10px] font-bold text-amber-700 uppercase">{t('triggerType')}</label>
                                             <select
                                                 value={trigger.type}
                                                 onChange={(e) => setTrigger({ ...trigger, type: e.target.value })}
@@ -476,18 +489,18 @@ RULE NewRule PRIORITY 100 {
                                             </select>
                                         </div>
                                         <div className="space-y-1.5">
-                                            <label className="text-[10px] font-bold text-amber-700 uppercase">实体类型</label>
+                                            <label className="text-[10px] font-bold text-amber-700 uppercase">{t('entityType')}</label>
                                             <select
                                                 value={trigger.entity}
                                                 onChange={(e) => setTrigger({ ...trigger, entity: e.target.value, property: '' })}
                                                 className="w-full bg-white border border-amber-200 text-slate-700 text-xs rounded px-2 py-1.5 outline-none"
                                             >
-                                                <option value="">选择实体</option>
+                                                <option value="">{t('selectEntity')}</option>
                                                 {schema.nodes.map(n => <option key={n.name} value={n.name}>{n.name}</option>)}
                                             </select>
                                         </div>
                                         <div className="space-y-1.5">
-                                            <label className="text-[10px] font-bold text-amber-700 uppercase">触发属性</label>
+                                            <label className="text-[10px] font-bold text-amber-700 uppercase">{t('triggerProperty')}</label>
                                             {!isCustomProperty ? (
                                                 <select
                                                     value={trigger.property || ''}
@@ -502,11 +515,11 @@ RULE NewRule PRIORITY 100 {
                                                     disabled={trigger.type !== 'UPDATE'}
                                                     className="w-full bg-white border border-amber-200 text-slate-700 text-xs rounded px-2 py-1.5 outline-none disabled:bg-amber-50/50 disabled:text-amber-300"
                                                 >
-                                                    <option value="">全部属性</option>
+                                                    <option value="">{t('allProperties')}</option>
                                                     {schema.nodes.find(n => n.name === trigger.entity)?.dataProperties.map(p => (
                                                         <option key={p} value={p}>{p}</option>
                                                     ))}
-                                                    <option value="__custom__" className="text-indigo-600 font-medium">+ 自定义...</option>
+                                                    <option value="__custom__" className="text-indigo-600 font-medium">{t('custom')}</option>
                                                 </select>
                                             ) : (
                                                 <div className="flex gap-1">
@@ -514,7 +527,7 @@ RULE NewRule PRIORITY 100 {
                                                         value={trigger.property || ''}
                                                         onChange={(e) => setTrigger({ ...trigger, property: e.target.value })}
                                                         className="h-7 text-xs py-1 px-2 border-amber-200 focus:ring-amber-500 focus:ring-1 outline-none"
-                                                        placeholder="输入属性名"
+                                                        placeholder={t('inputProperty')}
                                                         autoFocus
                                                     />
                                                     <Button
@@ -526,7 +539,7 @@ RULE NewRule PRIORITY 100 {
                                                             setTrigger({ ...trigger, property: '' })
                                                         }}
                                                     >
-                                                        取消
+                                                        {t('cancel')}
                                                     </Button>
                                                 </div>
                                             )}
@@ -548,16 +561,16 @@ RULE NewRule PRIORITY 100 {
 
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={saving}>
-                        取消
+                        {tCommon('cancel')}
                     </Button>
                     <Button onClick={handleSave} disabled={saving}>
                         {saving ? (
                             <>
                                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                保存中...
+                                {tCommon('loading')}
                             </>
                         ) : (
-                            '保存'
+                            tCommon('save')
                         )}
                     </Button>
                 </DialogFooter>
@@ -578,6 +591,8 @@ function ActionEditorDialog({
     action: ActionDetail | null
     onSave: () => void
 }) {
+    const t = useTranslations('rules')
+    const tCommon = useTranslations('common')
     const [name, setName] = useState('')
     const [entityType, setEntityType] = useState('')
     const [isActive, setIsActive] = useState(true)
@@ -625,7 +640,7 @@ function ActionEditorDialog({
             setEntityType('')
             setIsActive(true)
             setParameters([])
-            setDslContent(`// 新动作示例
+            setDslContent(`// ${t('newActionExample')}
 ACTION Entity.submit {
     PRECONDITION statusCheck: this.status == "Draft"
         ON_FAILURE: "Only draft items can be submitted"
@@ -658,16 +673,16 @@ ACTION Entity.submit {
                     dsl_content: dslContent,
                     is_active: isActive,
                 })
-                toast.success('动作更新成功')
+                toast.success(t('actionUpdated'))
             } else {
                 // Create new action
                 if (!name.trim()) {
-                    setError('请输入动作名称')
+                    setError(t('inputActionName'))
                     setSaving(false)
                     return
                 }
                 if (!entityType.trim()) {
-                    setError('请输入实体类型')
+                    setError(t('inputEntityType'))
                     setSaving(false)
                     return
                 }
@@ -678,12 +693,12 @@ ACTION Entity.submit {
                     dsl_content: dslContent,
                     is_active: isActive,
                 })
-                toast.success('动作创建成功')
+                toast.success(t('actionCreated'))
             }
             onSave()
             onClose()
         } catch (err: any) {
-            const message = err.response?.data?.detail || '操作失败'
+            const message = err.response?.data?.detail || t('operationFailed')
             setError(message)
             toast.error(message)
         } finally {
@@ -697,10 +712,10 @@ ACTION Entity.submit {
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Play className="h-5 w-5 text-emerald-600" />
-                        {action ? '编辑动作' : '创建动作'}
+                        {action ? t('editAction') : t('createAction')}
                     </DialogTitle>
                     <DialogDescription>
-                        使用 DSL 语法定义动作。动作定义了实体可执行的操作及其前置条件。
+                        {t('useActionDsl')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -708,24 +723,24 @@ ACTION Entity.submit {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-700">
-                                动作名称
+                                {t('actionName')}
                             </label>
                             <Input
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="例如: submitPurchaseOrder"
+                                placeholder={t('actionNamePlaceholder')}
                                 disabled={!!action}
                                 className={action ? 'bg-slate-100' : ''}
                             />
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-700">
-                                实体类型
+                                {t('actionEntityType')}
                             </label>
                             <Input
                                 value={entityType}
                                 onChange={(e) => setEntityType(e.target.value)}
-                                placeholder="例如: PurchaseOrder"
+                                placeholder={t('entityTypePlaceholder')}
                                 disabled={!!action}
                                 className={action ? 'bg-slate-100' : ''}
                             />
@@ -734,12 +749,12 @@ ACTION Entity.submit {
 
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-700">
-                            动作描述
+                            {t('actionDesc')}
                         </label>
                         <Input
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            placeholder="例如: 将采购订单状态更新为已提交"
+                            placeholder={t('actionDescPlaceholder')}
                         />
                     </div>
 
@@ -748,7 +763,7 @@ ACTION Entity.submit {
                         <div className="flex items-center justify-between">
                             <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                                 <Layers className="h-4 w-4 text-indigo-500" />
-                                动作参数配置
+                                {t('actionParams')}
                             </label>
                             <Button
                                 variant="outline"
@@ -756,12 +771,12 @@ ACTION Entity.submit {
                                 onClick={() => setParameters([...parameters, { name: '', type: 'string', optional: false }])}
                                 className="h-7 text-xs"
                             >
-                                <Plus className="h-3 w-3 mr-1" /> 添加参数
+                                <Plus className="h-3 w-3 mr-1" /> {t('addParam')}
                             </Button>
                         </div>
 
                         {parameters.length === 0 ? (
-                            <p className="text-xs text-slate-400 italic">暂无参数，点击“添加参数”开始配置。</p>
+                            <p className="text-xs text-slate-400 italic">{t('noParams')}</p>
                         ) : (
                             <div className="space-y-2">
                                 {parameters.map((param, index) => (
@@ -774,7 +789,7 @@ ACTION Entity.submit {
                                                     newParams[index].name = e.target.value
                                                     setParameters(newParams)
                                                 }}
-                                                placeholder="参数名"
+                                                placeholder={t('paramName')}
                                                 className="h-8 text-xs font-mono"
                                             />
                                         </div>
@@ -806,7 +821,7 @@ ACTION Entity.submit {
                                                 }}
                                                 className="h-3 w-3 rounded border-slate-300 text-emerald-600"
                                             />
-                                            <label className="text-[10px] text-slate-500">可选</label>
+                                            <label className="text-[10px] text-slate-500">{tCommon('optional')}</label>
                                         </div>
                                         <Button
                                             variant="ghost"
@@ -831,17 +846,17 @@ ACTION Entity.submit {
                             className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                         />
                         <label htmlFor="actionIsActive" className="text-sm text-slate-700">
-                            激活动作
+                            {t('activateAction')}
                         </label>
                     </div>
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="grid w-full grid-cols-2 mb-4">
                             <TabsTrigger value="dsl" className="flex items-center gap-2">
-                                <Code className="h-4 w-4" /> 源码编辑器
+                                <Code className="h-4 w-4" /> {t('dslEditor')}
                             </TabsTrigger>
                             <TabsTrigger value="business" className="flex items-center gap-2">
-                                <Layers className="h-4 w-4" /> 业务编辑器
+                                <Layers className="h-4 w-4" /> {t('businessEditor')}
                             </TabsTrigger>
                         </TabsList>
 
@@ -849,43 +864,43 @@ ACTION Entity.submit {
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-slate-700">
-                                        DSL 内容
+                                        {t('dslContent')}
                                     </label>
                                     <DslEditor
                                         value={dslContent}
                                         onChange={setDslContent}
                                         error={error}
-                                        placeholder="请输入动作 DSL..."
+                                        placeholder={t('actionDslPlaceholder')}
                                     />
                                 </div>
 
                                 {/* DSL Help */}
                                 <div className="bg-slate-50 rounded-lg p-4 text-sm">
-                                    <h4 className="font-medium text-slate-700 mb-2">DSL 语法提示</h4>
+                                    <h4 className="font-medium text-slate-700 mb-2">{t('dslSyntax')}</h4>
                                     <div className="grid grid-cols-2 gap-4 text-slate-600">
                                         <div>
                                             <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                                PRECONDITION name: condition
+                                                {t('precondition')}
                                             </p>
-                                            <p className="text-xs">前置条件检查</p>
+                                            <p className="text-xs">{t('preconditionDesc')}</p>
                                         </div>
                                         <div>
                                             <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                                ON_FAILURE: "message"
+                                                {t('onFailure')}
                                             </p>
-                                            <p className="text-xs">条件失败时的错误消息</p>
+                                            <p className="text-xs">{t('onFailureDesc')}</p>
                                         </div>
                                         <div>
                                             <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                                EFFECT {'{'} ... {'}'}
+                                                {t('effect')}
                                             </p>
-                                            <p className="text-xs">动作执行效果</p>
+                                            <p className="text-xs">{t('effectDesc')}</p>
                                         </div>
                                         <div>
                                             <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
-                                                SET this.prop = value;
+                                                {t('setEntityProperty')}
                                             </p>
-                                            <p className="text-xs">设置实体属性</p>
+                                            <p className="text-xs">{t('setEntityPropertyDesc')}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -908,7 +923,7 @@ ACTION Entity.submit {
 
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={saving}>
-                        取消
+                        {tCommon('cancel')}
                     </Button>
                     <Button
                         onClick={handleSave}
@@ -918,10 +933,10 @@ ACTION Entity.submit {
                         {saving ? (
                             <>
                                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                保存中...
+                                {tCommon('loading')}
                             </>
                         ) : (
-                            '保存'
+                            tCommon('save')
                         )}
                     </Button>
                 </DialogFooter>
@@ -944,6 +959,8 @@ function DeleteConfirmDialog({
     itemName: string
     itemType: 'rule' | 'action'
 }) {
+    const t = useTranslations('rules')
+    const tCommon = useTranslations('common')
     const [deleting, setDeleting] = useState(false)
 
     const handleConfirm = async () => {
@@ -961,16 +978,18 @@ function DeleteConfirmDialog({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-red-600">
                         <AlertTriangle className="h-5 w-5" />
-                        确认删除
+                        {t('confirmDelete')}
                     </DialogTitle>
                     <DialogDescription>
-                        确定要删除{itemType === 'rule' ? '规则' : '动作'} "{itemName}"
-                        吗？此操作无法撤销。
+                        {itemType === 'rule'
+                            ? t('confirmDeleteRule', { name: itemName })
+                            : t('confirmDeleteAction', { name: itemName })
+                        }
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={deleting}>
-                        取消
+                        {tCommon('cancel')}
                     </Button>
                     <Button
                         variant="destructive"
@@ -980,10 +999,10 @@ function DeleteConfirmDialog({
                         {deleting ? (
                             <>
                                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                删除中...
+                                {t('deleting')}
                             </>
                         ) : (
-                            '删除'
+                            tCommon('delete')
                         )}
                     </Button>
                 </DialogFooter>
@@ -995,6 +1014,8 @@ function DeleteConfirmDialog({
 // Main page component
 export default function RulesPage() {
     const router = useRouter()
+    const t = useTranslations('rules')
+    const tCommon = useTranslations('common')
     const token = useAuthStore((state) => state.token)
     const [isHydrated, setIsHydrated] = useState(false)
     const [activeTab, setActiveTab] = useState('rules')
@@ -1031,11 +1052,11 @@ export default function RulesPage() {
             setRules(res.data.rules)
         } catch (err) {
             console.error('Failed to load rules:', err)
-            toast.error('加载规则失败')
+            toast.error(t('loadRulesFailed'))
         } finally {
             setRulesLoading(false)
         }
-    }, [])
+    }, [t])
 
     // Load actions
     const loadActions = useCallback(async () => {
@@ -1045,11 +1066,11 @@ export default function RulesPage() {
             setActions(res.data.actions)
         } catch (err) {
             console.error('Failed to load actions:', err)
-            toast.error('加载动作失败')
+            toast.error(t('loadActionsFailed'))
         } finally {
             setActionsLoading(false)
         }
-    }, [])
+    }, [t])
 
     // Initial load
     useEffect(() => {
@@ -1066,7 +1087,7 @@ export default function RulesPage() {
             setEditingRule(res.data)
             setRuleEditorOpen(true)
         } catch (err) {
-            toast.error('加载规则详情失败')
+            toast.error(t('loadRuleDetailFailed'))
         }
     }
 
@@ -1075,10 +1096,10 @@ export default function RulesPage() {
         if (!deletingRule) return
         try {
             await rulesApi.delete(deletingRule.name)
-            toast.success('规则删除成功')
+            toast.success(t('ruleDeleted'))
             loadRules()
         } catch (err) {
-            toast.error('删除规则失败')
+            toast.error(t('deleteRuleFailed'))
         } finally {
             setDeletingRule(null)
         }
@@ -1091,7 +1112,7 @@ export default function RulesPage() {
             setEditingAction(res.data)
             setActionEditorOpen(true)
         } catch (err) {
-            toast.error('加载动作详情失败')
+            toast.error(t('loadActionDetailFailed'))
         }
     }
 
@@ -1100,10 +1121,10 @@ export default function RulesPage() {
         if (!deletingAction) return
         try {
             await actionsApi.delete(deletingAction.name)
-            toast.success('动作删除成功')
+            toast.success(t('actionDeleted'))
             loadActions()
         } catch (err) {
-            toast.error('删除动作失败')
+            toast.error(t('deleteActionFailed'))
         } finally {
             setDeletingAction(null)
         }
@@ -1121,10 +1142,10 @@ export default function RulesPage() {
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                             <Settings className="h-6 w-6 text-indigo-600" />
-                            业务逻辑管理器
+                            {t('title')}
                         </h1>
                         <p className="text-slate-600 mt-1">
-                            管理知识图谱的业务规则和可执行动作
+                            {t('description')}
                         </p>
                     </div>
                 </div>
@@ -1138,14 +1159,14 @@ export default function RulesPage() {
                                 className="data-[state=active]:bg-white"
                             >
                                 <Zap className="h-4 w-4 mr-2" />
-                                规则 ({rules.length})
+                                {t('rules')} ({rules.length})
                             </TabsTrigger>
                             <TabsTrigger
                                 value="actions"
                                 className="data-[state=active]:bg-white"
                             >
                                 <Play className="h-4 w-4 mr-2" />
-                                动作 ({actions.length})
+                                {t('actions')} ({actions.length})
                             </TabsTrigger>
                         </TabsList>
 
@@ -1158,7 +1179,7 @@ export default function RulesPage() {
                                 className="bg-indigo-600 hover:bg-indigo-700"
                             >
                                 <Plus className="h-4 w-4 mr-2" />
-                                创建规则
+                                {t('createRule')}
                             </Button>
                         ) : (
                             <Button
@@ -1169,7 +1190,7 @@ export default function RulesPage() {
                                 className="bg-emerald-600 hover:bg-emerald-700"
                             >
                                 <Plus className="h-4 w-4 mr-2" />
-                                创建动作
+                                {t('createAction')}
                             </Button>
                         )}
                     </div>
@@ -1185,10 +1206,10 @@ export default function RulesPage() {
                                 <CardContent className="flex flex-col items-center justify-center py-12">
                                     <Layers className="h-12 w-12 text-slate-300 mb-4" />
                                     <h3 className="text-lg font-medium text-slate-600">
-                                        暂无规则
+                                        {t('noRules')}
                                     </h3>
                                     <p className="text-slate-500 mt-1">
-                                        点击"创建规则"按钮添加第一个规则
+                                        {t('noRulesDesc')}
                                     </p>
                                 </CardContent>
                             </Card>
@@ -1217,10 +1238,10 @@ export default function RulesPage() {
                                 <CardContent className="flex flex-col items-center justify-center py-12">
                                     <Code className="h-12 w-12 text-slate-300 mb-4" />
                                     <h3 className="text-lg font-medium text-slate-600">
-                                        暂无动作
+                                        {t('noActions')}
                                     </h3>
                                     <p className="text-slate-500 mt-1">
-                                        点击"创建动作"按钮添加第一个动作
+                                        {t('noActionsDesc')}
                                     </p>
                                 </CardContent>
                             </Card>

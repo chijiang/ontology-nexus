@@ -3,35 +3,40 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useTranslations, useLocale } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/lib/auth'
+import { LanguageSwitcher } from '@/components/language-switcher'
+import { useMemo } from 'react'
 
 export function AppLayout({ children, noPadding = false }: { children: React.ReactNode, noPadding?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
+  const locale = useLocale()
   const { user, logout } = useAuthStore()
+  const t = useTranslations()
 
   const handleLogout = () => {
     logout()
-    router.push('/')
+    router.push(`/${locale}`)
   }
 
-  const navItems = [
-    { href: '/dashboard', label: '问答' },
-    { href: '/graph/import', label: '导入图谱' },
-    { href: '/graph/ontology', label: '本体查看' },
-    { href: '/graph/binding', label: '数据绑定' },
-    { href: '/graph/instances', label: '实例图谱' },
-    { href: '/data-products', label: '数据产品' },
-    { href: '/rules', label: '业务逻辑管理器' },
-    { href: '/config', label: '系统配置' },
-  ]
+  const navItems = useMemo(() => [
+    { href: `/${locale}/dashboard`, label: t('nav.qa') },
+    { href: `/${locale}/graph/import`, label: t('nav.importGraph') },
+    { href: `/${locale}/graph/ontology`, label: t('nav.ontology') },
+    { href: `/${locale}/graph/binding`, label: t('nav.binding') },
+    { href: `/${locale}/graph/instances`, label: t('nav.instances') },
+    { href: `/${locale}/data-products`, label: t('nav.dataProducts') },
+    { href: `/${locale}/rules`, label: t('nav.rules') },
+    { href: `/${locale}/config`, label: t('nav.config') },
+  ], [locale, t])
 
   return (
     <div className={`flex flex-col bg-gray-50 ${noPadding ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       <header className="bg-white border-b flex-shrink-0 sticky top-0 z-50">
         <div className="w-full px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold bg-indigo-600 bg-clip-text text-transparent">企业本体管理平台</h1>
+          <h1 className="text-xl font-bold bg-indigo-600 bg-clip-text text-transparent">{t('layout.title')}</h1>
           <nav className="flex items-center gap-6">
             {navItems.map((item) => (
               <Link
@@ -43,11 +48,12 @@ export function AppLayout({ children, noPadding = false }: { children: React.Rea
                 {item.label}
               </Link>
             ))}
+            <LanguageSwitcher />
             {user && (
               <div className="flex items-center gap-4 pl-4 border-l border-gray-200">
-                <span className="text-sm text-gray-600">欢迎, {user.username}</span>
+                <span className="text-sm text-gray-600">{t('layout.welcomeUser', { username: user.username })}</span>
                 <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-500 hover:text-red-500">
-                  登出
+                  {t('auth.logout')}
                 </Button>
               </div>
             )}

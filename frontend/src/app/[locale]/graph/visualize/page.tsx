@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { AppLayout } from '@/components/layout'
 import { GraphViewer } from '@/components/graph-viewer'
 import { SchemaViewer } from '@/components/schema-viewer'
@@ -10,6 +11,7 @@ import { useAuthStore } from '@/lib/auth'
 
 export default function VisualizePage() {
   const router = useRouter()
+  const t = useTranslations()
   const token = useAuthStore((state) => state.token)
   const [isHydrated, setIsHydrated] = useState(false)
 
@@ -31,12 +33,12 @@ export default function VisualizePage() {
     <AppLayout>
       <div className="h-[calc(100vh-160px)]">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
-          {/* 左侧：Schema 视图 */}
+          {/* Left: Schema View */}
           <div className="bg-white rounded-lg border overflow-hidden">
             <SchemaViewer />
           </div>
 
-          {/* 右侧：Instance 视图 */}
+          {/* Right: Instance View */}
           <div className="bg-white rounded-lg border overflow-hidden">
             <GraphViewer />
           </div>

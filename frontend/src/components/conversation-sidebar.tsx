@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import { conversationApi, Conversation } from '@/lib/api'
 import { Plus, MessageSquare, Trash2, PanelLeftClose } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 interface ConversationSidebarProps {
     activeId: number | null
@@ -13,6 +14,7 @@ interface ConversationSidebarProps {
 }
 
 export function ConversationSidebar({ activeId, onSelect, onNewChat, onToggle }: ConversationSidebarProps) {
+    const t = useTranslations('components.conversation')
     const [conversations, setConversations] = useState<Conversation[]>([])
     const [loading, setLoading] = useState(true)
     const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -79,7 +81,7 @@ export function ConversationSidebar({ activeId, onSelect, onNewChat, onToggle }:
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors text-sm font-medium shadow-sm"
                 >
                     <Plus className="h-4 w-4" />
-                    新对话
+                    {t('newChat')}
                 </button>
                 <button
                     onClick={onToggle}
@@ -93,9 +95,9 @@ export function ConversationSidebar({ activeId, onSelect, onNewChat, onToggle }:
             {/* Conversation list */}
             <div className="flex-1 overflow-y-auto">
                 {loading ? (
-                    <div className="p-4 text-center text-slate-400 text-sm">加载中...</div>
+                    <div className="p-4 text-center text-slate-400 text-sm">{t('noConversations')}</div>
                 ) : conversations.length === 0 ? (
-                    <div className="p-4 text-center text-slate-400 text-sm">暂无对话</div>
+                    <div className="p-4 text-center text-slate-400 text-sm">{t('noConversations')}</div>
                 ) : (
                     <div className="py-2 px-2">
                         {conversations.map((conv) => (

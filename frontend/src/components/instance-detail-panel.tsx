@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { X, Save, Edit2, Check, XCircle, Play, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslations } from 'next-intl'
 
 interface InstanceNode {
     id: string
@@ -25,6 +26,7 @@ interface InstanceDetailPanelProps {
 }
 
 export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailPanelProps) {
+    const t = useTranslations()
     const token = useAuthStore((state) => state.token)
     const [editing, setEditing] = useState(false)
     const [editedProperties, setEditedProperties] = useState<Record<string, any>>({})
@@ -112,19 +114,19 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             })
 
             if (Object.keys(updates).length === 0) {
-                toast.info('没有属性被修改')
+                toast.info(t('components.instance.noChanges'))
                 setEditing(false)
                 return
             }
 
             await graphApi.updateEntity(node.nodeLabel, node.name, updates, token)
-            toast.success('属性更新成功')
+            toast.success(t('components.instance.propertiesUpdated'))
             setExpandedProps({ ...editedProperties })
             setEditing(false)
             onUpdate?.()
         } catch (err: any) {
             console.error('Failed to update entity:', err)
-            toast.error(err.response?.data?.detail || '更新失败')
+            toast.error(err.response?.data?.detail || t('components.instance.updateFailed'))
         } finally {
             setSaving(false)
         }
@@ -171,16 +173,16 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             )
 
             if (res.data?.success) {
-                toast.success(res.data.message || '操作执行成功')
+                toast.success(res.data.message || t('components.instance.actionSuccess'))
                 // 刷新数据
                 loadNodeDetails()
                 onUpdate?.()
             } else {
-                toast.warning(res.data?.message || res.data?.detail || '操作失败')
+                toast.warning(res.data?.message || res.data?.detail || t('components.instance.actionFailed'))
             }
         } catch (err: any) {
             // 只在非业务逻辑错误时记录详细日志
-            const errorMessage = err.response?.data?.detail || err.message || '操作执行失败'
+            const errorMessage = err.response?.data?.detail || err.message || t('components.instance.actionExecutionFailed')
             toast.error(errorMessage)
         } finally {
             setExecutingAction(null)
@@ -255,14 +257,14 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             {/* 属性列表 */}
             <div className="flex-1 overflow-y-auto p-4">
                 <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-semibold text-gray-700">业务属性</h4>
+                    <h4 className="text-sm font-semibold text-gray-700">{t('components.instance.businessProperties')}</h4>
                     {editing && (
-                        <span className="text-[10px] text-emerald-600 font-medium bg-emerald-50 px-1.5 py-0.5 rounded">编辑中</span>
+                        <span className="text-[10px] text-emerald-600 font-medium bg-emerald-50 px-1.5 py-0.5 rounded">{t('components.instance.editing')}</span>
                     )}
                 </div>
 
                 {Object.keys(displayProps).length === 0 ? (
-                    <p className="text-sm text-gray-400 italic">暂无属性</p>
+                    <p className="text-sm text-gray-400 italic">{t('components.instance.noProperties')}</p>
                 ) : (
                     <div className="space-y-4">
                         {Object.entries(displayProps).map(([key, value]) => (
@@ -289,7 +291,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                 {/* 可用操作 */}
                 {actions.length > 0 && (
                     <div className="mt-6 pt-6 border-t">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3">可用操作</h4>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('components.instance.availableActions')}</h4>
                         <div className="flex flex-col gap-3">
                             {actions.map((action) => {
                                 const actionKey = `${action.entity_type}.${action.action_name}`
@@ -318,7 +320,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                                                 ) : (
                                                     <Play className="h-3 w-3 text-emerald-600 fill-emerald-600" />
                                                 )}
-                                                执行
+                                                {t('components.instance.execute')}
                                             </Button>
                                         </div>
 
@@ -355,7 +357,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             {editing && (
                 <div className="p-3 bg-yellow-50 border-t border-yellow-100">
                     <p className="text-xs text-yellow-700">
-                        正在编辑模式 - 修改属性值后点击保存
+                        {t('components.instance.editingMode')}
                     </p>
                 </div>
             )}

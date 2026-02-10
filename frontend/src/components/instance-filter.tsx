@@ -7,6 +7,7 @@ import { useAuthStore } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Plus, X, Filter } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 interface SchemaNode {
     name: string
@@ -31,6 +32,7 @@ interface InstanceFilterProps {
 }
 
 export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
+    const t = useTranslations('components.filter')
     const token = useAuthStore((state) => state.token)
     const [classes, setClasses] = useState<SchemaNode[]>([])
     const [selectedClass, setSelectedClass] = useState<string>('')
@@ -85,20 +87,20 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
         <div className="bg-white rounded-lg border p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <Filter className="h-4 w-4" />
-                筛选条件
+                {t('filter')}
             </div>
 
             {/* 类型选择 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">实体类型</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('entityType')}</label>
                     <select
                         value={selectedClass}
                         onChange={(e) => setSelectedClass(e.target.value)}
                         className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         disabled={loadingClasses}
                     >
-                        <option value="">选择实体类型...</option>
+                        <option value="">{t('selectType')}</option>
                         {classes.map((cls) => (
                             <option key={cls.name} value={cls.name}>
                                 {cls.name}
@@ -108,9 +110,9 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">关键词搜索</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('keywordSearch')}</label>
                     <Input
-                        placeholder="输入实例名称关键词..."
+                        placeholder={t('searchPlaceholder')}
                         value={keyword}
                         onChange={(e) => setKeyword(e.target.value)}
                         className="w-full"
@@ -128,7 +130,7 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
                         ) : (
                             <>
                                 <Search className="h-4 w-4 mr-2" />
-                                查询
+                                {t('searchButton')}
                             </>
                         )}
                     </Button>
@@ -138,7 +140,7 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
             {/* 属性过滤条件 */}
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-600">属性过滤（可选）</label>
+                    <label className="text-sm font-medium text-gray-600">{t('propertyFilter')}</label>
                     <Button
                         variant="outline"
                         size="sm"
@@ -146,7 +148,7 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
                         disabled={!selectedClass}
                     >
                         <Plus className="h-3 w-3 mr-1" />
-                        添加条件
+                        {t('addCondition')}
                     </Button>
                 </div>
 
@@ -157,7 +159,7 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
                             onChange={(e) => handleFilterChange(index, 'key', e.target.value)}
                             className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                            <option value="">选择属性...</option>
+                            <option value="">{t('selectProperty')}</option>
                             {selectedClassData?.dataProperties?.map((prop) => (
                                 <option key={prop} value={prop}>
                                     {prop}
@@ -166,7 +168,7 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
                         </select>
                         <span className="text-gray-400">=</span>
                         <Input
-                            placeholder="属性值"
+                            placeholder={t('propertyValue')}
                             value={filter.value}
                             onChange={(e) => handleFilterChange(index, 'value', e.target.value)}
                             className="flex-1"

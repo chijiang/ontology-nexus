@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { AppLayout } from '@/components/layout'
 import { SchemaViewer } from '@/components/schema-viewer'
 import { OntologyDetailPanel } from '@/components/ontology-detail-panel'
@@ -34,6 +35,7 @@ export type Selection =
 
 export default function OntologyPage() {
     const router = useRouter()
+    const t = useTranslations()
     const token = useAuthStore((state) => state.token)
     const [isHydrated, setIsHydrated] = useState(false)
     const [selection, setSelection] = useState<Selection | null>(null)
@@ -89,10 +91,10 @@ export default function OntologyPage() {
             a.click()
             window.URL.revokeObjectURL(url)
             document.body.removeChild(a)
-            toast.success('本体导出成功')
+            toast.success(t('graph.ontology.exportSuccess'))
         } catch (error) {
             console.error('Export error:', error)
-            toast.error('本体导出失败')
+            toast.error(t('graph.ontology.exportFailed'))
         } finally {
             setIsExporting(false)
         }
@@ -103,12 +105,12 @@ export default function OntologyPage() {
         setIsCreatingClass(true)
         try {
             await graphApi.addClass(newClassName.trim(), newClassName.trim())
-            toast.success(`类 "${newClassName}" 添加成功`)
+            toast.success(t('graph.ontology.classAdded', { name: newClassName }))
             setIsAddClassOpen(false)
             setNewClassName('')
             setRefreshKey(prev => prev + 1)
         } catch (err: any) {
-            toast.error(`添加失败: ${err.response?.data?.detail || err.message}`)
+            toast.error(`${t('graph.ontology.addFailed')}: ${err.response?.data?.detail || err.message}`)
         } finally {
             setIsCreatingClass(false)
         }
@@ -119,7 +121,7 @@ export default function OntologyPage() {
         setRelSource(null)
         setRelTarget(null)
         setSelection(null)
-        toast.info('请在图中点击一个类作为"来源"', { duration: 5000 })
+        toast.info(t('graph.ontology.clickSource'), { duration: 5000 })
     }
 
     const handleRelCreation = async () => {
@@ -127,12 +129,12 @@ export default function OntologyPage() {
         setIsCreatingRel(true)
         try {
             await graphApi.addRelationship(relSource, relType.trim(), relTarget)
-            toast.success('关系添加成功')
+            toast.success(t('graph.ontology.relationshipAdded'))
             setRelStep('IDLE')
             setRelType('')
             setRefreshKey(prev => prev + 1)
         } catch (err: any) {
-            toast.error(`添加失败: ${err.response?.data?.detail || err.message}`)
+            toast.error(`${t('graph.ontology.addFailed')}: ${err.response?.data?.detail || err.message}`)
         } finally {
             setIsCreatingRel(false)
         }
@@ -142,7 +144,7 @@ export default function OntologyPage() {
         setRelStep('IDLE')
         setRelSource(null)
         setRelTarget(null)
-        toast('关系创建已取消')
+        toast(t('graph.ontology.creationCancelled'))
     }
 
     return (
@@ -150,16 +152,16 @@ export default function OntologyPage() {
             <div className="flex flex-col h-[calc(100vh-120px)] gap-3">
                 <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                        <h2 className="text-lg font-semibold text-slate-800">本体结构</h2>
+                        <h2 className="text-lg font-semibold text-slate-800">{t('graph.ontology.title')}</h2>
                         {isEditMode && relStep !== 'IDLE' && (
                             <div className="flex items-center gap-1.5 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 text-blue-600 text-xs">
                                 <Info className="w-3 h-3" />
                                 <span>
-                                    {relStep === 'SOURCE' && '步骤1: 点击来源类'}
-                                    {relStep === 'TARGET' && '步骤2: 点击目标类'}
-                                    {relStep === 'TYPE' && '步骤3: 输入类型'}
+                                    {relStep === 'SOURCE' && t('graph.ontology.stepSource')}
+                                    {relStep === 'TARGET' && t('graph.ontology.stepTarget')}
+                                    {relStep === 'TYPE' && t('graph.ontology.stepType')}
                                 </span>
-                                <button onClick={cancelRelCreation} className="ml-1 text-blue-500 hover:text-blue-700 text-xs underline">取消</button>
+                                <button onClick={cancelRelCreation} className="ml-1 text-blue-500 hover:text-blue-700 text-xs underline">{t('common.cancel')}</button>
                             </div>
                         )}
                     </div>
@@ -173,7 +175,7 @@ export default function OntologyPage() {
                                     onClick={() => setIsAddClassOpen(true)}
                                 >
                                     <Plus className="w-3 h-3 mr-1" />
-                                    添加类
+                                    {t('graph.ontology.addClass')}
                                 </Button>
                                 <Button
                                     size="sm"
@@ -182,7 +184,7 @@ export default function OntologyPage() {
                                     onClick={startAddRel}
                                 >
                                     <Plus className="w-3 h-3 mr-1" />
-                                    添加关系
+                                    {t('graph.ontology.addRelationship')}
                                 </Button>
                             </>
                         )}
@@ -196,7 +198,7 @@ export default function OntologyPage() {
                             className={`h-7 text-xs ${isEditMode ? "bg-amber-500 hover:bg-amber-600 border-none" : "border-slate-200"}`}
                         >
                             {isEditMode ? <Eye className="w-3 h-3 mr-1" /> : <Edit3 className="w-3 h-3 mr-1" />}
-                            {isEditMode ? '退出编辑' : '编辑'}
+                            {isEditMode ? t('graph.ontology.exitEditMode') : t('graph.ontology.editMode')}
                         </Button>
                         <Button
                             size="sm"
@@ -210,7 +212,7 @@ export default function OntologyPage() {
                             ) : (
                                 <Download className="w-3 h-3 mr-1" />
                             )}
-                            导出 TTL
+                            {t('graph.ontology.exportTTL')}
                         </Button>
                     </div>
                 </div>
@@ -228,12 +230,12 @@ export default function OntologyPage() {
                                         if (node) {
                                             setRelSource(node.name)
                                             setRelStep('TARGET')
-                                            toast.info('已选择来源，请点击目标类')
+                                            toast.info(t('graph.ontology.sourceSelected'))
                                         }
                                     } else if (relStep === 'TARGET') {
                                         if (node) {
                                             if (node.name === relSource) {
-                                                toast.error('来源和目标不能相同')
+                                                toast.error(t('graph.ontology.sourceTargetSame'))
                                                 return
                                             }
                                             setRelTarget(node.name)
@@ -271,24 +273,24 @@ export default function OntologyPage() {
             <Dialog open={isAddClassOpen} onOpenChange={setIsAddClassOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle className="text-base">添加本体类</DialogTitle>
+                        <DialogTitle className="text-base">{t('graph.ontology.addOntologyClass')}</DialogTitle>
                     </DialogHeader>
                     <div className="py-3 text-left">
-                        <Label htmlFor="className" className="text-xs text-slate-500">类名 (英文标识符)</Label>
+                        <Label htmlFor="className" className="text-xs text-slate-500">{t('graph.ontology.className')}</Label>
                         <Input
                             id="className"
                             value={newClassName}
                             onChange={(e) => setNewClassName(e.target.value)}
-                            placeholder="例如: Warehouse"
+                            placeholder={t('graph.ontology.classPlaceholder')}
                             autoFocus
                             className="mt-1.5 h-8 text-sm"
                         />
                     </div>
                     <DialogFooter className="gap-2">
-                        <Button size="sm" variant="outline" onClick={() => setIsAddClassOpen(false)} className="h-7 text-xs">取消</Button>
+                        <Button size="sm" variant="outline" onClick={() => setIsAddClassOpen(false)} className="h-7 text-xs">{t('common.cancel')}</Button>
                         <Button size="sm" onClick={handleAddClass} disabled={isCreatingClass || !newClassName} className="h-7 text-xs">
                             {isCreatingClass && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                            创建
+                            {t('graph.ontology.create')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -298,7 +300,7 @@ export default function OntologyPage() {
             <Dialog open={relStep === 'TYPE'} onOpenChange={(open) => !open && cancelRelCreation()}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle className="text-base">设置关系类型</DialogTitle>
+                        <DialogTitle className="text-base">{t('graph.ontology.setRelationshipType')}</DialogTitle>
                     </DialogHeader>
                     <div className="py-3 flex flex-col gap-3 text-left">
                         <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 p-2 rounded justify-center">
@@ -307,22 +309,22 @@ export default function OntologyPage() {
                             <span className="font-medium text-slate-700">{relTarget}</span>
                         </div>
                         <div>
-                            <Label htmlFor="relType" className="text-xs text-slate-500">关系标识 (大写英文)</Label>
+                            <Label htmlFor="relType" className="text-xs text-slate-500">{t('graph.ontology.relationshipLabel')}</Label>
                             <Input
                                 id="relType"
                                 value={relType}
                                 onChange={(e) => setRelType(e.target.value)}
-                                placeholder="例如: HAS_STOCK"
+                                placeholder={t('graph.ontology.relationshipPlaceholder')}
                                 autoFocus
                                 className="mt-1.5 h-8 text-sm"
                             />
                         </div>
                     </div>
                     <DialogFooter className="gap-2">
-                        <Button size="sm" variant="outline" onClick={cancelRelCreation} className="h-7 text-xs">取消</Button>
+                        <Button size="sm" variant="outline" onClick={cancelRelCreation} className="h-7 text-xs">{t('common.cancel')}</Button>
                         <Button size="sm" onClick={handleRelCreation} disabled={isCreatingRel || !relType} className="h-7 text-xs">
                             {isCreatingRel && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                            确认添加
+                            {t('graph.ontology.confirmAdd')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

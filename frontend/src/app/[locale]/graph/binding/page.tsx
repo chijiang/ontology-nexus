@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { AppLayout } from '@/components/layout'
 import { SchemaViewer } from '@/components/schema-viewer'
 import { BindingDetailPanel } from '@/components/binding-detail-panel'
@@ -23,6 +24,7 @@ export type Selection =
 
 export default function DataBindingPage() {
     const router = useRouter()
+    const t = useTranslations()
     const token = useAuthStore((state) => state.token)
     const [isHydrated, setIsHydrated] = useState(false)
     const [selection, setSelection] = useState<Selection | null>(null)
@@ -47,10 +49,10 @@ export default function DataBindingPage() {
             <div className="flex flex-col h-[calc(100vh-120px)] gap-3">
                 <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                        <h1 className="text-xl font-bold text-slate-800">数据绑定配置</h1>
+                        <h1 className="text-xl font-bold text-slate-800">{t('graph.binding.title')}</h1>
                         <div className="flex items-center gap-1.5 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 text-blue-600 text-xs">
                             <Info className="w-3 h-3" />
-                            <span>点击图中的节点或关系进行配置</span>
+                            <span>{t('graph.binding.info')}</span>
                         </div>
                     </div>
                 </div>

@@ -38,8 +38,9 @@ import {
 import { toast } from 'sonner'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { useTranslations } from 'next-intl'
 
-import { Selection } from '@/app/graph/binding/page'
+import { Selection } from '@/app/[locale]/graph/binding/page'
 
 interface BindingDetailPanelProps {
     selection: Selection | null
@@ -48,6 +49,7 @@ interface BindingDetailPanelProps {
 }
 
 export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDetailPanelProps) {
+    const t = useTranslations()
     const [loading, setLoading] = useState(false)
     const [products, setProducts] = useState<DataProduct[]>([])
 
@@ -134,8 +136,8 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                     list_method: matchedMethod ? matchedMethod.name : prev.list_method
                 }))
 
-                toast.success('已自动匹配 Message 类型', {
-                    description: `检测到同名类型: ${matchedMsg.name}`,
+                toast.success(t('components.binding.autoMatched'), {
+                    description: `${t('components.binding.detectedType')}: ${matchedMsg.name}`,
                     duration: 2000
                 })
             }
@@ -185,7 +187,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
             const res = await dataProductsApi.getSchema(parseInt(productId))
             setSelectedProductSchema(res.data)
         } catch (err) {
-            toast.error('获取 Schema 失败', { description: '无法连接到数据产品以获取服务定义' })
+            toast.error(t('components.binding.fetchSchemaFailed'), { description: t('components.binding.cannotConnect') })
         } finally {
             setFetchingSchema(false)
         }
@@ -203,25 +205,25 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                 id_field_mapping: newMapping.id_field_mapping,
                 name_field_mapping: newMapping.name_field_mapping
             })
-            toast.success('绑定成功')
+            toast.success(t('components.binding.bindSuccess'))
             setIsAddingMapping(false)
             loadMappings()
             onUpdate?.()
         } catch (err: any) {
-            toast.error('绑定失败', { description: err.response?.data?.detail || '未知错误' })
+            toast.error(t('components.binding.bindFailed'), { description: err.response?.data?.detail || t('components.binding.unknownError') })
         }
     }
 
     const handleDeleteEntityMapping = async (id: number) => {
-        if (!confirm('确定要解除此绑定吗？')) return
+        if (!confirm(t('components.binding.confirmUnbind'))) return
         try {
             await dataMappingsApi.deleteEntityMapping(id)
-            toast.success('绑定已解除')
+            toast.success(t('components.binding.unbindSuccess'))
             if (activeMappingId === id) setActiveMappingId(null)
             loadMappings()
             onUpdate?.()
         } catch (err) {
-            toast.error('解除失败')
+            toast.error(t('components.binding.unbindFailed'))
         }
     }
 
@@ -257,22 +259,22 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                 grpc_field: newProp.grpc_field,
                 transform_expression: transform_expression
             })
-            toast.success('属性映射已添加')
+            toast.success(t('components.binding.propertyMappingAdded'))
             setIsAddingProp(false)
             setNewProp({ ontology_property: '', grpc_field: '', transformation: 'None' })
             handleLoadPropertyMappings(activeMappingId)
         } catch (err) {
-            toast.error('添加失败')
+            toast.error(t('components.binding.addPropertyFailed'))
         }
     }
 
     const handleDeletePropertyMapping = async (id: number) => {
         try {
             await dataMappingsApi.deletePropertyMapping(id)
-            toast.success('已删除属性映射')
+            toast.success(t('components.binding.propertyMappingDeleted'))
             if (activeMappingId) handleLoadPropertyMappings(activeMappingId)
         } catch (err) {
-            toast.error('删除失败')
+            toast.error(t('components.binding.deleteFailed'))
         }
     }
 
@@ -319,25 +321,25 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                 source_fk_field: newRel.source_fk_field,
                 target_id_field: newRel.target_id_field || 'id' // Added target_id_field
             })
-            toast.success('关系绑定成功')
+            toast.success(t('components.binding.relationshipBindSuccess'))
             setIsAddingRel(false)
             setNewRel({ source_entity_mapping_id: '', target_entity_mapping_id: '', source_fk_field: '', target_id_field: '' }) // Reset newRel including target_id_field
             loadMappings()
             onUpdate?.()
         } catch (err: any) {
-            toast.error('绑定失败', { description: err.response?.data?.detail || '请检查配置' })
+            toast.error(t('components.binding.bindFailed'), { description: err.response?.data?.detail || t('components.binding.checkConfig') })
         }
     }
 
     const handleDeleteRelMapping = async (id: number) => {
-        if (!confirm('确定要解除此关系绑定吗？')) return
+        if (!confirm(t('components.binding.confirmUnbindRelationship'))) return
         try {
             await dataMappingsApi.deleteRelationshipMapping(id)
-            toast.success('关系绑定已解除')
+            toast.success(t('components.binding.relationshipUnbindSuccess'))
             loadMappings()
             onUpdate?.()
         } catch (err) {
-            toast.error('解除失败')
+            toast.error(t('components.binding.unbindFailed'))
         }
     }
 
@@ -359,7 +361,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                     )}
                     <div>
                         <h3 className="text-sm font-semibold text-slate-700">
-                            {node ? `类型: ${node.name}` : `关系: ${edge?.relationship_type}`}
+                            {node ? `${t('components.detailPanel.nodeType')}: ${node.name}` : `${t('components.detailPanel.edgeType')}: ${edge?.relationship_type}`}
                         </h3>
                         {edge && <p className="text-[10px] text-slate-400">{edge.source} → {edge.target}</p>}
                     </div>

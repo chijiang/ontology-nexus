@@ -3,6 +3,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations, useLocale } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +14,8 @@ import { Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
+  const locale = useLocale()
+  const t = useTranslations()
   const setAuth = useAuthStore((state) => state.setAuth)
   const [isLogin, setIsLogin] = useState(true)
   const [username, setUsername] = useState('')
@@ -29,15 +32,15 @@ export default function LoginPage() {
       if (isLogin) {
         const res = await authApi.login(username, password)
         setAuth({ id: 0, username: username }, res.data.access_token)
-        toast.success('登录成功')
-        router.push('/dashboard')
+        toast.success(t('auth.loginSuccess'))
+        router.push(`/${locale}/dashboard`)
       } else {
         await authApi.register(username, password, email)
-        toast.success('注册成功，请登录')
+        toast.success(t('auth.registerSuccess'))
         setIsLogin(true)
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || '操作失败')
+      toast.error(err.response?.data?.detail || t('common.error'))
     } finally {
       setLoading(false)
     }
@@ -47,12 +50,12 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>{isLogin ? '登录' : '注册'}</CardTitle>
+          <CardTitle>{isLogin ? t('auth.login') : t('auth.register')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              placeholder="用户名"
+              placeholder={t('auth.username')}
               name="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -61,7 +64,7 @@ export default function LoginPage() {
             />
             {!isLogin && (
               <Input
-                placeholder="邮箱（可选）"
+                placeholder={t('auth.emailOptional')}
                 type="email"
                 name="email"
                 value={email}
@@ -71,7 +74,7 @@ export default function LoginPage() {
             )}
             <div className="relative">
               <Input
-                placeholder="密码"
+                placeholder={t('auth.password')}
                 type={showPassword ? "text" : "password"}
                 name="password"
                 value={password}
@@ -89,17 +92,17 @@ export default function LoginPage() {
               </button>
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? '处理中...' : isLogin ? '登录' : '注册'}
+              {loading ? t('common.loading') : isLogin ? t('auth.login') : t('auth.register')}
             </Button>
           </form>
           <p className="text-sm text-center mt-4">
-            {isLogin ? '还没有账号？' : '已有账号？'}
+            {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
               className="text-blue-600 hover:underline"
             >
-              {isLogin ? '注册' : '登录'}
+              {isLogin ? t('auth.register') : t('auth.login')}
             </button>
           </p>
         </CardContent>

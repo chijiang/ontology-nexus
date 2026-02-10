@@ -8,6 +8,7 @@ import { useAuthStore } from '@/lib/auth'
 import { Send, Bot, User, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useTranslations } from 'next-intl'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -24,6 +25,7 @@ interface ChatProps {
 }
 
 export function Chat({ onGraphData, conversationId, initialMessages, onConversationCreated }: ChatProps) {
+  const t = useTranslations('components.chat')
   const token = useAuthStore((state) => state.token)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -154,7 +156,7 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
       }
     } catch (err) {
       console.error('Chat error:', err)
-      setMessages((prev) => [...prev, { role: 'assistant', content: '抱歉，发生了错误。' }])
+      setMessages((prev) => [...prev, { role: 'assistant', content: t('error') }])
     } finally {
       setLoading(false)
     }
@@ -214,7 +216,7 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
                   className="flex items-center gap-1 text-xs text-slate-500 mb-1 hover:text-indigo-600 transition-colors"
                 >
                   <Sparkles className="h-3 w-3" />
-                  <span>思考过程</span>
+                  <span>{t('thinking')}</span>
                   {expandedThinking === i ? (
                     <ChevronUp className="h-3 w-3" />
                   ) : (
@@ -281,7 +283,7 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="输入你的问题..."
+            placeholder={t('placeholder')}
             disabled={loading}
             className="flex-1 px-4 py-3 bg-slate-100 border-0 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-400"
           />
@@ -289,6 +291,7 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
             type="submit"
             disabled={loading || !input.trim()}
             className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all disabled:opacity-50"
+            title={t('send')}
           >
             <Send className="h-4 w-4" />
           </Button>

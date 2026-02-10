@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { AppLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,7 @@ import { Eye, EyeOff } from 'lucide-react'
 
 export default function ConfigPage() {
   const router = useRouter()
+  const t = useTranslations()
   const token = useAuthStore((state) => state.token)
   const [loading, setLoading] = useState(false)
 
@@ -56,12 +58,12 @@ export default function ConfigPage() {
     try {
       const res = await configApi.testLLM(llm)
       if (res.data.success) {
-        toast.success('LLM 连接成功')
+        toast.success(t('config.llmConnectionSuccess'))
       } else {
         toast.error(res.data.message)
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || '连接失败')
+      toast.error(err.response?.data?.detail || t('config.connectionFailed'))
     }
   }
 
@@ -69,9 +71,9 @@ export default function ConfigPage() {
     setLoading(true)
     try {
       await configApi.updateLLM(llm)
-      toast.success('LLM 配置已保存')
+      toast.success(t('config.llmConfigSaved'))
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || '保存失败')
+      toast.error(err.response?.data?.detail || t('config.saveFailed'))
     } finally {
       setLoading(false)
     }
@@ -80,17 +82,17 @@ export default function ConfigPage() {
   return (
     <AppLayout>
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">配置管理</h1>
+        <h1 className="text-2xl font-bold mb-6">{t('config.title')}</h1>
 
         <Tabs defaultValue="llm">
           <TabsList className="grid w-full grid-cols-1">
-            <TabsTrigger value="llm">LLM 配置</TabsTrigger>
+            <TabsTrigger value="llm">{t('config.llm')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="llm">
             <Card>
               <CardHeader>
-                <CardTitle>LLM API 配置</CardTitle>
+                <CardTitle>{t('config.llmApi')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="relative">
@@ -111,21 +113,21 @@ export default function ConfigPage() {
                   </button>
                 </div>
                 <Input
-                  placeholder="Base URL (如 https://api.openai.com/v1)"
+                  placeholder={t('config.baseUrl')}
                   value={llm.base_url}
                   onChange={(e) => setLLM({ ...llm, base_url: e.target.value })}
                 />
                 <Input
-                  placeholder="Model (如 gpt-4)"
+                  placeholder={t('config.model')}
                   value={llm.model}
                   onChange={(e) => setLLM({ ...llm, model: e.target.value })}
                 />
                 <div className="flex gap-2">
                   <Button onClick={handleSaveLLM} disabled={loading}>
-                    保存
+                    {t('config.save')}
                   </Button>
                   <Button variant="outline" onClick={handleTestLLM}>
-                    测试连接
+                    {t('config.testConnection')}
                   </Button>
                 </div>
               </CardContent>

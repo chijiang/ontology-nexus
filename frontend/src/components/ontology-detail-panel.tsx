@@ -16,8 +16,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
+import { useTranslations } from 'next-intl'
 
-import { Selection, OntologyNode } from '@/app/graph/ontology/page'
+import { Selection, OntologyNode } from '@/app/[locale]/graph/ontology/page'
 
 // Color options for class customization
 const COLOR_OPTIONS = [
@@ -41,6 +42,7 @@ interface OntologyDetailPanelProps {
 }
 
 export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }: OntologyDetailPanelProps) {
+    const t = useTranslations()
     const token = useAuthStore((state) => state.token)
     const [relationships, setRelationships] = useState<Relationship[]>([])
     const [actions, setActions] = useState<ActionInfo[]>([])
@@ -129,10 +131,10 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
         setIsSaving(true)
         try {
             await graphApi.updateClass(node.name, editingLabel, editingProperties, editingColor)
-            toast.success('更新成功')
+            toast.success(t('common.update') + t('common.success'))
             onUpdate?.()
         } catch (err: any) {
-            toast.error(`更新失败: ${err.response?.data?.detail || err.message}`)
+            toast.error(`${t('common.update') + t('common.error')}: ${err.response?.data?.detail || err.message}`)
         } finally {
             setIsSaving(false)
         }
@@ -143,11 +145,11 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
         setIsDeleting(true)
         try {
             await graphApi.deleteClass(node.name)
-            toast.success('类已删除')
+            toast.success(t('components.ontology.classDeleted'))
             onUpdate?.()
             onClose()
         } catch (err: any) {
-            toast.error(`删除失败: ${err.response?.data?.detail || err.message}`)
+            toast.error(`${t('common.delete')}${t('common.error')}: ${err.response?.data?.detail || err.message}`)
         } finally {
             setIsDeleting(false)
             setIsConfirmDeleting(false)
@@ -159,11 +161,11 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
         setIsDeleting(true)
         try {
             await graphApi.deleteRelationship(edge.source, edge.relationship_type, edge.target)
-            toast.success('关系已删除')
+            toast.success(t('components.ontology.relationshipDeleted'))
             onUpdate?.()
             onClose()
         } catch (err: any) {
-            toast.error(`删除失败: ${err.response?.data?.detail || err.message}`)
+            toast.error(`${t('common.delete')}${t('common.error')}: ${err.response?.data?.detail || err.message}`)
         } finally {
             setIsDeleting(false)
             setIsConfirmDeleting(false)
@@ -172,7 +174,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
 
     const handleConfirmAddProperty = () => {
         if (!newProp.trim()) {
-            toast.error('请输入属性名')
+            toast.error(t('components.ontology.enterPropertyName'))
             return
         }
         const fullProp = `${newProp.trim()}:${newPropType}`
@@ -187,10 +189,10 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
     }
 
     const handleRemoveRelationship = async (rel: Relationship) => {
-        if (!window.confirm(`确定删除关系 "${rel.type}"？`)) return
+        if (!window.confirm(t('components.ontology.confirmDeleteRelationship', { type: rel.type }))) return
         try {
             await graphApi.deleteRelationship(rel.source, rel.type, rel.target)
-            toast.success('关系已删除')
+            toast.success(t('components.ontology.relationshipDeleted'))
             loadDetails()
             onUpdate?.()
         } catch (err: any) {
@@ -209,7 +211,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                             <ArrowRight className="h-3 w-3 text-amber-600" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-medium text-slate-700">关系</h3>
+                            <h3 className="text-sm font-medium text-slate-700">{t('components.detailPanel.relationship')}</h3>
                             <p className="text-[10px] text-slate-400">{edge.source} → {edge.target}</p>
                         </div>
                     </div>
@@ -221,15 +223,15 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                 <div className="flex-1 overflow-y-auto p-3 space-y-3">
                     <div className="space-y-2">
                         <div className="flex flex-col gap-0.5">
-                            <Label className="text-[10px] text-slate-400">来源</Label>
+                            <Label className="text-[10px] text-slate-400">{t('components.ontology.source')}</Label>
                             <div className="px-2 py-1.5 bg-slate-50 rounded text-xs font-medium text-slate-600">{edge.source}</div>
                         </div>
                         <div className="flex flex-col gap-0.5">
-                            <Label className="text-[10px] text-slate-400">目标</Label>
+                            <Label className="text-[10px] text-slate-400">{t('components.ontology.target')}</Label>
                             <div className="px-2 py-1.5 bg-slate-50 rounded text-xs font-medium text-slate-600">{edge.target}</div>
                         </div>
                         <div className="flex flex-col gap-0.5">
-                            <Label className="text-[10px] text-slate-400">类型</Label>
+                            <Label className="text-[10px] text-slate-400">{t('common.type')}</Label>
                             <Input
                                 value={edgeType}
                                 readOnly
@@ -243,7 +245,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                     <div className="p-3 border-t border-slate-100">
                         {isConfirmDeleting ? (
                             <div className="bg-red-50 p-2 rounded border border-red-100 space-y-2">
-                                <p className="text-[10px] text-red-600 text-center">确定删除该关系？</p>
+                                <p className="text-[10px] text-red-600 text-center">{t('components.ontology.confirmDeleteEdge')}</p>
                                 <div className="flex gap-1.5">
                                     <Button
                                         variant="destructive"
@@ -253,7 +255,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                         disabled={isDeleting}
                                     >
                                         {isDeleting && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                                        确认
+                                        {t('common.confirm')}
                                     </Button>
                                     <Button
                                         variant="outline"
@@ -261,7 +263,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                         className="flex-1 h-6 text-xs"
                                         onClick={() => setIsConfirmDeleting(false)}
                                     >
-                                        取消
+                                        {t('common.cancel')}
                                     </Button>
                                 </div>
                             </div>
@@ -273,7 +275,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                 onClick={() => setIsConfirmDeleting(true)}
                             >
                                 <Trash2 className="h-3 w-3 mr-1" />
-                                删除关系
+                                {t('components.ontology.deleteRelationship')}
                             </Button>
                         )}
                     </div>
@@ -370,7 +372,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                         <section>
                             <h4 className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                属性
+                                {t('components.detailPanel.properties')}
                                 {isEditMode && !isAddingProp && (
                                     <button onClick={() => setIsAddingProp(true)} className="ml-auto text-blue-500 hover:text-blue-600">
                                         <Plus className="h-3 w-3" />
@@ -441,7 +443,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                         <section>
                             <h4 className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                关系
+                                {t('components.ontology.relationships')}
                             </h4>
                             {relationships.length > 0 ? (
                                 <div className="space-y-1">
@@ -478,7 +480,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                         <section>
                             <h4 className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                                动作
+                                {t('components.detailPanel.actions')}
                             </h4>
                             {actions.length > 0 ? (
                                 <div className="space-y-1">

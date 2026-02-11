@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # Database - 支持两种配置方式
 
     # 方式1: 直接使用 DATABASE_URL (推荐用于生产环境)
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/kg_qa"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/kg_agent"
 
     # 方式2: 分开配置 (更灵活，可选)
     # 如果设置了 POSTGRES_HOST，则使用这些配置构建 DATABASE_URL
@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
-    POSTGRES_DB: str = "kg_qa"
+    POSTGRES_DB: str = "kg_agent"
 
     # Pool settings for PostgreSQL
     DB_POOL_SIZE: int = 10

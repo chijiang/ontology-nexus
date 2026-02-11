@@ -208,8 +208,6 @@ class ExpressionEvaluator:
         """Resolve a value from a property path or return the value directly."""
         if isinstance(path, str):
             # Try resolving via context (handles 'this.' and variables/parameters)
-            resolved = self.ctx.resolve_path(path)
-            if resolved is not None:
-                return resolved
+            return self.ctx.resolve_path(path)
 
         return await self.evaluate(path)

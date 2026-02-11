@@ -31,6 +31,7 @@ class PGQTranslator:
         """初始化翻译器"""
         self._bound_vars: dict[str, tuple[str, str]] = {}
         self._param_counter = 0
+        self._outer_aliases: set[str] = set()
 
     def translate_for(self, for_clause: ForClause) -> str:
         """将 FOR 子句转换为 SQL/PGQ 查询
@@ -44,6 +45,9 @@ class PGQTranslator:
         var = for_clause.variable
         entity_type = for_clause.entity_type
         condition = for_clause.condition
+
+        # Track the loop variable as an outer alias for correlation
+        self._outer_aliases.add(var)
 
         # 由于 PostgreSQL 18 的 GRAPH_TABLE 需要 property graph 定义
         # 这里我们使用传统 SQL JOIN 作为兼容实现
@@ -268,8 +272,16 @@ class PGQTranslator:
             else (source_id if isinstance(source_id, int) else f"'{source_id}'")
         )
 
-        # If target_var is not bound, we need to join graph_entities
-        if target_var not in self._bound_vars:
+        if target_var in self._outer_aliases:
+            # Correlation with outer query (no JOIN needed)
+            return f"""EXISTS (
+                SELECT 1 FROM graph_relationships r
+                WHERE r.source_id = {sid}
+                AND r.relationship_type = '{rel_type}'
+                AND r.target_id = {target_var}.id
+            )"""
+        elif target_var not in self._bound_vars:
+            # New variable, need JOIN
             where_parts = [
                 f"r.source_id = {sid}",
                 f"r.relationship_type = '{rel_type}'",
@@ -286,11 +298,11 @@ class PGQTranslator:
                 WHERE {" AND ".join(where_parts)}
             )"""
         else:
-            # Both are bound
+            # Both are bound.
             where_parts = [
                 f"r.source_id = {sid}",
                 f"r.relationship_type = '{rel_type}'",
-                f"r.target_id = {target_var}.id",  # target_var should be an alias in outer query
+                f"r.target_id = {target_var}.id",
             ]
             if condition:
                 where_parts.append(condition)
@@ -316,7 +328,16 @@ class PGQTranslator:
             else (target_id if isinstance(target_id, int) else f"'{target_id}'")
         )
 
-        if source_var not in self._bound_vars:
+        if source_var in self._outer_aliases:
+            # Correlation with outer query
+            return f"""EXISTS (
+                SELECT 1 FROM graph_relationships r
+                WHERE r.target_id = {tid}
+                AND r.relationship_type = '{rel_type}'
+                AND r.source_id = {source_var}.id
+            )"""
+        elif source_var not in self._bound_vars:
+            # New variable, need JOIN
             where_parts = [
                 f"r.target_id = {tid}",
                 f"r.relationship_type = '{rel_type}'",
@@ -611,6 +632,7 @@ class PGQTranslator:
     def clear_bound_vars(self) -> None:
         """清除所有绑定变量"""
         self._bound_vars.clear()
+        self._outer_aliases.clear()
 
     def _get_next_param(self) -> str:
         """获取下一个参数名

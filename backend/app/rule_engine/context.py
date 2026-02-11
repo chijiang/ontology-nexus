@@ -66,18 +66,18 @@ class EvaluationContext:
         for i, part in enumerate(parts[1:]):
             if isinstance(obj, dict):
                 # Try direct access first
-                val = obj.get(part)
-
-                # If not found and it's the first level after 'this', check 'properties'
-                if val is None and root_name == "this" and i == 0:
-                    props = obj.get("properties", {})
-                    if isinstance(props, dict):
-                        val = props.get(part)
-
-                obj = val
+                if part in obj:
+                    obj = obj[part]
+                elif root_name == "this" and i == 0 and "properties" in obj:
+                    # If not found and it's the first level after 'this', check 'properties'
+                    props = obj["properties"]
+                    if isinstance(props, dict) and part in props:
+                        obj = props[part]
+                    else:
+                        return None
+                else:
+                    return None
             else:
-                return None
-            if obj is None:
                 return None
 
         return obj

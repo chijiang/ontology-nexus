@@ -20,6 +20,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 class ChatRequest(BaseModel):
     query: str
     conversation_id: int | None = None
+    mode: str = "llm"  # "llm" or "non-llm"
 
 
 @router.post("/v2/stream")
@@ -86,6 +87,46 @@ async def chat_stream_v2(
     # Get action components from app state
     action_executor = request.app.state.action_executor
     action_registry = request.app.state.action_registry
+
+    if req.mode == "non-llm":
+        from app.services.agent.non_llm_service import NonLLMService
+
+        service = NonLLMService()
+
+        async def event_generator():
+            # Send conversation_id immediately
+            yield f"data: {json.dumps({'type': 'conversation_id', 'id': conversation.id}, ensure_ascii=False)}\n\n"
+
+            full_content = ""
+            async for chunk in service.match_and_execute(
+                req.query, db, action_executor, action_registry
+            ):
+                chunk["conversation_id"] = conversation.id
+                if chunk.get("type") == "content":
+                    full_content += chunk.get("content", "")
+                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+
+            # If no content was generated (no match), fallback or just end?
+            # NonLLMService yields specific message if no match?
+            # Implementation above yields nothing if no match.
+            # Let's add a default message if full_content is empty
+            if not full_content:
+                msg = "抱歉，无法识别此指令。请尝试使用标准模版或切换回 LLM 模式。"
+                full_content = msg
+                yield f"data: {json.dumps({'type': 'content', 'content': msg, 'conversation_id': conversation.id}, ensure_ascii=False)}\n\n"
+
+            # Save assistant message
+            async with db.begin_nested():
+                assistant_message = Message(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=full_content,
+                )
+                db.add(assistant_message)
+                conversation.updated_at = datetime.utcnow()
+                await db.commit()
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     # Create enhanced agent (Neo4j config is now empty, using PostgreSQL)
     agent = EnhancedAgentService(

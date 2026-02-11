@@ -574,6 +574,8 @@ class PGGraphStorage:
         instance_name: str,
         hops: int = 1,
         direction: str = "both",
+        entity_type: Optional[str] = None,
+        property_filter: Optional[Dict[str, Any]] = None,
     ) -> List[Dict]:
         """查询实例节点的邻居
 
@@ -587,72 +589,27 @@ class PGGraphStorage:
             direction_filter = "direction IN (1, -1)"  # 双向
 
         # 使用递归 CTE 查询邻居
-        cte_query = f"""
-        WITH RECURSIVE neighbor_graph AS (
-            -- 起始节点
-            SELECT
-                e.id,
-                e.name,
-                e.entity_type,
-                e.properties,
-                1 as depth,
-                NULL::varchar as rel_type,
-                NULL::bigint as source_id
-            FROM graph_entities e
-            WHERE e.name = :name AND e.is_instance = true
-
-            UNION ALL
-
-            -- 递归查找邻居
-            SELECT
-                CASE
-                    WHEN r.source_id = g.id THEN t.id
-                    ELSE s.id
-                END as id,
-                CASE
-                    WHEN r.source_id = g.id THEN t.name
-                    ELSE s.name
-                END as name,
-                CASE
-                    WHEN r.source_id = g.id THEN t.entity_type
-                    ELSE s.entity_type
-                END as entity_type,
-                CASE
-                    WHEN r.source_id = g.id THEN t.properties
-                    ELSE s.properties
-                END as properties,
-                g.depth + 1 as depth,
-                r.relationship_type as rel_type,
-                CASE
-                    WHEN r.source_id = g.id THEN s.id
-                    ELSE t.id
-                END as source_id
-            FROM neighbor_graph g
-            JOIN graph_relationships r ON (
-                (r.source_id = g.id AND 1 IN ({direction_filter.replace('IN (1, -1)', '1').replace('direction = 1', '1').replace('direction = -1', '1')})) OR
-                (r.target_id = g.id AND -1 IN ({direction_filter.replace('IN (1, -1)', '-1').replace('direction = 1', '-1').replace('direction = -1', '-1')}))
-            )
-            JOIN graph_entities s ON r.source_id = s.id
-            JOIN graph_entities t ON r.target_id = t.id
-            WHERE g.depth < :hops
-        )
-        SELECT DISTINCT
-            id, name, entity_type, properties, rel_type, source_id
-        FROM neighbor_graph
-        WHERE depth > 1
-        LIMIT 50
-        """
+        # 注意：这里的 CTE 只是为了说明逻辑，实际执行使用的是 _get_one_hop_neighbors 或 _get_multi_hop_neighbors
+        # 即使更新了这里的文档字符串，核心逻辑还是在下面两个方法中
 
         # 由于参数化 CTE 比较复杂，这里使用简化的实现
         # 对于 1 跳查询，直接使用 JOIN
         if hops == 1:
-            return await self._get_one_hop_neighbors(instance_name, direction)
+            return await self._get_one_hop_neighbors(
+                instance_name, direction, entity_type, property_filter
+            )
 
         # 对于多跳查询，使用构建的方式
-        return await self._get_multi_hop_neighbors(instance_name, hops, direction)
+        return await self._get_multi_hop_neighbors(
+            instance_name, hops, direction, entity_type, property_filter
+        )
 
     async def _get_one_hop_neighbors(
-        self, instance_name: str, direction: str
+        self,
+        instance_name: str,
+        direction: str,
+        entity_type: Optional[str] = None,
+        property_filter: Optional[Dict[str, Any]] = None,
     ) -> List[Dict]:
         """获取 1 跳邻居（简化实现）"""
         # 先获取起始节点
@@ -670,42 +627,49 @@ class PGGraphStorage:
 
         # 根据方向查询关系
         if direction == "outgoing":
-            rel_result = await self.db.execute(
+            query = (
                 select(GraphRelationship, GraphEntity)
                 .join(GraphEntity, GraphEntity.id == GraphRelationship.target_id)
                 .where(GraphRelationship.source_id == start_node)
             )
-            neighbors = []
-            for row in rel_result.all():
-                rel, entity = row
-                neighbors.append(
-                    {
-                        "name": entity.name,
-                        "labels": [entity.entity_type],
-                        "properties": {
-                            k: v
-                            for k, v in (entity.properties or {}).items()
-                            if not k.startswith("__")
-                        },
-                        "relationships": [
-                            {
-                                "id": rel.id,
-                                "type": rel.relationship_type,
-                                "source": instance_name,
-                                "target": entity.name,
-                            }
-                        ],
-                    }
-                )
-            return neighbors
+
+            if entity_type:
+                query = query.where(GraphEntity.entity_type == entity_type)
+
+            if property_filter:
+                for key, value in property_filter.items():
+                    query = query.where(
+                        GraphEntity.properties[key].astext == str(value)
+                    )
 
         elif direction == "incoming":
-            rel_result = await self.db.execute(
+            query = (
                 select(GraphRelationship, GraphEntity)
                 .join(GraphEntity, GraphEntity.id == GraphRelationship.source_id)
                 .where(GraphRelationship.target_id == start_node)
             )
-            neighbors = []
+
+            if entity_type:
+                query = query.where(GraphEntity.entity_type == entity_type)
+
+            if property_filter:
+                for key, value in property_filter.items():
+                    query = query.where(
+                        GraphEntity.properties[key].astext == str(value)
+                    )
+
+        else:  # both
+            # 查询所有关联的关系和实体
+            query = select(GraphRelationship).where(
+                or_(
+                    GraphRelationship.source_id == start_node,
+                    GraphRelationship.target_id == start_node,
+                )
+            )
+
+        rel_result = await self.db.execute(query)
+        neighbors = []
+        if direction in ["outgoing", "incoming"]:
             for row in rel_result.all():
                 rel, entity = row
                 neighbors.append(
@@ -721,27 +685,22 @@ class PGGraphStorage:
                             {
                                 "id": rel.id,
                                 "type": rel.relationship_type,
-                                "source": entity.name,
-                                "target": instance_name,
+                                "source": (
+                                    instance_name
+                                    if direction == "outgoing"
+                                    else entity.name
+                                ),
+                                "target": (
+                                    entity.name
+                                    if direction == "outgoing"
+                                    else instance_name
+                                ),
                             }
                         ],
                     }
                 )
-            return neighbors
-
         else:  # both
-            # 查询所有关联的关系和实体
-            rel_result = await self.db.execute(
-                select(GraphRelationship).where(
-                    or_(
-                        GraphRelationship.source_id == start_node,
-                        GraphRelationship.target_id == start_node,
-                    )
-                )
-            )
             rels = rel_result.scalars().all()
-
-            # 获取所有邻居 ID
             neighbor_ids = set()
             for rel in rels:
                 if rel.source_id == start_node:
@@ -752,14 +711,18 @@ class PGGraphStorage:
             if not neighbor_ids:
                 return []
 
-            # 获取邻居实体
-            entities_result = await self.db.execute(
-                select(GraphEntity).where(GraphEntity.id.in_(neighbor_ids))
-            )
+            query = select(GraphEntity).where(GraphEntity.id.in_(neighbor_ids))
+            if entity_type:
+                query = query.where(GraphEntity.entity_type == entity_type)
+            if property_filter:
+                for key, value in property_filter.items():
+                    query = query.where(
+                        GraphEntity.properties[key].astext == str(value)
+                    )
+
+            entities_result = await self.db.execute(query)
             entities = {e.id: e for e in entities_result.scalars().all()}
 
-            # 组装结果
-            neighbors = []
             for rel in rels:
                 neighbor_id = (
                     rel.target_id if rel.source_id == start_node else rel.source_id
@@ -794,135 +757,6 @@ class PGGraphStorage:
                         }
                     )
 
-            # 触发可视化事件
-            viz_nodes = []
-            viz_edges = []
-
-            # 起始节点
-            viz_nodes.append(
-                {
-                    "id": instance_name,
-                    "label": instance_name,
-                    "type": start_entity.entity_type,
-                    "properties": {
-                        k: v
-                        for k, v in (start_entity.properties or {}).items()
-                        if not k.startswith("__")
-                    },
-                }
-            )
-
-            for n in neighbors:
-                viz_nodes.append(
-                    {
-                        "id": n["name"],
-                        "label": n["name"],
-                        "type": n["labels"][0] if n["labels"] else "Entity",
-                        "properties": n["properties"],
-                    }
-                )
-                for r in n["relationships"]:
-                    viz_edges.append(
-                        {
-                            "source": r["source"],
-                            "target": r["target"],
-                            "label": r["type"],
-                        }
-                    )
-
-            if viz_nodes:
-                await self._emit_graph_view_event(nodes=viz_nodes, edges=viz_edges)
-
-            return neighbors
-
-    async def _get_multi_hop_neighbors(
-        self, instance_name: str, hops: int, direction: str
-    ) -> List[Dict]:
-        """获取多跳邻居（使用 SQL 原生查询）"""
-        # 获取起始节点 ID
-        result = await self.db.execute(
-            select(GraphEntity).where(
-                GraphEntity.name == instance_name, GraphEntity.is_instance == True
-            )
-        )
-        start_entity = result.scalar_one_or_none()
-        if not start_entity:
-            return []
-
-        start_id = start_entity.id
-
-        # 构建方向过滤条件
-        if direction == "outgoing":
-            source_condition = "r.source_id = current_id"
-            target_condition = "r.target_id = current_id"
-        elif direction == "incoming":
-            source_condition = "r.target_id = current_id"
-            target_condition = "r.source_id = current_id"
-        else:  # both
-            source_condition = "r.source_id = current_id"
-            target_condition = "r.target_id = current_id"
-
-        # 使用原生 SQL 递归查询
-        sql_query = text(
-            f"""
-        WITH RECURSIVE neighbor_search AS (
-            -- 基础：起始节点
-            SELECT
-                e.id,
-                e.name,
-                e.entity_type,
-                e.properties,
-                1 as depth,
-                ARRAY[]::integer[] as path_ids,
-                NULL::varchar as rel_type
-            FROM graph_entities e
-            WHERE e.id = :start_id AND e.is_instance = true
-
-            UNION ALL
-
-            -- 递归：查找邻居
-            SELECT
-                CASE WHEN r.source_id = ns.id THEN r.target_id ELSE r.source_id END as id,
-                CASE WHEN r.source_id = ns.id THEN t.name ELSE s.name END as name,
-                CASE WHEN r.source_id = ns.id THEN t.entity_type ELSE s.entity_type END as entity_type,
-                CASE WHEN r.source_id = ns.id THEN t.properties ELSE s.properties END as properties,
-                ns.depth + 1 as depth,
-                ns.path_ids || CASE WHEN r.source_id = ns.id THEN r.target_id ELSE r.source_id END as path_ids,
-                r.relationship_type as rel_type
-            FROM neighbor_search ns
-            JOIN graph_relationships r ON (r.source_id = ns.id OR r.target_id = ns.id)
-            JOIN graph_entities s ON r.source_id = s.id
-            JOIN graph_entities t ON r.target_id = t.id
-            WHERE ns.depth < :hops
-            AND NOT (CASE WHEN r.source_id = ns.id THEN r.target_id ELSE r.source_id END = ANY(ns.path_ids))
-        )
-        SELECT DISTINCT id, name, entity_type, properties, rel_type
-        FROM neighbor_search
-        WHERE depth > 1
-        LIMIT 100
-        """
-        )
-
-        result = await self.db.execute(sql_query, {"start_id": start_id, "hops": hops})
-        rows = result.fetchall()
-
-        results = [
-            {
-                "name": row[1],
-                "labels": [row[2]],
-                "properties": {
-                    k: v for k, v in (row[3] or {}).items() if not k.startswith("__")
-                },
-                "aliases": (row[3] or {}).get("__aliases__", []),
-                "relationships": (
-                    [{"type": row[4], "source": instance_name, "target": row[1]}]
-                    if row[4]
-                    else []
-                ),
-            }
-            for row in rows
-        ]
-
         # 触发可视化事件
         viz_nodes = []
         viz_edges = []
@@ -941,7 +775,7 @@ class PGGraphStorage:
             }
         )
 
-        for n in results:
+        for n in neighbors:
             viz_nodes.append(
                 {
                     "id": n["name"],
@@ -952,13 +786,186 @@ class PGGraphStorage:
             )
             for r in n["relationships"]:
                 viz_edges.append(
-                    {"source": r["source"], "target": r["target"], "label": r["type"]}
+                    {
+                        "source": r["source"],
+                        "target": r["target"],
+                        "label": r["type"],
+                    }
                 )
 
         if viz_nodes:
             await self._emit_graph_view_event(nodes=viz_nodes, edges=viz_edges)
 
-        return results
+        return neighbors
+
+    async def _get_multi_hop_neighbors(
+        self,
+        instance_name: str,
+        hops: int,
+        direction: str,
+        entity_type: Optional[str] = None,
+        property_filter: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict]:
+        """获取多跳邻居（使用 SQL 原生查询）"""
+        # 获取起始节点 ID
+        result = await self.db.execute(
+            select(GraphEntity).where(
+                GraphEntity.name == instance_name, GraphEntity.is_instance == True
+            )
+        )
+        start_entity = result.scalar_one_or_none()
+        if not start_entity:
+            return []
+
+        start_id = start_entity.id
+
+        # 构建方向过滤条件
+        if direction == "outgoing":
+            direction_clause = "r.source_id = ns.id"
+        elif direction == "incoming":
+            direction_clause = "r.target_id = ns.id"
+        else:  # both
+            direction_clause = "(r.source_id = ns.id OR r.target_id = ns.id)"
+
+        # 构建过滤器条件
+        filter_conditions = []
+        filter_params = {}
+
+        # 构建过滤器条件 (用于最终结果过滤)
+        filter_conditions = []
+        filter_params = {}
+
+        if entity_type:
+            filter_conditions.append("entity_type = :entity_type")
+            filter_params["entity_type"] = entity_type
+
+        if property_filter:
+            for key, value in property_filter.items():
+                param_key = f"prop_{key}"
+                filter_conditions.append(f"properties->>'{key}' = :{param_key}")
+                filter_params[param_key] = str(value)
+
+        filter_clause = " AND ".join(filter_conditions)
+        if filter_clause:
+            filter_clause = f"AND {filter_clause}"
+
+        sql_query = text(
+            f"""
+        WITH RECURSIVE neighbor_search AS (
+            -- 基础：起始节点
+            SELECT
+                e.id,
+                e.name,
+                e.entity_type,
+                e.properties,
+                1 as depth,
+                ARRAY[e.id] as path_ids,
+                NULL::varchar as rel_type,
+                NULL::varchar as source_name
+            FROM graph_entities e
+            WHERE e.id = :start_id AND e.is_instance = true
+
+            UNION ALL
+
+            -- 递归：查找邻居
+            SELECT
+                CASE WHEN r.source_id = ns.id THEN r.target_id ELSE r.source_id END as id,
+                CASE WHEN r.source_id = ns.id THEN t.name ELSE s.name END as name,
+                CASE WHEN r.source_id = ns.id THEN t.entity_type ELSE s.entity_type END as entity_type,
+                CASE WHEN r.source_id = ns.id THEN t.properties ELSE s.properties END as properties,
+                ns.depth + 1 as depth,
+                ns.path_ids || CASE WHEN r.source_id = ns.id THEN r.target_id ELSE r.source_id END as path_ids,
+                r.relationship_type as rel_type,
+                ns.name as source_name
+            FROM neighbor_search ns
+            JOIN graph_relationships r ON {direction_clause}
+            JOIN graph_entities s ON r.source_id = s.id
+            JOIN graph_entities t ON r.target_id = t.id
+            WHERE ns.depth <= :hops
+            AND NOT (CASE WHEN r.source_id = ns.id THEN r.target_id ELSE r.source_id END = ANY(ns.path_ids))
+        )
+        SELECT id, name, entity_type, properties, rel_type, source_name, depth
+        FROM neighbor_search
+        ORDER BY depth ASC
+        LIMIT 500
+        """
+        )
+
+        params = {"start_id": start_id, "hops": hops, **filter_params}
+        result = await self.db.execute(sql_query, params)
+        rows = result.fetchall()
+
+        # 全部节点和边，用于可视化 (去重 ID)
+        all_nodes = {}
+        all_edges = []
+
+        # 匹配过滤器的结果
+        filtered_results = []
+        seen_filtered_ids = set()
+
+        for row in rows:
+            node_id, name, etype, props, rel_type, source_name, depth = row
+
+            # 添加到全量节点（用于可视化）
+            if node_id not in all_nodes:
+                all_nodes[node_id] = {
+                    "id": name,
+                    "label": name,
+                    "type": etype,
+                    "properties": {
+                        k: v for k, v in (props or {}).items() if not k.startswith("__")
+                    },
+                }
+
+            # 添加边（用于可视化）
+            if rel_type and source_name:
+                all_edges.append(
+                    {"source": source_name, "target": name, "label": rel_type}
+                )
+
+            # 检查是否满足过滤器条件并行成结果
+            if depth > 1:
+                match = True
+                if entity_type and etype != entity_type:
+                    match = False
+                if match and property_filter:
+                    for k, v in property_filter.items():
+                        if props.get(k) != str(v):
+                            match = False
+                            break
+
+                if match and node_id not in seen_filtered_ids:
+                    filtered_results.append(
+                        {
+                            "id": node_id,
+                            "name": name,
+                            "labels": [etype],
+                            "properties": all_nodes[node_id]["properties"],
+                            "aliases": (props or {}).get("__aliases__", []),
+                            "distance": depth - 1,
+                            "relationships": (
+                                [
+                                    {
+                                        "type": rel_type,
+                                        "source": source_name,
+                                        "target": name,
+                                    }
+                                ]
+                                if rel_type
+                                else []
+                            ),
+                        }
+                    )
+                    seen_filtered_ids.add(node_id)
+
+        # 触发可视化事件
+        viz_nodes = list(all_nodes.values())
+        viz_edges = all_edges
+
+        if viz_nodes:
+            await self._emit_graph_view_event(nodes=viz_nodes, edges=viz_edges)
+
+        return filtered_results[:100]
 
     async def find_path_between_instances(
         self,

@@ -274,13 +274,10 @@ def create_action_tools(
             )
             if result.success:
                 await session.commit()
-            return result
-
-        if result.success:
-            changes_str = ", ".join([f"{k}={v}" for k, v in result.changes.items()])
-            return f"操作 {entity_type}.{action_name} 在 {entity_id} 上执行成功\n变更: {changes_str}"
-        else:
-            return f"操作 {entity_type}.{action_name} 在 {entity_id} 上执行失败\n原因: {result.error}"
+                changes_str = ", ".join([f"{k}={v}" for k, v in result.changes.items()])
+                return f"操作 {entity_type}.{action_name} 在 {entity_id} 上执行成功\n变更: {changes_str}"
+            else:
+                return f"操作 {entity_type}.{action_name} 在 {entity_id} 上执行失败\n原因: {result.error}"
 
     async def batch_execute_action(
         entity_type: str,

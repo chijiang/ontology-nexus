@@ -5,10 +5,16 @@ import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { chatApi, conversationApi, Message as ApiMessage } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
-import { Send, Bot, User, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
+import { Send, Bot, User, Sparkles, ChevronDown, ChevronUp, ListTodo } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useTranslations } from 'next-intl'
+
+
+// ... (skipping interfaces) ...
+
+// Inside Chat function:
+// Remove internal mode state
 
 interface Message {
   role: 'user' | 'assistant'
@@ -22,9 +28,11 @@ interface ChatProps {
   conversationId: number | null
   initialMessages: ApiMessage[]
   onConversationCreated: (id: number) => void
+  mode: 'llm' | 'non-llm'
+  onModeChange: (mode: 'llm' | 'non-llm') => void
 }
 
-export function Chat({ onGraphData, conversationId, initialMessages, onConversationCreated }: ChatProps) {
+export function Chat({ onGraphData, conversationId, initialMessages, onConversationCreated, mode, onModeChange }: ChatProps) {
   const t = useTranslations('components.chat')
   const token = useAuthStore((state) => state.token)
   const [messages, setMessages] = useState<Message[]>([])
@@ -71,7 +79,7 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
     setLoading(true)
 
     try {
-      const response = await chatApi.stream(userMessage, token!, currentConversationId || undefined)
+      const response = await chatApi.stream(userMessage, token!, currentConversationId || undefined, mode)
       const reader = response.body!.getReader()
       const decoder = new TextDecoder()
 
@@ -162,10 +170,15 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
     }
   }
 
-  const exampleQuestions = [
+  const exampleQuestions = mode === 'llm' ? [
     t('exampleQ1'),
     t('exampleQ2'),
     t('exampleQ3')
+  ] : [
+    '订单PurchaseOrder_117的状态是怎样的？',
+    '供应商OfficePro Supplies有多少未关闭的订单？',
+    '有哪些供应商可以提供Microcontroller Arduino物料？',
+    '对PurchaseOrder_117订单进行转账操作，220元'
   ]
 
   return (
@@ -173,11 +186,19 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="p-4 rounded-full bg-primary/10 mb-4">
-              <Sparkles className="h-8 w-8 text-primary" />
+            <div className={`p-4 rounded-full mb-4 ${mode === 'llm' ? 'bg-primary/10' : 'bg-orange-100'}`}>
+              {mode === 'llm' ? (
+                <Sparkles className="h-8 w-8 text-primary" />
+              ) : (
+                <ListTodo className="h-8 w-8 text-orange-500" />
+              )}
             </div>
-            <h3 className="text-lg font-medium text-slate-700 mb-2">{t('startExploring')}</h3>
-            <p className="text-sm text-slate-500 mb-6">{t('tryQuestions')}</p>
+            <h3 className="text-lg font-medium text-slate-700 mb-2">
+              {mode === 'llm' ? t('startExploring') : '精准指令模式'}
+            </h3>
+            <p className="text-sm text-slate-500 mb-6">
+              {mode === 'llm' ? t('tryQuestions') : '尝试以下特定指令模板：'}
+            </p>
             <div className="space-y-2 w-full max-w-md">
               {exampleQuestions.map((q, i) => (
                 <button

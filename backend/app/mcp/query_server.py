@@ -53,7 +53,11 @@ async def get_instances_by_class(
 
 @mcp.tool()
 async def get_instance_neighbors(
-    instance_name: str, hops: int = 1, direction: str = "both"
+    instance_name: str,
+    hops: int = 1,
+    direction: str = "both",
+    type: str | None = None,
+    property_filter: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Get neighbors of an instance.
 
@@ -61,9 +65,18 @@ async def get_instance_neighbors(
         instance_name: Name of the instance
         hops: Number of hops to traverse (default: 1)
         direction: Direction of traversal: 'incoming', 'outgoing', or 'both' (default: 'both')
+        type: Optional, filter neighbors by entity type
+        property_filter: Optional, filter neighbors by property values (e.g., {"status": "Open"})
     """
     async with get_storage() as storage:
-        return await storage.get_instance_neighbors(instance_name, hops, direction)
+        # Note: 'type' argument maps to 'entity_type' in storage
+        return await storage.get_instance_neighbors(
+            instance_name,
+            hops,
+            direction,
+            entity_type=type,
+            property_filter=property_filter,
+        )
 
 
 @mcp.tool()

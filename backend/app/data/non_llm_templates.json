@@ -1,0 +1,60 @@
+[
+    {
+        "id": "query_object_status",
+        "patterns": [
+            "订单{id}的状态是怎样的？",
+            "{id}的状态是怎样的？"
+        ],
+        "tool": "search_instances",
+        "args": {
+            "search_term": "{id}",
+            "class_name": "PurchaseOrder",
+            "limit": 1
+        }
+    },
+    {
+        "id": "query_supplier_open_orders",
+        "patterns": [
+            "供应商{name}有多少未关闭的订单？"
+        ],
+        "tool": "get_instance_neighbors",
+        "args": {
+            "instance_name": "{name}",
+            "hops": 1,
+            "direction": "incoming",
+            "type": "PurchaseOrder",
+            "property_filter": {
+                "status": "Open"
+            }
+        }
+    },
+    {
+        "id": "query_supplier_material",
+        "patterns": [
+            "有哪些供应商可以提供{material_name}物料？",
+            "谁可以提供{material_name}？"
+        ],
+        "tool": "get_instance_neighbors",
+        "args": {
+            "instance_name": "{material_name}",
+            "hops": 2,
+            "direction": "both",
+            "type": "Supplier"
+        }
+    },
+    {
+        "id": "execute_transfer",
+        "patterns": [
+            "对{id}订单进行转账操作，{amount}元"
+        ],
+        "tool": "execute_action",
+        "args": {
+            "entity_type": "PurchaseOrder",
+            "action_name": "makeTransfer",
+            "entity_id": "{id}",
+            "params": {
+                "amount": "{amount}"
+            }
+        }
+    }
+]

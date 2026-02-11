@@ -40,14 +40,14 @@ export const configApi = {
 }
 
 export const chatApi = {
-  stream: (query: string, token: string, conversationId?: number) => {
+  stream: (query: string, token: string, conversationId?: number, mode: 'llm' | 'non-llm' = 'llm') => {
     return fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api'}/chat/v2/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ query, conversation_id: conversationId }),
+      body: JSON.stringify({ query, conversation_id: conversationId, mode }),
     })
   },
 }

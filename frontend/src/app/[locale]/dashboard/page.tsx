@@ -10,7 +10,9 @@ import { GraphPreview } from '@/components/graph-preview'
 import { ConversationSidebar } from '@/components/conversation-sidebar'
 import { useAuthStore } from '@/lib/auth'
 import { conversationApi, Message } from '@/lib/api'
-import { MessageSquare, Network, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { MessageSquare, Network, PanelLeftClose, PanelLeft, Sparkles, ListTodo } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -21,6 +23,7 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const [initialMessages, setInitialMessages] = useState<Message[]>([])
+  const [mode, setMode] = useState<'llm' | 'non-llm'>('llm')
 
   useEffect(() => {
     setIsHydrated(true)
@@ -106,6 +109,22 @@ export default function DashboardPage() {
                   <MessageSquare className="h-5 w-5 text-white" />
                 </div>
                 <h2 className="text-lg font-semibold text-slate-800">{t('dashboard.title')}</h2>
+                <div className="ml-auto flex items-center space-x-2">
+                  <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-full border border-slate-200">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${mode === 'llm' ? 'bg-white text-primary font-medium shadow-sm' : 'text-slate-500'}`}>
+                      Model
+                    </span>
+                    <Switch
+                      id="mode-switch"
+                      checked={mode === 'non-llm'}
+                      onCheckedChange={(checked: boolean) => setMode(checked ? 'non-llm' : 'llm')}
+                      className="data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-primary"
+                    />
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${mode === 'non-llm' ? 'bg-white text-orange-600 font-medium shadow-sm' : 'text-slate-500'}`}>
+                      Instr
+                    </span>
+                  </div>
+                </div>
               </div>
               <div className="flex-1 min-h-0">
                 <Chat
@@ -113,6 +132,8 @@ export default function DashboardPage() {
                   conversationId={activeConversationId}
                   initialMessages={initialMessages}
                   onConversationCreated={handleConversationCreated}
+                  mode={mode}
+                  onModeChange={setMode}
                 />
               </div>
             </div>

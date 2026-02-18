@@ -64,8 +64,8 @@ export function AppLayout({ children, noPadding = false }: { children: React.Rea
     // Only show admin links to admin users
     if (user?.is_admin) {
       items.push(
-        { href: '/admin/users', label: '用户管理', icon: Users },
-        { href: '/admin/roles', label: '角色管理', icon: Shield }
+        { href: `/${locale}/admin/users`, label: '用户管理', icon: Users },
+        { href: `/${locale}/admin/roles`, label: '角色管理', icon: Shield }
       )
     }
 

@@ -1,13 +1,25 @@
-// frontend/src/components/layout.tsx
 'use client'
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useTranslations, useLocale } from 'next-intl'
-import { Button } from '@/components/ui/button'
+import { useLocale, useTranslations } from 'next-intl'
+import { useMemo, useState, useEffect } from 'react'
 import { useAuthStore } from '@/lib/auth'
 import { LanguageSwitcher } from '@/components/language-switcher'
-import { useMemo } from 'react'
+import {
+  Database,
+  Network,
+  CircleDot,
+  Package,
+  Scale,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+  Sparkles,
+  LogOut,
+  Search
+} from 'lucide-react'
 
 export function AppLayout({ children, noPadding = false }: { children: React.ReactNode, noPadding?: boolean }) {
   const pathname = usePathname()
@@ -15,6 +27,21 @@ export function AppLayout({ children, noPadding = false }: { children: React.Rea
   const locale = useLocale()
   const { user, logout } = useAuthStore()
   const t = useTranslations()
+  const [isNavExpanded, setIsNavExpanded] = useState(true)
+
+  // Persist sidebar state
+  useEffect(() => {
+    const saved = localStorage.getItem('nav-sidebar-expanded')
+    if (saved !== null) {
+      setIsNavExpanded(saved === 'true')
+    }
+  }, [])
+
+  const toggleNav = () => {
+    const newState = !isNavExpanded
+    setIsNavExpanded(newState)
+    localStorage.setItem('nav-sidebar-expanded', String(newState))
+  }
 
   const handleLogout = () => {
     logout()
@@ -22,73 +49,127 @@ export function AppLayout({ children, noPadding = false }: { children: React.Rea
   }
 
   const navItems = useMemo(() => [
-    { href: `/${locale}/dashboard`, label: t('nav.qa') },
-    { href: `/${locale}/graph/import`, label: t('nav.importGraph') },
-    { href: `/${locale}/graph/management`, label: t('nav.ontology') },
-    { href: `/${locale}/graph/instances`, label: t('nav.instances') },
-    { href: `/${locale}/data-products`, label: t('nav.dataProducts') },
-    { href: `/${locale}/rules`, label: t('nav.rules') },
-    { href: `/${locale}/config`, label: t('nav.config') },
+    { href: `/${locale}/dashboard`, label: t('nav.qa'), icon: Sparkles },
+    { href: `/${locale}/graph/management`, label: t('nav.ontology'), icon: Network },
+    { href: `/${locale}/graph/instances`, label: t('nav.instances'), icon: CircleDot },
+    { href: `/${locale}/data-products`, label: t('nav.dataProducts'), icon: Package },
+    { href: `/${locale}/rules`, label: t('nav.rules'), icon: Scale },
+    { href: `/${locale}/graph/import`, label: t('nav.importGraph'), icon: Database },
+    { href: `/${locale}/config`, label: t('nav.config'), icon: Settings },
   ], [locale, t])
 
   return (
-    <div className={`flex flex-col bg-slate-50/50 ${noPadding ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
-      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 flex-shrink-0 sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-4 lg:px-8">
-          {/* Top Row: Brand and User Controls */}
-          <div className="h-14 flex items-center justify-between border-b border-slate-100/50">
-            <h1 className="text-lg font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
-              <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center text-white text-[10px] font-bold">EP</div>
+    <div className="flex h-screen bg-slate-50/50 overflow-hidden">
+      {/* Sidebar Navigation */}
+      <aside
+        className={`bg-white border-r border-slate-200/60 flex flex-col transition-all duration-300 ease-in-out z-50 ${isNavExpanded ? 'w-64' : 'w-16'
+          }`}
+      >
+        {/* Sidebar Header: Logo */}
+        <div className="h-14 flex items-center px-4 border-b border-slate-100/50 flex-shrink-0">
+          <Link href={`/${locale}/dashboard`} className={`flex items-center gap-3 transition-all ${isNavExpanded ? '' : 'mx-auto'}`}>
+            <div className="w-8 h-8 flex-shrink-0 bg-primary rounded-lg flex items-center justify-center text-white text-[10px] font-bold shadow-sm shadow-primary/20 transition-transform hover:scale-105">
+              EP
+            </div>
+            {isNavExpanded && (
+              <span className="font-bold text-slate-800 text-sm tracking-tight truncate">
+                {t('layout.title').split(' ')[0]}
+              </span>
+            )}
+          </Link>
+        </div>
+
+        {/* Unified Toggle Button Area */}
+        <div className="h-10 flex items-center px-4 border-b border-slate-50/50 flex-shrink-0">
+          <button
+            onClick={toggleNav}
+            className={`flex items-center gap-2 p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all w-full ${isNavExpanded ? 'justify-between' : 'justify-center'}`}
+            title={isNavExpanded ? t('layout.hideSidebar') : t('layout.showSidebar')}
+          >
+            {isNavExpanded && <span className="text-[10px] font-bold uppercase tracking-widest ml-1">{t('common.menu') || 'Menu'}</span>}
+            {isNavExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {/* Sidebar Links */}
+        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto scrollbar-hide">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative ${isActive
+                  ? 'bg-primary/5 text-primary shadow-sm shadow-primary/5'
+                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                title={!isNavExpanded ? item.label : undefined}
+              >
+                <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                {isNavExpanded && (
+                  <span className="whitespace-nowrap transition-opacity duration-200">
+                    {item.label}
+                  </span>
+                )}
+                {!isNavExpanded && isActive && (
+                  <div className="absolute left-0 w-1 h-6 bg-primary rounded-r-full" />
+                )}
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* Sidebar Footer: User (Optional small view) */}
+        <div className="p-3 border-t border-slate-100/50">
+          {/* Support or other footer links could go here */}
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
+        {/* Top Header */}
+        <header className="h-14 bg-white/80 backdrop-blur-md border-b border-slate-200/60 flex items-center justify-between px-6 flex-shrink-0 z-40">
+          <div className="flex items-center">
+            <h1 className="text-lg font-extrabold tracking-tight text-slate-900">
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/70">
                 {t('layout.title')}
               </span>
             </h1>
-
-            <div className="flex items-center gap-4">
-              <LanguageSwitcher />
-
-              {user && (
-                <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
-                  <div className="flex flex-col items-end">
-                    <span className="text-[11px] font-semibold text-slate-900">{user.username}</span>
-                    <button
-                      onClick={handleLogout}
-                      className="text-[9px] uppercase tracking-wider font-bold text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                      {t('auth.logout')}
-                    </button>
-                  </div>
-                  <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 text-[10px] font-bold border border-white shadow-sm">
-                    {user.username.charAt(0).toUpperCase()}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* Bottom Row: Navigation */}
-          <div className="h-12 flex items-center">
-            <nav className="w-full flex items-center justify-between">
-              {navItems.map((item) => {
-                const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
-                        ? 'bg-primary/5 text-primary'
-                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
-                      }`}
+          <div className="flex items-center gap-4">
+            <LanguageSwitcher />
+
+            {user && (
+              <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
+                <div className="flex flex-col items-end">
+                  <span className="text-[11px] font-semibold text-slate-900">{user.username}</span>
+                  <button
+                    onClick={handleLogout}
+                    className="text-[9px] uppercase tracking-wider font-bold text-slate-400 hover:text-red-500 transition-colors"
                   >
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </nav>
+                    {t('auth.logout')}
+                  </button>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 text-[10px] font-bold border-2 border-white shadow-sm ring-1 ring-slate-100">
+                  {user.username.charAt(0).toUpperCase()}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      </header>
-      <main className={`flex-1 flex flex-col ${noPadding ? 'min-h-0 overflow-hidden' : 'container mx-auto px-4 py-8'}`}>{children}</main>
+        </header>
+
+        {/* Main Content */}
+        <main
+          className={`flex-1 overflow-hidden flex flex-col ${noPadding ? '' : 'p-6 lg:p-8 overflow-y-auto'
+            }`}
+        >
+          <div className={noPadding ? 'flex-1 flex flex-col min-h-0' : 'max-w-[1600px] mx-auto w-full'}>
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   )
 }

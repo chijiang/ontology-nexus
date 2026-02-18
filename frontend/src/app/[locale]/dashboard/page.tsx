@@ -82,10 +82,11 @@ export default function DashboardPage() {
         {!sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="absolute left-4 top-4 z-20 p-2.5 bg-white border border-slate-200 rounded-lg shadow-md hover:bg-slate-50 transition-all text-slate-500 hover:text-primary"
+            className="absolute left-4 top-4 z-20 p-2.5 bg-white border border-slate-200/60 rounded-xl shadow-lg shadow-slate-200/50 hover:bg-slate-50 transition-all text-slate-400 hover:text-primary group"
             title={t('layout.showSidebar')}
           >
-            <PanelLeft className="h-4 w-4" />
+            <PanelLeft className="h-4 w-4 transition-transform group-hover:scale-110" />
+            <div className="absolute -right-1 -top-1 w-2 h-2 bg-primary rounded-full border-2 border-white" />
           </button>
         )}
 
@@ -112,7 +113,7 @@ export default function DashboardPage() {
                 <div className="ml-auto flex items-center space-x-2">
                   <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-full border border-slate-200">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${mode === 'llm' ? 'bg-white text-primary font-medium shadow-sm' : 'text-slate-500'}`}>
-                      Model
+                      {t('dashboard.mode.model')}
                     </span>
                     <Switch
                       id="mode-switch"
@@ -121,7 +122,7 @@ export default function DashboardPage() {
                       className="data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-primary"
                     />
                     <span className={`text-xs px-2 py-0.5 rounded-full ${mode === 'non-llm' ? 'bg-white text-orange-600 font-medium shadow-sm' : 'text-slate-500'}`}>
-                      Instr
+                      {t('dashboard.mode.instr')}
                     </span>
                   </div>
                 </div>

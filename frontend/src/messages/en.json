@@ -18,6 +18,7 @@
     "update": "Update",
     "add": "Add",
     "remove": "Remove",
+    "menu": "Menu",
     "export": "Export",
     "import": "Import",
     "refresh": "Refresh",
@@ -71,7 +72,7 @@
     "hasAccount": "Already have an account?"
   },
   "nav": {
-    "qa": "Intelligent Q&A",
+    "qa": "Intelligent Agent Assistant",
     "importGraph": "Import Graph",
     "ontology": "Ontology Management",
     "instances": "Instance Graph",
@@ -82,11 +83,16 @@
   "layout": {
     "title": "Enterprise Ontology Platform",
     "welcomeUser": "Welcome, {username}",
-    "showSidebar": "Show sidebar"
+    "showSidebar": "Show sidebar",
+    "hideSidebar": "Hide sidebar"
   },
   "dashboard": {
-    "title": "Intelligent Q&A",
-    "graphPreview": "Related Graph Preview"
+    "title": "Intelligent Agent Assistant",
+    "graphPreview": "Related Graph Preview",
+    "mode": {
+      "model": "Model",
+      "instr": "Instr"
+    }
   },
   "graph": {
     "import": {
@@ -322,6 +328,7 @@
     "llm": "LLM Configuration",
     "llmApi": "LLM API Configuration",
     "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter API Key",
     "baseUrl": "Base URL (e.g. https://api.openai.com/v1)",
     "model": "Model (e.g. gpt-4)",
     "save": "Save",
@@ -449,11 +456,28 @@
       "previewUpdated": "Preview graph updated",
       "exampleQ1": "Which supplier did PO_2024_001 order from?",
       "exampleQ2": "What are the related entities for the purchase order?",
-      "exampleQ3": "What is the relationship between payment and order?"
+      "exampleQ3": "What is the relationship between payment and order?",
+      "exampleNonLlm1": "What is the status of order PurchaseOrder_117?",
+      "exampleNonLlm2": "How many open orders does supplier OfficePro Supplies have?",
+      "exampleNonLlm3": "Which suppliers can provide Microcontroller Arduino materials?",
+      "exampleNonLlm4": "Transfer 220 units for order PurchaseOrder_117",
+      "preciseMode": "Precise Instruction Mode",
+      "trySpecificInstructions": "Try the following specific instruction templates:",
+      "copyFailed": "Copy failed",
+      "cannotConnect": "Cannot connect to server",
+      "timeout": "Request timeout",
+      "stopParsing": "Stop Parsing",
+      "parsing": "Parsing..."
     },
     "conversation": {
       "newChat": "New Chat",
-      "noConversations": "No conversations"
+      "noConversations": "No conversations",
+      "deleteConfirm": "Are you sure you want to delete this conversation?",
+      "hideSidebar": "Hide sidebar",
+      "deleteChat": "Delete conversation",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "daysAgo": "{days} days ago"
     },
     "filter": {
       "search": "Search",
@@ -499,7 +523,56 @@
       "relationshipBindSuccess": "Relationship binding successful",
       "checkConfig": "Please check configuration",
       "confirmUnbindRelationship": "Are you sure you want to unbind this relationship?",
-      "relationshipUnbindSuccess": "Relationship binding removed"
+      "relationshipUnbindSuccess": "Relationship binding removed",
+      "addBinding": "Add Binding",
+      "confirmBinding": "Confirm Binding",
+      "configRelationship": "Configure Relationship",
+      "addPropertyMapping": "Add Property Mapping",
+      "add": "Add",
+      "bindNodesFirst": "Need to bind source and target nodes first",
+      "connected": "Connected",
+      "realtimeSave": "Config saved in real-time",
+      "assocPath": "Association Path",
+      "noRelBinding": "No data association configured for this relationship",
+      "selectProduct": "Select Data Product",
+      "selectProductPlaceholder": "Select a registered data product",
+      "fetchingSchema": "Fetching service definition...",
+      "mapToMessage": "Map to Message Type",
+      "selectMessagePlaceholder": "Select gRPC Message",
+      "listMethod": "List Method",
+      "selectMethodPlaceholder": "Select list method for sync",
+      "pkField": "Primary Key (PK)",
+      "selectPkPlaceholder": "Select PK field",
+      "nameField": "Display Name Field",
+      "selectNamePlaceholder": "Select name field",
+      "cancel": "Cancel",
+      "unknownProduct": "Unknown Product",
+      "method": "Method",
+      "sync": "Sync",
+      "syncOn": "On",
+      "syncOff": "Off",
+      "collapseProperty": "Collapse Property Mappings",
+      "propertyMappingCount": "Property Mappings ({count})",
+      "ontologyProperty": "Ontology Property",
+      "enterPropertyName": "Enter property name",
+      "selectExistingProp": "Select existing property",
+      "manualInputProp": "Manual input property",
+      "grpcField": "gRPC Field",
+      "transformMethod": "Transformation (Optional)",
+      "noBindingDesc": "This type is not yet bound to any data product",
+      "noPropDesc": "No properties defined",
+      "relationshipBinding": "Relationship Binding (FK Config)",
+      "sourceEntity": "Source Entity (Start)",
+      "selectSourcePlaceholder": "Select source entity binding",
+      "targetEntity": "Target Entity (End)",
+      "selectTargetPlaceholder": "Select target entity binding",
+      "sourceFkField": "Source FK Field",
+      "selectFkPlaceholder": "Select source FK field",
+      "fkDesc": "Select the field in source entity used for relationship (e.g. supplier_id)",
+      "targetMatchField": "Target Match Field",
+      "selectMatchPlaceholder": "Select target match field (default: id)",
+      "matchDesc": "Select the field in target entity to be matched (usually id or code)",
+      "unassignedField": "Unassigned Field"
     },
     "graphPreview": {
       "pauseLabel": "Pause Animation",
@@ -524,7 +597,53 @@
     },
     "schemaViewer": {
       "centerGraph": "Center Graph",
-      "loadFailed": "Failed to load Schema"
+      "loadFailed": "Failed to load Schema",
+      "ontologyTitle": "Ontology (Schema)",
+      "classes": "Classes"
+    },
+    "graphViewer": {
+      "title": "Instance Data",
+      "nodeType": "Node Type",
+      "node": "Node",
+      "expandNeighbors": "Expand Neighbors",
+      "noProperties": "No properties",
+      "emptyData": "No data",
+      "loadFailed": "Load failed",
+      "name": "Name"
+    },
+    "businessEditor": {
+      "ruleTitle": "Business Rule Editor",
+      "actionTitle": "Business Action Editor",
+      "syncFromSource": "Sync from source",
+      "addPrecondition": "Add Precondition",
+      "addSet": "Add Set",
+      "addAction": "Add Action",
+      "addLoop": "Add Loop",
+      "addCall": "Add Call",
+      "emptyHint": "Select a logic block from above to start building",
+      "dslPreview": "Real-time DSL Preview",
+      "placeholders": {
+        "entityProp": "entity.prop",
+        "value": "value",
+        "name": "name",
+        "expression": "expression",
+        "action": "action",
+        "variable": "var",
+        "failureMessage": "Describe the error if this check fails...",
+        "entityType": "Entity Type",
+        "entity": "Entity"
+      },
+      "failureMessage": "Failure Message:",
+      "emptyLoop": "Empty loop. Add logic below.",
+      "selectProduct": "Select Product",
+      "selectMethod": "Select Method",
+      "loading": "Loading...",
+      "useForm": "Use Form",
+      "manualEdit": "Manual Edit"
+    },
+    "thinkingProcess": {
+      "action": "Action: {toolName}",
+      "thought": "Thought"
     },
     "ontology": {
       "classDeleted": "Class deleted",
@@ -550,7 +669,11 @@
       "availableActions": "Available Actions",
       "execute": "Execute",
       "editingMode": "Editing mode - Click save after modifying property values",
-      "selectNodeHint": "Select a node to view details"
+      "selectNodeHint": "Select a node to view details",
+      "aliases": "Aliases",
+      "addAlias": "Add Alias",
+      "yes": "Yes",
+      "no": "No"
     }
   },
   "toasts": {

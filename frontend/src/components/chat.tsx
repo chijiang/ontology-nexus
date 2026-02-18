@@ -176,10 +176,10 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
     t('exampleQ2'),
     t('exampleQ3')
   ] : [
-    '订单PurchaseOrder_117的状态是怎样的？',
-    '供应商OfficePro Supplies有多少未关闭的订单？',
-    '有哪些供应商可以提供Microcontroller Arduino物料？',
-    '对PurchaseOrder_117订单进行转账操作，220元'
+    t('exampleNonLlm1'),
+    t('exampleNonLlm2'),
+    t('exampleNonLlm3'),
+    t('exampleNonLlm4')
   ]
 
   return (
@@ -195,10 +195,10 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
               )}
             </div>
             <h3 className="text-lg font-medium text-slate-700 mb-2">
-              {mode === 'llm' ? t('startExploring') : '精准指令模式'}
+              {mode === 'llm' ? t('startExploring') : t('preciseMode')}
             </h3>
             <p className="text-sm text-slate-500 mb-6">
-              {mode === 'llm' ? t('tryQuestions') : '尝试以下特定指令模板：'}
+              {mode === 'llm' ? t('tryQuestions') : t('trySpecificInstructions')}
             </p>
             <div className="space-y-2 w-full max-w-md">
               {exampleQuestions.map((q, i) => (

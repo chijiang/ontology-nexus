@@ -2,12 +2,14 @@
 import { Sparkles, Wrench, Brain, Terminal, Info } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useTranslations } from 'next-intl'
 
 interface ThinkingProcessProps {
     content: string
 }
 
 export function ThinkingProcess({ content }: ThinkingProcessProps) {
+    const t = useTranslations()
     // Split by " > " or "\n\n> " or just "> "
     const steps = content.split(/\n?\s*>\s*/g).filter((s) => s.trim().length > 0)
 
@@ -16,7 +18,7 @@ export function ThinkingProcess({ content }: ThinkingProcessProps) {
             {steps.map((step, index) => {
                 const isToolCall = step.includes('**Calling tool**:')
                 const toolMatch = step.match(/\*\*Calling tool\*\*:\s*`([^`]+)`/)
-                const toolName = toolMatch ? toolMatch[1] : null
+                const toolName = toolMatch ? toolMatch[1] : ''
 
                 // Remove the tool call header from the step content to avoid double rendering
                 let cleanContent = step
@@ -42,7 +44,7 @@ export function ThinkingProcess({ content }: ThinkingProcessProps) {
                             <div className="flex items-center gap-2 mb-1">
                                 <span className={`text-[11px] font-semibold uppercase tracking-wider ${isToolCall ? 'text-orange-700' : 'text-primary/80'
                                     }`}>
-                                    {isToolCall ? `Action: ${toolName}` : 'Thought'}
+                                    {isToolCall ? t('thinkingProcess.action', { toolName }) : t('thinkingProcess.thought')}
                                 </span>
                                 {index === steps.length - 1 && (
                                     <span className="flex h-1.5 w-1.5 rounded-full bg-primary/50 animate-pulse" />

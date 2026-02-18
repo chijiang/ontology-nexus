@@ -389,17 +389,17 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                     disabled={isAddingMapping}
                                 >
                                     <Plus className="h-4 w-4 mr-1" />
-                                    添加绑定
+                                    {t('components.binding.addBinding')}
                                 </Button>
                             </div>
 
                             {isAddingMapping && (
                                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4 space-y-4 shadow-inner">
                                     <div className="space-y-2">
-                                        <Label className="text-xs font-medium">选择数据产品</Label>
+                                        <Label className="text-xs font-medium">{t('components.binding.selectProduct')}</Label>
                                         <Select onValueChange={handleProductSelect}>
                                             <SelectTrigger className="h-9 bg-white">
-                                                <SelectValue placeholder="选择已注册的数据产品" />
+                                                <SelectValue placeholder={t('components.binding.selectProductPlaceholder')} />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {products.map(p => (
@@ -412,17 +412,17 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                     {fetchingSchema && (
                                         <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
                                             <Loader2 className="h-3 w-3 animate-spin" />
-                                            正在获取服务定义...
+                                            {t('components.binding.fetchingSchema')}
                                         </div>
                                     )}
 
                                     {selectedProductSchema && (
                                         <>
                                             <div className="space-y-2">
-                                                <Label className="text-xs font-medium">映射到 Message 类型</Label>
+                                                <Label className="text-xs font-medium">{t('components.binding.mapToMessage')}</Label>
                                                 <Select onValueChange={(v) => setNewMapping({ ...newMapping, grpc_message_type: v })}>
                                                     <SelectTrigger className="h-9 bg-white">
-                                                        <SelectValue placeholder="选择 gRPC Message" />
+                                                        <SelectValue placeholder={t('components.binding.selectMessagePlaceholder')} />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {selectedProductSchema.message_types.map((m: any) => (
@@ -433,10 +433,10 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                             </div>
 
                                             <div className="space-y-2">
-                                                <Label className="text-xs font-medium">获取数据方法 (List)</Label>
+                                                <Label className="text-xs font-medium">{t('components.binding.listMethod')}</Label>
                                                 <Select value={newMapping.list_method} onValueChange={(v) => setNewMapping({ ...newMapping, list_method: v })}>
                                                     <SelectTrigger className="h-9 bg-white">
-                                                        <SelectValue placeholder="选择同步列表方法" />
+                                                        <SelectValue placeholder={t('components.binding.selectMethodPlaceholder')} />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {selectedProductSchema.methods.map(m => (
@@ -448,10 +448,10 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
 
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs font-medium">主键字段 (PK)</Label>
+                                                    <Label className="text-xs font-medium">{t('components.binding.pkField')}</Label>
                                                     <Select value={newMapping.id_field_mapping} onValueChange={(v) => setNewMapping({ ...newMapping, id_field_mapping: v })}>
                                                         <SelectTrigger className="h-9 bg-white">
-                                                            <SelectValue placeholder="选择主键字段" />
+                                                            <SelectValue placeholder={t('components.binding.selectPkPlaceholder')} />
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             {selectedProductSchema.message_types.find(mt => mt.name === newMapping.grpc_message_type)?.fields.map((f: any) => (
@@ -461,10 +461,10 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                     </Select>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs font-medium">显示名称字段</Label>
+                                                    <Label className="text-xs font-medium">{t('components.binding.nameField')}</Label>
                                                     <Select value={newMapping.name_field_mapping} onValueChange={(v) => setNewMapping({ ...newMapping, name_field_mapping: v })}>
                                                         <SelectTrigger className="h-9 bg-white">
-                                                            <SelectValue placeholder="选择名称字段" />
+                                                            <SelectValue placeholder={t('components.binding.selectNamePlaceholder')} />
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             {selectedProductSchema.message_types.find(mt => mt.name === newMapping.grpc_message_type)?.fields.map((f: any) => (
@@ -476,14 +476,14 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-3 pt-2">
-                                                <Button variant="outline" size="sm" onClick={() => setIsAddingMapping(false)} className="h-9">取消</Button>
+                                                <Button variant="outline" size="sm" onClick={() => setIsAddingMapping(false)} className="h-9">{t('components.binding.cancel')}</Button>
                                                 <Button
                                                     size="sm"
                                                     onClick={handleCreateEntityMapping}
                                                     className="h-9 bg-primary hover:opacity-90"
                                                     disabled={!newMapping.grpc_message_type}
                                                 >
-                                                    确认绑定
+                                                    {t('components.binding.confirmBinding')}
                                                 </Button>
                                             </div>
                                         </>
@@ -498,7 +498,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                             <div className="flex items-start justify-between mb-2">
                                                 <div className="flex items-center gap-2">
                                                     <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/10">
-                                                        {products.find(p => p.id === m.data_product_id)?.name || '未知产品'}
+                                                        {products.find(p => p.id === m.data_product_id)?.name || t('components.binding.unknownProduct')}
                                                     </Badge>
                                                     <ArrowRight className="h-3 w-3 text-slate-300" />
                                                     <span className="text-xs font-mono font-medium text-slate-600">{m.grpc_message_type}</span>
@@ -513,11 +513,11 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                             <div className="flex items-center gap-4 text-[10px] text-slate-400">
                                                 <span className="flex items-center gap-1">
                                                     <Settings2 className="h-3 w-3" />
-                                                    方法: {m.list_method || '未配置'}
+                                                    {t('components.binding.method')}: {m.list_method || '未配置'}
                                                 </span>
                                                 <span className="flex items-center gap-1">
                                                     <CheckCircle2 className={`h-3 w-3 ${m.sync_enabled ? 'text-green-500' : 'text-slate-300'}`} />
-                                                    同步: {m.sync_enabled ? '开启' : '关闭'}
+                                                    {t('components.binding.sync')}: {m.sync_enabled ? t('components.binding.syncOn') : t('components.binding.syncOff')}
                                                 </span>
                                             </div>
 
@@ -530,7 +530,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                     onClick={() => activeMappingId === m.id ? setActiveMappingId(null) : handleLoadPropertyMappings(m.id)}
                                                 >
                                                     <span className="flex items-center gap-1.5 font-medium">
-                                                        {activeMappingId === m.id ? '收起属性映射' : `属性映射 (${m.property_mapping_count})`}
+                                                        {activeMappingId === m.id ? t('components.binding.collapseProperty') : t('components.binding.propertyMappingCount', { count: m.property_mapping_count })}
                                                     </span>
                                                     <Settings2 className={`h-3 w-3 transform transition-transform ${activeMappingId === m.id ? 'rotate-180' : ''}`} />
                                                 </Button>
@@ -605,7 +605,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                                         variant="ghost"
                                                                         size="icon"
                                                                         className="h-7 w-7 shrink-0"
-                                                                        title={isCustomProp ? "选择已有属性" : "手动输入属性"}
+                                                                        title={isCustomProp ? t('components.binding.selectExistingProp') : t('components.binding.manualInputProp')}
                                                                         onClick={() => setIsCustomProp(!isCustomProp)}
                                                                     >
                                                                         {isCustomProp ? <Settings2 className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
@@ -635,8 +635,8 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                                 </Select>
 
                                                                 <div className="flex gap-2">
-                                                                    <Button variant="outline" size="sm" onClick={() => setIsAddingProp(false)} className="h-7 flex-1 text-[10px]">取消</Button>
-                                                                    <Button size="sm" onClick={handleCreatePropertyMapping} className="h-7 flex-1 text-[10px] bg-primary hover:opacity-90">添加</Button>
+                                                                    <Button variant="outline" size="sm" onClick={() => setIsAddingProp(false)} className="h-7 flex-1 text-[10px]">{t('components.binding.cancel')}</Button>
+                                                                    <Button size="sm" onClick={handleCreatePropertyMapping} className="h-7 flex-1 text-[10px] bg-primary hover:opacity-90">{t('components.binding.add')}</Button>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -649,7 +649,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                             ) : !isAddingMapping && (
                                 <div className="flex flex-col items-center justify-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
                                     <Database className="h-8 w-8 mb-2 opacity-20" />
-                                    <p className="text-xs italic">当前类型尚未绑定任何数据产品</p>
+                                    <p className="text-xs italic">{t('components.binding.noBindingDesc')}</p>
                                 </div>
                             )}
                         </section>
@@ -657,17 +657,17 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                         <Separator />
 
                         <section>
-                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">本体属性</h4>
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t('components.binding.ontologyProperty')}</h4>
                             <div className="space-y-1.5">
                                 {node.dataProperties?.map((prop, i) => (
                                     <div key={i} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-md border border-slate-100">
                                         <span className="text-xs font-medium text-slate-600">{prop}</span>
                                         {/* Placeholder for property mapping configuration */}
                                         <Badge variant="outline" className="text-[10px] h-4 font-normal text-slate-400 border-slate-200">
-                                            未绑定字段
+                                            {t('components.binding.unassignedField')}
                                         </Badge>
                                     </div>
-                                )) || <p className="text-xs text-slate-400 italic">无定义属性</p>}
+                                )) || <p className="text-xs text-slate-400 italic">{t('components.binding.noPropDesc')}</p>}
                             </div>
                         </section>
                     </>
@@ -676,7 +676,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                     <>
                         <section>
                             <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">关系绑定 (外键配置)</h4>
+                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t('components.binding.relationshipBinding')}</h4>
                                 <Button
                                     size="sm"
                                     variant="ghost"
@@ -685,7 +685,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                     disabled={isAddingRel || sourceMappings.length === 0 || targetMappings.length === 0}
                                 >
                                     <Plus className="h-4 w-4 mr-1" />
-                                    配置关联
+                                    {t('components.binding.configRelationship')}
                                 </Button>
                             </div>
 
@@ -693,13 +693,13 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 space-y-4 shadow-inner">
                                     <div className="grid gap-4">
                                         <div className="space-y-2">
-                                            <Label className="text-xs font-medium">源实体端 (起始)</Label>
+                                            <Label className="text-xs font-medium">{t('components.binding.sourceEntity')}</Label>
                                             <Select onValueChange={(v) => {
                                                 setNewRel({ ...newRel, source_entity_mapping_id: v })
                                                 // Reset FK when source mapping changes
                                             }}>
                                                 <SelectTrigger className="h-9 bg-white">
-                                                    <SelectValue placeholder="选择源实体绑定" />
+                                                    <SelectValue placeholder={t('components.binding.selectSourcePlaceholder')} />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {sourceMappings.map(m => (
@@ -712,10 +712,10 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label className="text-xs font-medium">目标实体端 (终点)</Label>
+                                            <Label className="text-xs font-medium">{t('components.binding.targetEntity')}</Label>
                                             <Select onValueChange={(v) => setNewRel({ ...newRel, target_entity_mapping_id: v })}>
                                                 <SelectTrigger className="h-9 bg-white">
-                                                    <SelectValue placeholder="选择目标实体绑定" />
+                                                    <SelectValue placeholder={t('components.binding.selectTargetPlaceholder')} />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {targetMappings.map(m => (
@@ -728,10 +728,10 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label className="text-xs font-medium">关联外键字段 (源数据字段)</Label>
+                                            <Label className="text-xs font-medium">{t('components.binding.sourceFkField')}</Label>
                                             <Select value={newRel.source_fk_field} onValueChange={(v) => setNewRel({ ...newRel, source_fk_field: v })}>
                                                 <SelectTrigger className="h-9 bg-white">
-                                                    <SelectValue placeholder="选择源外键字段" />
+                                                    <SelectValue placeholder={t('components.binding.selectFkPlaceholder')} />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {(() => {
@@ -744,14 +744,14 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                     })()}
                                                 </SelectContent>
                                             </Select>
-                                            <p className="text-[10px] text-slate-400">选择源实体中用于关联的字段 (例如 supplier_id)</p>
+                                            <p className="text-[10px] text-slate-400">{t('components.binding.fkDesc')}</p>
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label className="text-xs font-medium">目标匹配字段 (目标数据字段)</Label>
+                                            <Label className="text-xs font-medium">{t('components.binding.targetMatchField')}</Label>
                                             <Select value={newRel.target_id_field} onValueChange={(v) => setNewRel({ ...newRel, target_id_field: v })}>
                                                 <SelectTrigger className="h-9 bg-white">
-                                                    <SelectValue placeholder="选择目标匹配字段 (默认为 id)" />
+                                                    <SelectValue placeholder={t('components.binding.selectMatchPlaceholder')} />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {(() => {
@@ -764,19 +764,19 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                     })()}
                                                 </SelectContent>
                                             </Select>
-                                            <p className="text-[10px] text-slate-400">选择目标实体中被关联的字段 (通常是 id 或 code)</p>
+                                            <p className="text-[10px] text-slate-400">{t('components.binding.matchDesc')}</p>
                                         </div>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-3 pt-2">
-                                        <Button variant="outline" size="sm" onClick={() => setIsAddingRel(false)} className="h-9">取消</Button>
+                                        <Button variant="outline" size="sm" onClick={() => setIsAddingRel(false)} className="h-9">{t('components.binding.cancel')}</Button>
                                         <Button
                                             size="sm"
                                             onClick={handleCreateRelMapping}
                                             className="h-9 bg-primary hover:opacity-90"
                                             disabled={!newRel.source_entity_mapping_id || !newRel.target_entity_mapping_id || !newRel.source_fk_field}
                                         >
-                                            确认关联
+                                            {t('components.binding.confirmBinding')}
                                         </Button>
                                     </div>
                                 </div>
@@ -805,7 +805,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                             </div>
                                             <div className="bg-slate-50 rounded-md p-2 border border-slate-100">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] text-slate-400">关联路径:</span>
+                                                    <span className="text-[10px] text-slate-400">{t('components.binding.assocPath')}:</span>
                                                     <span className="text-[10px] font-mono text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-100">
                                                         {r.source_fk_field} → {r.target_id_field}
                                                     </span>
@@ -817,11 +817,11 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                             ) : !isAddingRel && (
                                 <div className="flex flex-col items-center justify-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
                                     <Link2 className="h-8 w-8 mb-2 opacity-20" />
-                                    <p className="text-xs italic">当前关系尚未配置任何数据关联</p>
+                                    <p className="text-xs italic">{t('components.binding.noRelBinding')}</p>
                                     {(sourceMappings.length === 0 || targetMappings.length === 0) && (
                                         <div className="mt-2 flex items-center gap-1 text-[10px] text-amber-500">
                                             <AlertCircle className="h-3 w-3" />
-                                            <span>需先绑定首尾节点的类型才能配置关系</span>
+                                            <span>{t('components.binding.bindNodesFirst')}</span>
                                         </div>
                                     )}
                                 </div>
@@ -836,11 +836,11 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
                     <span className="flex items-center gap-1">
                         <CheckCircle2 className="h-3 w-3 text-green-500" />
-                        已连接
+                        {t('components.binding.connected')}
                     </span>
                     <span className="flex items-center gap-1">
                         <Settings2 className="h-3 w-3" />
-                        配置实时保存
+                        {t('components.binding.realtimeSave')}
                     </span>
                 </div>
             </div>

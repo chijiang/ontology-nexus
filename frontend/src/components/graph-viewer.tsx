@@ -7,6 +7,7 @@ import { graphApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 
 // Neo4j-style color palette for different node labels
 const NEO4J_COLORS = [
@@ -33,6 +34,7 @@ function getColorForLabel(label: string): string {
 }
 
 export function GraphViewer() {
+  const t = useTranslations('components.graphViewer')
   const token = useAuthStore((state) => state.token)
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
@@ -214,7 +216,7 @@ export function GraphViewer() {
         elements.push({
           data: {
             id: 'empty',
-            label: '暂无数据',
+            label: t('emptyData'),
             color: '#888',
             borderColor: '#666',
           },
@@ -240,7 +242,7 @@ export function GraphViewer() {
           elements: [{
             data: {
               id: 'error',
-              label: '加载失败',
+              label: t('loadFailed'),
               color: '#F16667',
               borderColor: '#C44',
             }
@@ -338,11 +340,11 @@ export function GraphViewer() {
       {/* Legend */}
       {/* 标题 */}
       <div className="absolute top-2 left-2 z-10 bg-white/90 px-3 py-1 rounded-lg shadow text-sm font-semibold text-emerald-700">
-        🔗 Instance Data
+        🔗 {t('title')}
       </div>
 
       <div className="absolute bottom-4 left-4 z-10 bg-white/95 p-3 rounded-lg shadow-lg">
-        <h4 className="text-xs font-semibold mb-2 text-gray-600">节点类型</h4>
+        <h4 className="text-xs font-semibold mb-2 text-gray-600">{t('nodeType')}</h4>
         <div className="flex flex-wrap gap-2">
           {Array.from(labelColorMap.entries()).map(([label, color]) => (
             <div key={label} className="flex items-center gap-1">
@@ -363,10 +365,10 @@ export function GraphViewer() {
               className="w-4 h-4 rounded-full"
               style={{ backgroundColor: selectedNode.color }}
             />
-            <h3 className="font-semibold text-gray-800">{selectedNode.nodeLabel || '节点'}</h3>
+            <h3 className="font-semibold text-gray-800">{selectedNode.nodeLabel || t('node')}</h3>
           </div>
           <p className="text-sm text-gray-600 mb-3">
-            <span className="font-medium">名称:</span> {selectedNode.label}
+            <span className="font-medium">{t('name')}:</span> {selectedNode.label}
           </p>
           <Button
             size="sm"
@@ -374,7 +376,7 @@ export function GraphViewer() {
             style={{ backgroundColor: selectedNode.color }}
             onClick={() => expandNode(selectedNode.id)}
           >
-            展开邻居
+            {t('expandNeighbors')}
           </Button>
         </div>
       )}

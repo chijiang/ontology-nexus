@@ -280,7 +280,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                 {/* 别名 */}
                 {(editing || editingAliases.length > 0) && (
                     <div className="px-3 py-2 border-b border-slate-50">
-                        <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1.5 block">别名</span>
+                        <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1.5 block">{t('components.instance.aliases')}</span>
                         {editing ? (
                             <div className="flex flex-col gap-1.5">
                                 {editingAliases.map((a, i) => (
@@ -293,7 +293,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                                                 setEditingAliases(newAliases)
                                             }}
                                             className="h-6 text-xs px-2"
-                                            placeholder="别名"
+                                            placeholder={t('components.instance.aliases')}
                                         />
                                         <button onClick={() => setEditingAliases(editingAliases.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-red-500">
                                             <X className="h-3 w-3" />
@@ -306,7 +306,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                                     className="h-5 text-[10px] w-fit px-0 text-primary hover:bg-transparent hover:text-primary/80"
                                     onClick={() => setEditingAliases([...editingAliases, ''])}
                                 >
-                                    <Plus className="h-3 w-3 mr-1" /> 添加别名
+                                    <Plus className="h-3 w-3 mr-1" /> {t('components.instance.addAlias')}
                                 </Button>
                             </div>
                         ) : (
@@ -337,7 +337,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                     {propsOpen && (
                         <div className="px-3 py-1 space-y-0.5">
                             {Object.keys(displayProps).length === 0 ? (
-                                <p className="text-[10px] text-slate-400 italic py-1 pl-2">暂无属性</p>
+                                <p className="text-[10px] text-slate-400 italic py-1 pl-2">{t('components.instance.noProperties')}</p>
                             ) : (
                                 Object.entries(displayProps).map(([key, value]) => (
                                     <div key={key} className="group flex items-center justify-between py-1 border-b border-dashed border-slate-100 last:border-0 hover:bg-slate-50/80 rounded px-1 -mx-1">
@@ -352,7 +352,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
                                             />
                                         ) : (
                                             <span className="text-[11px] text-slate-700 truncate text-right font-mono" title={String(value)}>
-                                                {formatValue(value)}
+                                                {formatValue(value, t)}
                                             </span>
                                         )}
                                     </div>
@@ -441,9 +441,9 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
     )
 }
 
-function formatValue(value: any): string {
+function formatValue(value: any, t: any): string {
     if (value === null || value === undefined) return '-'
-    if (typeof value === 'boolean') return value ? '是' : '否'
+    if (typeof value === 'boolean') return value ? (t('components.instance.yes') || 'Yes') : (t('components.instance.no') || 'No')
     if (Array.isArray(value)) return value.join(', ')
     if (typeof value === 'object') return JSON.stringify(value)
     return String(value)

@@ -97,7 +97,7 @@ export default function ConfigPage() {
               <CardContent className="space-y-4">
                 <div className="relative">
                   <Input
-                    placeholder="API Key"
+                    placeholder={t('config.apiKey')}
                     type={showApiKey ? "text" : "password"}
                     value={llm.api_key}
                     onChange={(e) => setLLM({ ...llm, api_key: e.target.value })}

@@ -33,6 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { dataProductsApi, DataProduct, GrpcServiceSchema, GrpcMethodInfo } from '@/lib/api';
 import { Loader2, ExternalLink } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 // --- Types ---
 
@@ -321,6 +322,7 @@ const LogicBlock = ({
     addStatement: (parentId: string | null, type: BlockType) => void;
     schema: Schema;
 }) => {
+    const t = useTranslations('components.businessEditor');
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
     const style = {
@@ -370,7 +372,7 @@ const LogicBlock = ({
                                     type="text"
                                     value={data.target || ''}
                                     onChange={(e) => updateStatement(id, 'target', e.target.value)}
-                                    placeholder="entity.prop"
+                                    placeholder={t('placeholders.entityProp')}
                                     className="px-2 py-1 border border-slate-200 rounded w-32 text-slate-700 focus:border-blue-500 outline-none font-mono text-xs bg-white"
                                 />
                                 <span className="text-slate-400 text-xs">=</span>
@@ -378,7 +380,7 @@ const LogicBlock = ({
                                     type="text"
                                     value={data.value || ''}
                                     onChange={(e) => updateStatement(id, 'value', e.target.value)}
-                                    placeholder="val"
+                                    placeholder={t('placeholders.value')}
                                     className="flex-1 min-w-[100px] px-2 py-1 border border-slate-200 rounded text-slate-700 focus:border-blue-500 outline-none font-mono text-xs bg-white"
                                 />
                             </>
@@ -391,7 +393,7 @@ const LogicBlock = ({
                                         type="text"
                                         value={data.label || ''}
                                         onChange={(e) => updateStatement(id, 'label', e.target.value)}
-                                        placeholder="name"
+                                        placeholder={t('placeholders.name')}
                                         className="px-2 py-1 border border-slate-200 rounded w-24 text-slate-700 focus:border-emerald-500 outline-none font-mono text-xs bg-white"
                                     />
                                     <span className="text-slate-400 text-xs">:</span>
@@ -399,17 +401,17 @@ const LogicBlock = ({
                                         type="text"
                                         value={data.conditions || ''}
                                         onChange={(e) => updateStatement(id, 'conditions', e.target.value)}
-                                        placeholder="expression"
+                                        placeholder={t('placeholders.expression')}
                                         className="flex-1 min-w-[150px] px-2 py-1 border border-slate-200 rounded text-slate-700 focus:border-emerald-500 outline-none font-mono text-xs bg-white"
                                     />
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-slate-400 text-[10px] uppercase font-bold flex-shrink-0">Failure Message:</span>
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold flex-shrink-0">{t('failureMessage')}</span>
                                     <input
                                         type="text"
                                         value={data.onFailure || ''}
                                         onChange={(e) => updateStatement(id, 'onFailure', e.target.value)}
-                                        placeholder="Describe the error if this check fails..."
+                                        placeholder={t('placeholders.failureMessage')}
                                         className="flex-1 px-2 py-1 border border-slate-200 rounded text-slate-700 focus:border-emerald-500 outline-none text-xs bg-white italic"
                                     />
                                 </div>
@@ -423,7 +425,7 @@ const LogicBlock = ({
                                     onChange={(e) => updateStatement(id, 'actionEntity', e.target.value)}
                                     className="px-2 py-1 border border-slate-200 rounded text-slate-700 outline-none text-xs bg-white w-32"
                                 >
-                                    <option value="">Entity Type</option>
+                                    <option value="">{t('placeholders.entityType')}</option>
                                     {schema.nodes.map((n) => (
                                         <option key={n.name} value={n.name}>
                                             {n.name}
@@ -435,7 +437,7 @@ const LogicBlock = ({
                                     type="text"
                                     value={data.actionName || ''}
                                     onChange={(e) => updateStatement(id, 'actionName', e.target.value)}
-                                    placeholder="action"
+                                    placeholder={t('placeholders.action')}
                                     className="px-2 py-1 border border-slate-200 rounded text-slate-700 focus:border-blue-500 outline-none font-mono text-xs bg-white w-24"
                                 />
                                 <span className="text-slate-500 text-xs font-mono">ON</span>
@@ -443,7 +445,7 @@ const LogicBlock = ({
                                     type="text"
                                     value={data.target || ''}
                                     onChange={(e) => updateStatement(id, 'target', e.target.value)}
-                                    placeholder="var"
+                                    placeholder={t('placeholders.variable')}
                                     className="w-20 px-2 py-1 border border-slate-200 rounded text-slate-700 focus:border-blue-500 outline-none font-mono text-xs bg-white"
                                 />
                             </>
@@ -464,7 +466,7 @@ const LogicBlock = ({
                                         onChange={(e) => updateStatement(id, 'entity', e.target.value)}
                                         className="text-xs font-semibold text-indigo-700 outline-none bg-transparent"
                                     >
-                                        <option value="">Entity</option>
+                                        <option value="">{t('placeholders.entity')}</option>
                                         {schema.nodes.map((n) => (
                                             <option key={n.name} value={n.name}>
                                                 {n.name}
@@ -510,7 +512,7 @@ const LogicBlock = ({
 
                                 {(!data.children || data.children.length === 0) && (
                                     <div className="text-[10px] text-slate-400 italic py-1">
-                                        Empty loop. Add logic below.
+                                        {t('emptyLoop')}
                                     </div>
                                 )}
                             </div>
@@ -521,25 +523,25 @@ const LogicBlock = ({
                                     onClick={() => addStatement(id, 'SET')}
                                     className="text-[10px] flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded hover:border-indigo-500 text-slate-600 transition-colors"
                                 >
-                                    <Plus size={10} /> Set
+                                    <Plus size={10} /> {t('addSet').replace('添加', '')}
                                 </button>
                                 <button
                                     onClick={() => addStatement(id, 'TRIGGER')}
                                     className="text-[10px] flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded hover:border-indigo-500 text-slate-600 transition-colors"
                                 >
-                                    <Plus size={10} /> Trigger
+                                    <Plus size={10} /> {t('addAction').replace('添加', '')}
                                 </button>
                                 <button
                                     onClick={() => addStatement(id, 'FOR')}
                                     className="text-[10px] flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded hover:border-indigo-500 text-slate-600 transition-colors"
                                 >
-                                    <Plus size={10} /> Loop
+                                    <Plus size={10} /> {t('addLoop').replace('添加', '')}
                                 </button>
                                 <button
                                     onClick={() => addStatement(id, 'CALL')}
                                     className="text-[10px] flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded hover:border-indigo-500 text-slate-600 transition-colors"
                                 >
-                                    <Plus size={10} /> Call
+                                    <Plus size={10} /> {t('addCall').replace('添加', '')}
                                 </button>
                             </div>
                         </div>
@@ -560,6 +562,7 @@ const LogicBlock = ({
 
 // --- Sub-component for CALL configuration ---
 const CallBlockConfig = ({ data, updateStatement }: { data: LogicBlockData, updateStatement: (field: string, value: any) => void }) => {
+    const t = useTranslations('components.businessEditor');
     const [products, setProducts] = useState<DataProduct[]>([]);
     const [schema, setSchema] = useState<GrpcServiceSchema | null>(null);
     const [loading, setLoading] = useState(false);
@@ -630,7 +633,7 @@ const CallBlockConfig = ({ data, updateStatement }: { data: LogicBlockData, upda
                     }}
                     className="px-2 py-1 border border-slate-200 rounded text-slate-700 outline-none text-xs bg-white w-32"
                 >
-                    <option value="">Select Product</option>
+                    <option value="">{t('selectProduct')}</option>
                     {products.map((p) => (
                         <option key={p.id} value={p.name}>
                             {p.name}
@@ -647,9 +650,9 @@ const CallBlockConfig = ({ data, updateStatement }: { data: LogicBlockData, upda
                     className="px-2 py-1 border border-slate-200 rounded text-slate-700 outline-none text-xs bg-white w-40"
                     disabled={!data.dataProduct || loading}
                 >
-                    <option value="">Select Method</option>
+                    <option value="">{t('selectMethod')}</option>
                     {loading ? (
-                        <option>Loading...</option>
+                        <option>{t('loading')}</option>
                     ) : (
                         schema?.methods.map((m) => (
                             <option key={m.name} value={m.name}>
@@ -665,7 +668,7 @@ const CallBlockConfig = ({ data, updateStatement }: { data: LogicBlockData, upda
                     onClick={() => setIsManual(!isManual)}
                     className="h-7 text-[10px] text-slate-500 hover:text-indigo-600 px-2"
                 >
-                    {isManual ? 'Use Form' : 'Manual Edit'}
+                    {isManual ? t('useForm') : t('manualEdit')}
                 </Button>
             </div>
 
@@ -712,6 +715,7 @@ const CallBlockConfig = ({ data, updateStatement }: { data: LogicBlockData, upda
 };
 
 export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, meta }: BusinessEditorProps) {
+    const t = useTranslations('components.businessEditor');
     const [statements, setStatements] = useState<LogicBlockData[]>([]);
     const [preconditions, setPreconditions] = useState<LogicBlockData[]>([]);
     const [description, setDescription] = useState(meta.description || '');
@@ -870,7 +874,7 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
                 <div className="flex items-center gap-4">
                     <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                         <Settings className="h-4 w-4 text-indigo-500" />
-                        {mode === 'RULE' ? '业务规则编辑器' : '业务动作编辑器'}
+                        {mode === 'RULE' ? t('ruleTitle') : t('actionTitle')}
                     </h3>
                     <Button
                         variant="outline"
@@ -878,7 +882,7 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
                         onClick={handleSyncFromDsl}
                         className="h-7 text-[10px] font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50"
                     >
-                        <Wand2 size={12} className="mr-1" /> 从源码同步
+                        <Wand2 size={12} className="mr-1" /> {t('syncFromSource')}
                     </Button>
                 </div>
                 <div className="flex gap-2">
@@ -887,32 +891,32 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
                             onClick={() => addStatement(null, 'PRECONDITION')}
                             className="text-xs flex items-center gap-1 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 text-emerald-700 transition-colors font-medium"
                         >
-                            <Plus size={12} /> 添加前置条件
+                            <Plus size={12} /> {t('addPrecondition')}
                         </button>
                     )}
                     <button
                         onClick={() => addStatement(null, 'SET')}
                         className="text-xs flex items-center gap-1 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 text-amber-700 transition-colors font-medium"
                     >
-                        <Plus size={12} /> 添加赋值
+                        <Plus size={12} /> {t('addSet')}
                     </button>
                     <button
                         onClick={() => addStatement(null, 'TRIGGER')}
                         className="text-xs flex items-center gap-1 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100 text-purple-700 transition-colors font-medium"
                     >
-                        <Plus size={12} /> 添加动作
+                        <Plus size={12} /> {t('addAction')}
                     </button>
                     <button
                         onClick={() => addStatement(null, 'FOR')}
                         className="text-xs flex items-center gap-1 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 text-indigo-700 transition-colors font-medium"
                     >
-                        <Repeat size={12} /> 添加循环
+                        <Repeat size={12} /> {t('addLoop')}
                     </button>
                     <button
                         onClick={() => addStatement(null, 'CALL')}
                         className="text-xs flex items-center gap-1 px-3 py-1.5 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100 text-sky-700 transition-colors font-medium"
                     >
-                        <ExternalLink size={12} /> 添加调用
+                        <ExternalLink size={12} /> {t('addCall')}
                     </button>
                 </div>
             </div>
@@ -964,7 +968,7 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
                                 {statements.length === 0 && preconditions.length === 0 && (
                                     <div className="flex flex-col items-center justify-center h-[300px] border-2 border-dashed border-slate-300 rounded-lg text-slate-400 gap-3">
                                         <Box size={40} className="text-slate-200" />
-                                        <p className="text-sm font-medium">从上方选择逻辑块开始构建</p>
+                                        <p className="text-sm font-medium">{t('emptyHint')}</p>
                                     </div>
                                 )}
                             </div>
@@ -976,7 +980,7 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
             <div className="bg-[#1e1e1e] p-4 rounded-lg shadow-inner">
                 <div className="flex items-center gap-2 mb-2">
                     <Code size={14} className="text-indigo-400" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">实时 DSL 预览</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('dslPreview')}</span>
                 </div>
                 <pre className="font-mono text-[11px] leading-relaxed overflow-x-auto text-slate-300">
                     {generatedDsl}

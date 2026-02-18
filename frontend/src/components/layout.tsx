@@ -18,7 +18,9 @@ import {
   Menu,
   Sparkles,
   LogOut,
-  Search
+  Search,
+  Users,
+  Shield
 } from 'lucide-react'
 
 export function AppLayout({ children, noPadding = false }: { children: React.ReactNode, noPadding?: boolean }) {
@@ -48,15 +50,27 @@ export function AppLayout({ children, noPadding = false }: { children: React.Rea
     router.push(`/${locale}`)
   }
 
-  const navItems = useMemo(() => [
-    { href: `/${locale}/dashboard`, label: t('nav.qa'), icon: Sparkles },
-    { href: `/${locale}/graph/management`, label: t('nav.ontology'), icon: Network },
-    { href: `/${locale}/graph/instances`, label: t('nav.instances'), icon: CircleDot },
-    { href: `/${locale}/data-products`, label: t('nav.dataProducts'), icon: Package },
-    { href: `/${locale}/rules`, label: t('nav.rules'), icon: Scale },
-    { href: `/${locale}/graph/import`, label: t('nav.importGraph'), icon: Database },
-    { href: `/${locale}/config`, label: t('nav.config'), icon: Settings },
-  ], [locale, t])
+  const navItems = useMemo(() => {
+    const items = [
+      { href: `/${locale}/dashboard`, label: t('nav.qa'), icon: Sparkles },
+      { href: `/${locale}/graph/management`, label: t('nav.ontology'), icon: Network },
+      { href: `/${locale}/graph/instances`, label: t('nav.instances'), icon: CircleDot },
+      { href: `/${locale}/data-products`, label: t('nav.dataProducts'), icon: Package },
+      { href: `/${locale}/rules`, label: t('nav.rules'), icon: Scale },
+      { href: `/${locale}/graph/import`, label: t('nav.importGraph'), icon: Database },
+      { href: `/${locale}/config`, label: t('nav.config'), icon: Settings },
+    ]
+
+    // Only show admin links to admin users
+    if (user?.is_admin) {
+      items.push(
+        { href: '/admin/users', label: '用户管理', icon: Users },
+        { href: '/admin/roles', label: '角色管理', icon: Shield }
+      )
+    }
+
+    return items
+  }, [locale, t, user])
 
   return (
     <div className="flex h-screen bg-slate-50/50 overflow-hidden">

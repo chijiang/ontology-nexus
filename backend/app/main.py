@@ -13,6 +13,7 @@ from app.api import (
     rules,
     data_products,
     data_mappings,
+    users,
 )
 from app.core.database import engine, Base, async_session
 import app.models  # Implicitly registers models
@@ -151,6 +152,7 @@ app.include_router(actions.router)
 app.include_router(rules.router)
 app.include_router(data_products.router)
 app.include_router(data_mappings.router)
+app.include_router(users.router)
 
 
 @app.get("/health")

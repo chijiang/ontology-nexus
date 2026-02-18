@@ -52,8 +52,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <Card className="w-full max-w-md">
+    <div
+      className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat relative"
+      style={{ backgroundImage: 'url("/backend-1.png")' }}
+    >
+      <Card className="w-full max-w-md relative z-10 bg-white/80 backdrop-blur-sm shadow-2xl border-white/20">
         <CardHeader>
           <CardTitle>{isLogin ? t('auth.login') : t('auth.register')}</CardTitle>
         </CardHeader>

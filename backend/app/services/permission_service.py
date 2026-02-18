@@ -4,7 +4,21 @@ from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 from app.models.user import User
 from app.models.role import Role, UserRole, RolePagePermission, RoleActionPermission, RoleEntityPermission
+from app.rule_engine.action_registry import ActionRegistry
 from typing import List, Dict, Optional
+
+# Global action registry (initialized in main.py)
+_action_registry: ActionRegistry | None = None
+
+
+def init_permission_service(registry: ActionRegistry):
+    """Initialize the permission service with action registry.
+
+    Args:
+        registry: ActionRegistry instance
+    """
+    global _action_registry
+    _action_registry = registry
 
 
 # 功能模块枚举
@@ -73,10 +87,15 @@ class PermissionService:
         if user.is_admin:
             # Admin拥有所有action权限
             # 这里需要从action registry获取所有action
-            from app.rule_engine.action_registry import action_registry
-            result = {}
-            for entity_type, actions in action_registry._registry.items():
-                result[entity_type] = list(actions.keys())
+            if _action_registry is None:
+                # Registry not initialized, return empty dict
+                return {}
+            result: Dict[str, List[str]] = {}
+            all_actions = _action_registry.list_all()
+            for action in all_actions:
+                if action.entity_type not in result:
+                    result[action.entity_type] = []
+                result[action.entity_type].append(action.action_name)
             return result
 
         # 获取用户角色的action权限

@@ -26,6 +26,7 @@ from app.rule_engine.rule_registry import RuleRegistry
 from app.rule_engine.rule_engine import RuleEngine
 from app.rule_engine.event_emitter import GraphEventEmitter
 from app.services.rule_storage import RuleStorage
+from app.services.permission_service import init_permission_service
 from app.core.init_db import init_db
 
 app = FastAPI(title="Knowledge Graph QA API")
@@ -128,6 +129,7 @@ async def startup():
     # Initialize API modules
     actions.init_actions_api(action_registry, action_executor)
     rules.init_rules_api(rule_registry, rule_storage)
+    init_permission_service(action_registry)
 
     # Store in app state for access
     app.state.action_registry = action_registry

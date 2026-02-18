@@ -194,9 +194,15 @@ class PGGraphStorage:
 
     # ==================== Schema 查询 ====================
 
-    async def get_ontology_classes(self) -> List[Dict]:
+    async def get_ontology_classes(self, accessible_entity_types: List[str] = None) -> List[Dict]:
         """获取所有类定义"""
-        result = await self.db.execute(select(SchemaClass))
+        query = select(SchemaClass)
+
+        # 添加实体类型过滤
+        if accessible_entity_types is not None and accessible_entity_types:
+            query = query.where(SchemaClass.name.in_(accessible_entity_types))
+
+        result = await self.db.execute(query)
         classes = result.scalars().all()
         classes_data = [
             {
@@ -1266,15 +1272,19 @@ class PGGraphStorage:
             "total_schema_relationships": schema_rel_count,
         }
 
-    async def get_random_graph(self, limit: int = 100) -> Dict[str, List[Dict]]:
+    async def get_random_graph(self, limit: int = 100, accessible_entity_types: List[str] = None) -> Dict[str, List[Dict]]:
         """获取随机的实例图谱片段（节点 + 关系）"""
         # 1. 随机获取一些节点
         query = (
             select(GraphEntity)
             .where(GraphEntity.is_instance == True)
-            .order_by(func.random())
-            .limit(limit)
         )
+
+        # 添加实体类型过滤
+        if accessible_entity_types is not None and accessible_entity_types:
+            query = query.where(GraphEntity.type.in_(accessible_entity_types))
+
+        query = query.order_by(func.random()).limit(limit)
         result = await self.db.execute(query)
         entities = result.scalars().all()
 

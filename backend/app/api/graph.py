@@ -13,6 +13,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.services.pg_graph_storage import PGGraphStorage
 from app.services.pg_graph_importer import PGGraphImporter
+from app.services.permission_service import PermissionService
 from app.rule_engine.event_emitter import GraphEventEmitter
 from fastapi.responses import JSONResponse, Response
 
@@ -160,10 +161,16 @@ async def get_schema(
     db: AsyncSession = Depends(get_db),
 ):
     """获取 Schema 图（类和关系定义）"""
+    # 获取用户可访问的实体类型
+    accessible_entities = await PermissionService.get_accessible_entities(db, current_user)
+
+    # Admin用户拥有所有权限，传None不过滤
+    entity_types = None if current_user.is_admin else accessible_entities
+
     storage = PGGraphStorage(db)
 
     # 获取所有 Schema 类节点
-    nodes_data = await storage.get_ontology_classes()
+    nodes_data = await storage.get_ontology_classes(entity_types)
 
     # 获取所有 Schema 关系
     rels_data = await storage.get_ontology_relationships()
@@ -219,8 +226,14 @@ async def get_classes(
     db: AsyncSession = Depends(get_db),
 ):
     """获取所有类定义"""
+    # 获取用户可访问的实体类型
+    accessible_entities = await PermissionService.get_accessible_entities(db, current_user)
+
+    # Admin用户拥有所有权限，传None不过滤
+    entity_types = None if current_user.is_admin else accessible_entities
+
     storage = PGGraphStorage(db)
-    classes = await storage.get_ontology_classes()
+    classes = await storage.get_ontology_classes(entity_types)
     return classes
 
 
@@ -359,6 +372,12 @@ async def get_random_instances(
     db: AsyncSession = Depends(get_db),
 ):
     """获取随机实例图谱作为初始展示"""
+    # 获取用户可访问的实体类型
+    accessible_entities = await PermissionService.get_accessible_entities(db, current_user)
+
+    # Admin用户拥有所有权限，传None不过滤
+    entity_types = None if current_user.is_admin else accessible_entities
+
     storage = PGGraphStorage(db)
-    result = await storage.get_random_graph(limit)
+    result = await storage.get_random_graph(limit, entity_types)
     return result

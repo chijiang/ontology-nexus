@@ -796,7 +796,7 @@ class PGGraphStorage:
                 neighbors.append(
                     {
                         "id": entity.id,
-                        "name": entity.name,
+                        "name": entity._display_name,
                         "labels": [entity.entity_type],
                         "properties": {
                             k: v
@@ -810,10 +810,10 @@ class PGGraphStorage:
                                 "source": (
                                     instance_name_resolved
                                     if direction == "outgoing"
-                                    else entity.name
+                                    else entity._display_name
                                 ),
                                 "target": (
-                                    entity.name
+                                    entity._display_name
                                     if direction == "outgoing"
                                     else instance_name_resolved
                                 ),

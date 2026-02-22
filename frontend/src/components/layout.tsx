@@ -91,11 +91,6 @@ export function AppLayout({ children, noPadding = false }: { children: React.Rea
             <div className="w-8 h-8 flex-shrink-0 bg-primary rounded-lg flex items-center justify-center text-white text-[10px] font-bold shadow-sm shadow-primary/20 transition-transform hover:scale-105">
               EP
             </div>
-            {isNavExpanded && (
-              <span className="font-bold text-slate-800 text-sm tracking-tight truncate">
-                {t('layout.title').split(' ')[0]}
-              </span>
-            )}
           </Link>
         </div>
 

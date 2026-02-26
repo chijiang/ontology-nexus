@@ -19,7 +19,9 @@ async def init_db():
             admin = User(
                 username="admin",
                 password_hash=hash_password("admin123"),
-                email="admin@example.com"
+                email="admin@example.com",
+                approval_status="approved",
+                is_admin=True
             )
             session.add(admin)
             await session.commit()

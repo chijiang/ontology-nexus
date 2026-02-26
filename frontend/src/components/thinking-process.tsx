@@ -9,7 +9,7 @@ interface ThinkingProcessProps {
 }
 
 export function ThinkingProcess({ content }: ThinkingProcessProps) {
-    const t = useTranslations()
+    const t = useTranslations('components')
     // Split by " > " or "\n\n> " or just "> "
     const steps = content.split(/\n?\s*>\s*/g).filter((s) => s.trim().length > 0)
 

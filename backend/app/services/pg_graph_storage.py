@@ -592,14 +592,15 @@ class PGGraphStorage:
     async def search_instances(
         self, search_term: str, class_name: Optional[str] = None, limit: int = 10
     ) -> List[Dict]:
-        """根据名称搜索实例节点"""
-        from sqlalchemy import or_
+        """根据名称，ID或别名搜索实例节点"""
+        from sqlalchemy import or_, cast, String
 
-        # 搜索名称或别名
-        # _display_name (mapped to name column) OR aliases
+        # 搜索名称、ID 或别名
         query = select(GraphEntity).where(
             or_(
                 GraphEntity._display_name.ilike(f"%{search_term}%"),
+                # Match database id as string
+                cast(GraphEntity.id, String).ilike(f"%{search_term}%"),
                 # PostgreSQL JSONB 搜索
                 text(
                     "id IN (SELECT id FROM graph_entities, jsonb_array_elements_text(properties->'__aliases__') as a WHERE a ILIKE :term)"
@@ -721,10 +722,15 @@ class PGGraphStorage:
             start_entity = None
 
         if not start_entity and entity_name is not None:
-            # Try by display name
+            # Try by display name or entity id
+            from sqlalchemy import or_, cast, String
+
             result = await self.db.execute(
                 select(GraphEntity).where(
-                    GraphEntity._display_name == entity_name,
+                    or_(
+                        GraphEntity._display_name == entity_name,
+                        cast(GraphEntity.id, String) == entity_name,
+                    ),
                     GraphEntity.is_instance == True,
                 )
             )
@@ -959,10 +965,15 @@ class PGGraphStorage:
             start_entity = result.scalar_one_or_none()
 
         if not start_entity and entity_name is not None:
-            # Try by display name
+            # Try by display name or source_id
+            from sqlalchemy import or_, cast, String
+
             result = await self.db.execute(
                 select(GraphEntity).where(
-                    GraphEntity._display_name == entity_name,
+                    or_(
+                        GraphEntity._display_name == entity_name,
+                        cast(GraphEntity.id, String) == entity_name,
+                    ),
                     GraphEntity.is_instance == True,
                 )
             )
@@ -1150,11 +1161,16 @@ class PGGraphStorage:
             start = None
 
         if not start and start_name is not None:
+            from sqlalchemy import or_, cast, String
+
             result = await self.db.execute(
                 select(
                     GraphEntity.id, GraphEntity._display_name, GraphEntity.entity_type
                 ).where(
-                    GraphEntity._display_name == start_name,
+                    or_(
+                        GraphEntity._display_name == start_name,
+                        cast(GraphEntity.id, String) == start_name,
+                    ),
                     GraphEntity.is_instance == True,
                 )
             )
@@ -1173,11 +1189,16 @@ class PGGraphStorage:
             end = None
 
         if not end and end_name is not None:
+            from sqlalchemy import or_, cast, String
+
             result = await self.db.execute(
                 select(
                     GraphEntity.id, GraphEntity._display_name, GraphEntity.entity_type
                 ).where(
-                    GraphEntity._display_name == end_name,
+                    or_(
+                        GraphEntity._display_name == end_name,
+                        cast(GraphEntity.id, String) == end_name,
+                    ),
                     GraphEntity.is_instance == True,
                 )
             )

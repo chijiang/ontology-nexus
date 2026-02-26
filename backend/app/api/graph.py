@@ -111,15 +111,13 @@ async def get_neighbors(
 ):
     """获取节点邻居"""
     storage = PGGraphStorage(db)
-    permission_service = PermissionService(db)
-
     # 获取当前用户的权限
-    accessible_entity_types = await permission_service.get_accessible_entities(
-        current_user.id
+    accessible_entity_types = await PermissionService.get_accessible_entities(
+        db, current_user
     )
 
     # 如果是受限用户，且无任何实体级权限，直接返回空
-    if current_user.role != "administrator" and not accessible_entity_types:
+    if not current_user.is_admin and not accessible_entity_types:
         return []
 
     if name.isdigit():
@@ -150,15 +148,13 @@ async def find_path(
 ):
     """查找路径"""
     storage = PGGraphStorage(db)
-    permission_service = PermissionService(db)
-
     # 获取当前用户的权限
-    accessible_entity_types = await permission_service.get_accessible_entities(
-        current_user.id
+    accessible_entity_types = await PermissionService.get_accessible_entities(
+        db, current_user
     )
 
     # 如果是受限用户，且无任何实体级权限，直接返回空
-    if current_user.role != "administrator" and not accessible_entity_types:
+    if not current_user.is_admin and not accessible_entity_types:
         raise HTTPException(status_code=403, detail="No entity access permissions")
 
     kwargs = {

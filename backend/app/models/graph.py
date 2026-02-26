@@ -38,7 +38,7 @@ class GraphEntity(Base):
 
     __tablename__ = "graph_entities"
 
-    id = Column(Integer, primary_key=True, autoincrement="auto")
+    id = Column(Integer, primary_key=True, autoincrement="auto")  # 主键，数据唯一索引
     _display_name = Column("_display_name", String(500), nullable=False, index=True)
 
     entity_type = Column(String(255), nullable=False)  # 对应 Neo4j 的 Label
@@ -46,7 +46,9 @@ class GraphEntity(Base):
         Boolean, default=True, index=True
     )  # True=实例数据, False=Schema节点
     properties = Column(JSONB, default=dict)  # 动态属性，JSONB 格式
-    source_id = Column(String(500), index=True)  # 外部数据源 ID
+    source_id = Column(
+        String(500), index=True
+    )  # 外部数据源 ID -- 仅用于追溯和数据更新，不用作索引。
     uri = Column(String(1000))  # 原始 RDF URI（可选，用于追溯）
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

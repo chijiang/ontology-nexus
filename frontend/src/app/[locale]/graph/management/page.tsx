@@ -66,7 +66,7 @@ export default function OntologyManagementPage() {
     const handleExport = async () => {
         setIsExporting(true)
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/graph/export/ontology`, {
+            const response = await fetch(`/api/graph/export/ontology`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

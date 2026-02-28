@@ -207,7 +207,7 @@ async def generate_title(
         [
             (
                 "system",
-                "根据以下对话内容，生成一个简短的中文标题（不超过15个字）。只返回标题，不要其他内容。",
+                "Generate a brief title based on the following conversation (no more than 15 characters / 8 words). Return only the title and nothing else.",
             ),
             ("human", "{messages}"),
         ]

@@ -67,7 +67,7 @@ export default function LoginPage() {
               name="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
+              autoComplete="off"
               required
             />
             {!isLogin && (
@@ -77,7 +77,7 @@ export default function LoginPage() {
                 name="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
+                autoComplete="off"
               />
             )}
             <div className="relative">
@@ -103,8 +103,8 @@ export default function LoginPage() {
               {loading ? t('common.loading') : isLogin ? t('auth.login') : t('auth.register')}
             </Button>
           </form>
-          <p className="text-sm text-center mt-4">
-            {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}
+          <p className="mt-4 text-center text-sm">
+            {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}{'  '}
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}

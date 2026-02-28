@@ -14,6 +14,7 @@
     "success": "操作成功",
     "error": "操作失败",
     "close": "关闭",
+    "notConfigured": "未配置",
     "create": "创建",
     "update": "更新",
     "add": "添加",
@@ -60,7 +61,7 @@
   },
   "auth": {
     "login": "登录",
-    "register": "注册",
+    "register": "申请注册",
     "logout": "登出",
     "username": "用户名",
     "password": "密码",
@@ -593,6 +594,7 @@
     },
     "instanceGraph": {
       "title": "实例图谱",
+      "nodeType": "节点类型",
       "noResults": "未找到匹配的实例",
       "selectFilters": "请选择筛选条件并点击查询",
       "loading": "加载中..."
@@ -656,6 +658,7 @@
       "target": "目标",
       "confirmDeleteEdge": "确定删除该关系？",
       "deleteRelationship": "删除关系",
+      "noRelationships": "暂无关系",
       "relationships": "关系"
     },
     "instance": {

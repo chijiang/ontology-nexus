@@ -14,6 +14,7 @@
     "success": "Success",
     "error": "Error",
     "close": "Close",
+    "notConfigured": "Not Configured",
     "create": "Create",
     "update": "Update",
     "add": "Add",
@@ -60,7 +61,7 @@
   },
   "auth": {
     "login": "Login",
-    "register": "Register",
+    "register": "Apply for Registration",
     "logout": "Logout",
     "username": "Username",
     "password": "Password",
@@ -459,10 +460,10 @@
       "exampleQ1": "Which supplier did PO_2024_001 order from?",
       "exampleQ2": "What are the related entities for the purchase order?",
       "exampleQ3": "What is the relationship between payment and order?",
-      "exampleNonLlm1": "What is the status of order PurchaseOrder_117?",
+      "exampleNonLlm1": "What is the status of order PO_117?",
       "exampleNonLlm2": "How many open orders does supplier OfficePro Supplies have?",
       "exampleNonLlm3": "Which suppliers can provide Microcontroller Arduino materials?",
-      "exampleNonLlm4": "Transfer 220 units for order PurchaseOrder_117",
+      "exampleNonLlm4": "Transfer 220 units for order PO_117",
       "preciseMode": "Precise Instruction Mode",
       "trySpecificInstructions": "Try the following specific instruction templates:",
       "copyFailed": "Copy failed",
@@ -593,6 +594,7 @@
     },
     "instanceGraph": {
       "title": "Instance Graph",
+      "nodeType": "Node Type",
       "noResults": "No matching instances found",
       "selectFilters": "Please select filters and click search",
       "loading": "Loading..."
@@ -656,6 +658,7 @@
       "target": "Target",
       "confirmDeleteEdge": "Confirm delete this relationship?",
       "deleteRelationship": "Delete Relationship",
+      "noRelationships": "No Relationships",
       "relationships": "Relationships"
     },
     "instance": {

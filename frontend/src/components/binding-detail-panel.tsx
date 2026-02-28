@@ -77,10 +77,10 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
     })
 
     const TRANSFORMATION_OPTIONS = [
-        { label: '无 (None)', value: 'None' },
-        { label: '数字解析 (parseNum)', value: 'parseNum' },
-        { label: '转字符串 (toString)', value: 'toString' },
-        { label: '转日期 (toDate)', value: 'toDate' },
+        { label: `${t('mappings.transformNone')} (None)`, value: 'None' },
+        { label: `${t('mappings.transformParseNum')} (parseNum)`, value: 'parseNum' },
+        { label: `${t('mappings.transformToString')} (toString)`, value: 'toString' },
+        { label: `${t('mappings.transformToDate')} (toDate)`, value: 'toDate' },
     ]
     const [isCustomProp, setIsCustomProp] = useState(false)
 
@@ -513,7 +513,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                             <div className="flex items-center gap-4 text-[10px] text-slate-400">
                                                 <span className="flex items-center gap-1">
                                                     <Settings2 className="h-3 w-3" />
-                                                    {t('components.binding.method')}: {m.list_method || '未配置'}
+                                                    {t('components.binding.method')}: {m.list_method || t('common.notConfigured')}
                                                 </span>
                                                 <span className="flex items-center gap-1">
                                                     <CheckCircle2 className={`h-3 w-3 ${m.sync_enabled ? 'text-green-500' : 'text-slate-300'}`} />
@@ -565,7 +565,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                                 onClick={() => setIsAddingProp(true)}
                                                             >
                                                                 <Plus className="h-3 w-3 mr-1" />
-                                                                添加属性映射
+                                                                {t('components.binding.addPropertyMapping')}
                                                             </Button>
                                                         ) : (
                                                             <div className="bg-white border rounded p-2 space-y-2 shadow-sm">
@@ -574,7 +574,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                                         {!isCustomProp ? (
                                                                             <Select onValueChange={(v) => setNewProp({ ...newProp, ontology_property: v })}>
                                                                                 <SelectTrigger className="h-7 text-[10px]">
-                                                                                    <SelectValue placeholder="本体属性" />
+                                                                                    <SelectValue placeholder={t('components.binding.ontologyProperty')} />
                                                                                 </SelectTrigger>
                                                                                 <SelectContent>
                                                                                     {node.dataProperties?.map(p => {
@@ -595,7 +595,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                                         ) : (
                                                                             <Input
                                                                                 className="h-7 text-[10px]"
-                                                                                placeholder="输入属性名称"
+                                                                                placeholder={t('components.binding.enterPropertyName')}
                                                                                 value={newProp.ontology_property}
                                                                                 onChange={(e) => setNewProp({ ...newProp, ontology_property: e.target.value })}
                                                                             />
@@ -614,7 +614,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
 
                                                                 <Select onValueChange={(v) => setNewProp({ ...newProp, grpc_field: v })}>
                                                                     <SelectTrigger className="h-7 text-[10px]">
-                                                                        <SelectValue placeholder="gRPC 字段" />
+                                                                        <SelectValue placeholder={t('components.binding.grpcField')} />
                                                                     </SelectTrigger>
                                                                     <SelectContent>
                                                                         {selectedProductSchema?.message_types.find(mt => mt.name === m.grpc_message_type)?.fields.map((f: any) => (
@@ -625,7 +625,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
 
                                                                 <Select value={newProp.transformation} onValueChange={(v) => setNewProp({ ...newProp, transformation: v })}>
                                                                     <SelectTrigger className="h-7 text-[10px]">
-                                                                        <SelectValue placeholder="转换方法 (可选)" />
+                                                                        <SelectValue placeholder={t('components.binding.transformMethod')} />
                                                                     </SelectTrigger>
                                                                     <SelectContent>
                                                                         {TRANSFORMATION_OPTIONS.map(opt => (

@@ -654,7 +654,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
 
             {/* 图例 */}
             <div className="absolute bottom-4 left-4 z-10 bg-white/95 p-3 rounded-lg shadow-sm border border-slate-200">
-                <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 text-slate-400">节点类型</h4>
+                <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 text-slate-400">{t('nodeType')}</h4>
                 <div className="flex flex-wrap gap-2">
                     {Array.from(labelColorMap.entries()).map(([label, color]) => (
                         <div key={label} className="flex items-center gap-1">

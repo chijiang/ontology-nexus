@@ -337,7 +337,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                     className="h-5 text-[9px] w-fit px-1 text-primary"
                                     onClick={() => setEditingLabels([...editingLabels, ''])}
                                 >
-                                    <Plus className="h-2 w-2 mr-1" /> 添加别名
+                                    <Plus className="h-2 w-2 mr-1" /> {t('components.instance.addAlias')}
                                 </Button>
                             </div>
                         ) : (
@@ -441,8 +441,8 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                         </Select>
                                     </div>
                                     <div className="flex gap-1.5 justify-end">
-                                        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setIsAddingProp(false)}>取消</Button>
-                                        <Button size="sm" className="h-6 px-3 text-xs" onClick={handleConfirmAddProperty}>确定</Button>
+                                        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setIsAddingProp(false)}>{t('common.cancel')}</Button>
+                                        <Button size="sm" className="h-6 px-3 text-xs" onClick={handleConfirmAddProperty}>{t('common.confirm')}</Button>
                                     </div>
                                 </div>
                             )}
@@ -471,7 +471,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-[10px] text-slate-300 italic">暂无属性</p>
+                                <p className="text-[10px] text-slate-300 italic">{t('components.graphViewer.noProperties')}</p>
                             )}
                         </section>
 
@@ -508,7 +508,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-[10px] text-slate-300 italic">暂无关系</p>
+                                <p className="text-[10px] text-slate-300 italic">{t('components.ontology.noRelationships')}</p>
                             )}
                         </section>
 
@@ -533,13 +533,13 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                                 )}
                                             </div>
                                             <span className={`px-1.5 py-0.5 rounded text-[10px] ${action.is_active ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
-                                                {action.is_active ? '启用' : '禁用'}
+                                                {action.is_active ? t('common.enabled') : t('common.disabled')}
                                             </span>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-[10px] text-slate-300 italic">暂无动作</p>
+                                <p className="text-[10px] text-slate-300 italic">{t('rules.noActions')}</p>
                             )}
                         </section>
                     </>
@@ -551,7 +551,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                     {isConfirmDeleting ? (
                         <div className="bg-red-50 p-2 rounded border border-red-100 space-y-2">
                             <p className="text-[10px] text-red-600 text-center">
-                                确定删除 <span className="font-medium">"{node.name}"</span>？
+                                {t('common.confirm')}{t('common.delete')} <span className="font-medium">"{node.name}"</span>？
                             </p>
                             <div className="flex gap-1.5">
                                 <Button
@@ -562,7 +562,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                     disabled={isDeleting}
                                 >
                                     {isDeleting && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                                    确认
+                                    {t('common.confirm')}
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -570,7 +570,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                                     className="flex-1 h-6 text-xs"
                                     onClick={() => setIsConfirmDeleting(false)}
                                 >
-                                    取消
+                                    {t('common.cancel')}
                                 </Button>
                             </div>
                         </div>
@@ -582,7 +582,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
                             onClick={() => setIsConfirmDeleting(true)}
                         >
                             <Trash2 className="h-3 w-3 mr-1" />
-                            删除该类
+                            {t('common.delete')}
                         </Button>
                     )}
                 </div>

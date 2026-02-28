@@ -462,6 +462,10 @@ async def update_action_definition(
                 status_code=400, detail="No valid ACTION definition found in content"
             )
 
+        # Unregister the existing action from memory to prevent stale cache
+        # if the entity type or action name changed in the new DSL.
+        registry.unregister(existing.entity_type, existing.name)
+
         # Update in database
         action = await repo.update(
             name=name,
@@ -501,6 +505,7 @@ async def delete_action_definition(
     name: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    registry: ActionRegistry = Depends(get_action_registry),
 ) -> dict[str, Any]:
     """Delete an action definition.
 
@@ -519,6 +524,11 @@ async def delete_action_definition(
 
     if not await repo.exists(name):
         raise HTTPException(status_code=404, detail=f"Action '{name}' not found")
+
+    # Get the action info before deleting so we can unregister it
+    action = await repo.get_by_name(name)
+    if action:
+        registry.unregister(action.entity_type, action.name)
 
     await repo.delete(name)
 

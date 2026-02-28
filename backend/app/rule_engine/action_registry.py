@@ -28,6 +28,22 @@ class ActionRegistry(BaseRegistry):
         key = (action.entity_type, action.action_name)
         self._actions[key] = action
 
+    def unregister(self, entity_type: str, action_name: str) -> bool:
+        """Unregister an ACTION definition.
+
+        Args:
+            entity_type: The entity type
+            action_name: The action name
+
+        Returns:
+            True if action was unregistered, False if not found
+        """
+        key = (entity_type, action_name)
+        if key in self._actions:
+            del self._actions[key]
+            return True
+        return False
+
     def lookup(self, entity_type: str, action_name: str) -> ActionDef | None:
         """Look up an ACTION by entity type and name.
 

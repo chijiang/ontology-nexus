@@ -22,8 +22,8 @@ async def init_db():
             password = generate_random_password()
             admin = User(
                 username="admin",
-                # password_hash=hash_password("admin123),
-                password_hash=hash_password(password),
+                password_hash=hash_password("admin123"),
+                # password_hash=hash_password(password),
                 email="admin@example.com",
                 approval_status="approved",
                 is_admin=True

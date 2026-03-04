@@ -189,7 +189,15 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             )
 
             if (res.data?.success) {
-                toast.success(res.data.message || t('components.instance.actionSuccess'))
+                if (res.data.return_value !== undefined && res.data.return_value !== null) {
+                    const valueStr = typeof res.data.return_value === 'object' ? JSON.stringify(res.data.return_value, null, 2) : String(res.data.return_value)
+                    toast.success(res.data.message || t('components.instance.actionSuccess'), {
+                        description: t('components.instance.actionReturned', { result: valueStr }),
+                        duration: 8000,
+                    })
+                } else {
+                    toast.success(res.data.message || t('components.instance.actionSuccess'))
+                }
                 loadNodeDetails()
                 onUpdate?.()
             } else {

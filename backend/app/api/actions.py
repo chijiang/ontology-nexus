@@ -214,6 +214,7 @@ async def execute_action(
     return {
         "success": True,
         "changes": result.changes,
+        "return_value": result.return_value,
         "message": f"Action {entity_type}.{action_name} executed successfully",
     }
 

@@ -903,6 +903,18 @@ ACTION Entity.submit {
                                             </p>
                                             <p className="text-xs">{t('setEntityPropertyDesc')}</p>
                                         </div>
+                                        <div>
+                                            <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
+                                                {t('returnStmt')}
+                                            </p>
+                                            <p className="text-xs">{t('returnStmtDesc')}</p>
+                                        </div>
+                                        <div>
+                                            <p className="font-mono text-xs bg-white px-2 py-1 rounded mb-1">
+                                                {t('callIntoStmt')}
+                                            </p>
+                                            <p className="text-xs">{t('callIntoStmtDesc')}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

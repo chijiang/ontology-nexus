@@ -54,7 +54,7 @@ export interface Schema {
     relationships: SchemaRelationship[];
 }
 
-export type BlockType = 'SET' | 'TRIGGER' | 'FOR' | 'PRECONDITION' | 'CALL';
+export type BlockType = 'SET' | 'TRIGGER' | 'FOR' | 'PRECONDITION' | 'CALL' | 'RETURN';
 
 export interface LogicBlockData {
     id: string;
@@ -71,6 +71,7 @@ export interface LogicBlockData {
     dataProduct?: string; // For CALL
     methodName?: string; // For CALL
     args?: { name: string; value: string }[]; // For CALL
+    intoVar?: string; // For CALL
     children?: LogicBlockData[];
 }
 
@@ -240,13 +241,14 @@ const parseDslToBlocks = (dsl: string, mode: 'RULE' | 'ACTION'): { statements: L
         }
         // CALL
         else if (line.startsWith('CALL')) {
-            const match = line.match(/CALL\s+(?:"([^"]+)"|([\w.]+))\.([\w.]+)\s*\(\s*{?(.*?)}?\s*\);/);
+            const match = line.match(/CALL\s+(?:"([^"]+)"|([\w.]+))\.([\w.]+)\s*\(\s*{?(.*?)}?\s*\)(?:\s+INTO\s+(\w+))?\s*;/);
             if (match) {
                 const productName = match[1] || match[2];
                 const methodName = match[3];
                 const argsStr = match[4];
+                const intoVar = match[5];
                 const args: { name: string; value: string }[] = [];
-                if (argsStr.trim()) {
+                if (argsStr && argsStr.trim()) {
                     const argParts = argsStr.split(',').map(p => p.trim());
                     argParts.forEach(p => {
                         const [name, ...valParts] = p.split(':').map(x => x.trim());
@@ -260,7 +262,19 @@ const parseDslToBlocks = (dsl: string, mode: 'RULE' | 'ACTION'): { statements: L
                     type: 'CALL',
                     dataProduct: productName,
                     methodName: methodName,
-                    args: args
+                    args: args,
+                    intoVar: intoVar
+                });
+            }
+        }
+        // RETURN
+        else if (line.startsWith('RETURN')) {
+            const match = line.match(/RETURN\s+(.*);/);
+            if (match) {
+                stack[stack.length - 1].push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    type: 'RETURN',
+                    value: match[1].trim()
                 });
             }
         }
@@ -360,7 +374,8 @@ const LogicBlock = ({
                             className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase flex-shrink-0 ${data.type === 'SET' ? 'bg-amber-100 text-amber-700' :
                                 data.type === 'TRIGGER' ? 'bg-purple-100 text-purple-700' :
                                     data.type === 'PRECONDITION' ? 'bg-emerald-100 text-emerald-700' :
-                                        'bg-indigo-100 text-indigo-700'
+                                        data.type === 'RETURN' ? 'bg-red-100 text-red-700' :
+                                            'bg-indigo-100 text-indigo-700'
                                 }`}
                         >
                             {data.type}
@@ -382,6 +397,18 @@ const LogicBlock = ({
                                     onChange={(e) => updateStatement(id, 'value', e.target.value)}
                                     placeholder={t('placeholders.value')}
                                     className="flex-1 min-w-[100px] px-2 py-1 border border-slate-200 rounded text-slate-700 focus:border-blue-500 outline-none font-mono text-xs bg-white"
+                                />
+                            </>
+                        )}
+
+                        {data.type === 'RETURN' && (
+                            <>
+                                <input
+                                    type="text"
+                                    value={data.value || ''}
+                                    onChange={(e) => updateStatement(id, 'value', e.target.value)}
+                                    placeholder={t('placeholders.value')}
+                                    className="flex-1 min-w-[100px] px-2 py-1 border border-slate-200 rounded text-slate-700 focus:border-red-500 outline-none font-mono text-xs bg-white"
                                 />
                             </>
                         )}
@@ -543,6 +570,12 @@ const LogicBlock = ({
                                 >
                                     <Plus size={10} /> {t('addCall').replace('添加', '')}
                                 </button>
+                                <button
+                                    onClick={() => addStatement(id, 'RETURN')}
+                                    className="text-[10px] flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded hover:border-indigo-500 text-slate-600 transition-colors"
+                                >
+                                    <Plus size={10} /> {t('addReturn').replace('添加', '')}
+                                </button>
                             </div>
                         </div>
                     )}
@@ -670,6 +703,15 @@ const CallBlockConfig = ({ data, updateStatement }: { data: LogicBlockData, upda
                 >
                     {isManual ? t('useForm') : t('manualEdit')}
                 </Button>
+
+                <span className="text-slate-400 font-mono text-xs font-bold pl-2">INTO</span>
+                <input
+                    type="text"
+                    value={data.intoVar || ''}
+                    onChange={(e) => updateStatement('intoVar', e.target.value)}
+                    placeholder={t('placeholders.variable')}
+                    className="px-2 py-1 border border-slate-200 rounded text-slate-700 focus:border-indigo-400 outline-none font-mono text-xs bg-white w-20"
+                />
             </div>
 
             {!isManual && methodParams.length > 0 && (
@@ -756,7 +798,9 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
         } else if (type === 'PRECONDITION') {
             newStmt = { id: newId, type: 'PRECONDITION', label: 'check', conditions: '' };
         } else if (type === 'CALL') {
-            newStmt = { id: newId, type: 'CALL', dataProduct: '', methodName: '', args: [] };
+            newStmt = { id: newId, type: 'CALL', dataProduct: '', methodName: '', args: [], intoVar: '' };
+        } else if (type === 'RETURN') {
+            newStmt = { id: newId, type: 'RETURN', value: '' };
         } else {
             return;
         }
@@ -817,7 +861,13 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
                         : '{}';
                     const productName = stmt.dataProduct || 'Product';
                     const displayProduct = productName.includes(' ') ? `"${productName}"` : productName;
-                    str += `${indent}CALL ${displayProduct}.${stmt.methodName || 'Method'}(${argsStr});\n`;
+                    let callStr = `${indent}CALL ${displayProduct}.${stmt.methodName || 'Method'}(${argsStr})`;
+                    if (stmt.intoVar) {
+                        callStr += ` INTO ${stmt.intoVar}`;
+                    }
+                    str += callStr + ';\n';
+                } else if (stmt.type === 'RETURN') {
+                    str += `${indent}RETURN ${stmt.value || '""'};\n`;
                 } else if (stmt.type === 'FOR') {
                     str += `\n${indent}FOR (${stmt.variable || 'v'}: ${stmt.entity || 'Entity'}`;
                     if (stmt.conditions) str += ` WHERE ${stmt.conditions}`;
@@ -917,6 +967,12 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
                         className="text-xs flex items-center gap-1 px-3 py-1.5 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100 text-sky-700 transition-colors font-medium"
                     >
                         <ExternalLink size={12} /> {t('addCall')}
+                    </button>
+                    <button
+                        onClick={() => addStatement(null, 'RETURN')}
+                        className="text-xs flex items-center gap-1 px-3 py-1.5 bg-red-50 border border-red-200 rounded hover:bg-red-100 text-red-700 transition-colors font-medium"
+                    >
+                        <Plus size={12} /> {t('addReturn')}
                     </button>
                 </div>
             </div>

@@ -1,4 +1,5 @@
 # backend/app/services/schema_matcher.py
+import logging
 from typing import List, Tuple, Dict
 import json
 import jieba
@@ -9,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.models.graph import SchemaClass, SchemaRelationship
+
+logger = logging.getLogger(__name__)
 
 
 class SchemaMatcher:
@@ -180,7 +183,8 @@ class SchemaMatcher:
 
         try:
             return json.loads(result.content)
-        except:
+        except (json.JSONDecodeError, TypeError, ValueError):
+            logger.warning("Failed to parse LLM schema match response: %s", result.content[:200] if result.content else "empty")
             return {}
 
     def _build_schema_context(self) -> str:

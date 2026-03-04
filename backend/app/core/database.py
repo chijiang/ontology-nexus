@@ -28,6 +28,7 @@ def _create_engine():
             db_url,
             pool_size=settings.DB_POOL_SIZE,
             max_overflow=settings.DB_MAX_OVERFLOW,
+            pool_pre_ping=True,
             echo=False,
         )
 

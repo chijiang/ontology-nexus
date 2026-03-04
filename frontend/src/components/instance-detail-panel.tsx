@@ -58,7 +58,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
         if (!node || !token) return
 
         try {
-            const res = await graphApi.getNode(node.id || node.name, token)
+            const res = await graphApi.getNode(node.id || node.name)
             const data = res.data || {}
 
             setMetadata({
@@ -135,7 +135,7 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
             }
 
             const entityId = String(metadata.ID || node.id || node.name)
-            await graphApi.updateEntity(node.nodeLabel, entityId, updates, token)
+            await graphApi.updateEntity(node.nodeLabel, entityId, updates)
             toast.success(t('components.instance.propertiesUpdated'))
             setExpandedProps({ ...editedProperties })
             setOriginalAliases([...editingAliases])

@@ -38,12 +38,17 @@ export function GraphViewer() {
   const token = useAuthStore((state) => state.token)
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
-  const [selectedNode, setSelectedNode] = useState<any>(null)
-  const [isMounted, setIsMounted] = useState(true)
+  const [selectedNode, setSelectedNode] = useState<Record<string, unknown> | null>(null)
+  const isMountedRef = useRef(true)
+  const tokenRef = useRef(token)
+
+  // Keep tokenRef in sync
+  useEffect(() => {
+    tokenRef.current = token
+  }, [token])
 
   useEffect(() => {
-    setIsMounted(true)
-    return () => setIsMounted(false)
+    return () => { isMountedRef.current = false }
   }, [])
 
   useEffect(() => {
@@ -164,10 +169,10 @@ export function GraphViewer() {
 
   const loadInitialGraph = async () => {
     // Early return if cytoscape is not ready
-    if (!cyRef.current || !isMounted) return
+    if (!cyRef.current || !isMountedRef.currentRef.current) return
 
     try {
-      const res = await graphApi.getStatistics(token!)
+      const res = await graphApi.getStatistics()
       const stats = res.data
 
       // 从统计数据中获取标签，然后搜索一些初始节点
@@ -186,7 +191,7 @@ export function GraphViewer() {
 
           // 搜索该类型的节点
           try {
-            const nodesRes = await graphApi.getNodesByLabel(labelName, 10, token!)
+            const nodesRes = await graphApi.getNodesByLabel(labelName, 10)
             const nodes = nodesRes.data
             const nodeColor = getColorForLabel(labelName)
             const borderColor = shadeColor(nodeColor, -20)
@@ -223,7 +228,7 @@ export function GraphViewer() {
         })
       }
 
-      if (!cyRef.current || !isMounted) return
+      if (!cyRef.current || !isMountedRef.current) return
 
       cyRef.current.json({ elements })
       cyRef.current.layout({
@@ -255,7 +260,7 @@ export function GraphViewer() {
 
   const expandNode = async (nodeName: string) => {
     try {
-      const res = await graphApi.getNeighbors(nodeName, 1, token!)
+      const res = await graphApi.getNeighbors(nodeName, 1)
       const neighbors = res.data
 
       const newElements: ElementDefinition[] = []

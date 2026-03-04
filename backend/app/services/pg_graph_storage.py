@@ -10,6 +10,7 @@ PostgreSQL 图存储服务
 3. 统计查询：节点统计、关系统计
 """
 
+import re
 import logging
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +35,19 @@ from app.models.graph import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Regex to validate property filter keys: only allow alphanumeric, underscores, hyphens, dots
+_SAFE_KEY_RE = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
+
+
+def _validate_property_filter_keys(property_filter: Dict[str, Any]) -> None:
+    """Validate property filter keys to prevent SQL injection."""
+    for key in property_filter:
+        if not _SAFE_KEY_RE.match(key):
+            raise ValueError(
+                f"Invalid property filter key: '{key}'. "
+                "Keys must contain only alphanumeric characters, underscores, hyphens, or dots."
+            )
 
 
 class PGGraphStorage:
@@ -595,12 +609,17 @@ class PGGraphStorage:
         """根据名称，ID或别名搜索实例节点"""
         from sqlalchemy import or_, cast, String
 
+        # Escape SQL LIKE wildcards in user input
+        escaped_term = (
+            search_term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        )
+
         # 搜索名称、ID 或别名
         query = select(GraphEntity).where(
             or_(
-                GraphEntity._display_name.ilike(f"%{search_term}%"),
+                GraphEntity._display_name.ilike(f"%{escaped_term}%"),
                 # Match database id as string
-                cast(GraphEntity.id, String).ilike(f"%{search_term}%"),
+                cast(GraphEntity.id, String).ilike(f"%{escaped_term}%"),
                 # PostgreSQL JSONB 搜索
                 text(
                     "id IN (SELECT id FROM graph_entities, jsonb_array_elements_text(properties->'__aliases__') as a WHERE a ILIKE :term)"
@@ -671,12 +690,9 @@ class PGGraphStorage:
         else:
             direction_filter = "direction IN (1, -1)"  # 双向
 
-        # 使用递归 CTE 查询邻居
-        # 注意：这里的 CTE 只是为了说明逻辑，实际执行使用的是 _get_one_hop_neighbors 或 _get_multi_hop_neighbors
-        # 即使更新了这里的文档字符串，核心逻辑还是在下面两个方法中
+        if property_filter:
+            _validate_property_filter_keys(property_filter)
 
-        # 由于参数化 CTE 比较复杂，这里使用简化的实现
-        # 对于 1 跳查询，直接使用 JOIN
         if hops <= 1:
             return await self._get_1hop_neighbors(
                 direction,
@@ -1005,6 +1021,7 @@ class PGGraphStorage:
             filter_params["entity_type"] = entity_type
 
         if property_filter:
+            _validate_property_filter_keys(property_filter)
             for key, value in property_filter.items():
                 param_key = f"prop_{key}"
                 filter_conditions.append(f"properties->>'{key}' = :{param_key}")

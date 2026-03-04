@@ -1,5 +1,5 @@
 # backend/app/models/rule.py
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Boolean, String, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
@@ -20,9 +20,9 @@ class ActionDefinition(Base):
     dsl_content: Mapped[str] = mapped_column(Text, nullable=False)  # Full ACTION DSL
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, onupdate=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
     def __init__(self, **kwargs):
@@ -52,9 +52,9 @@ class Rule(Base):
     )  # e.g., "status"
     dsl_content: Mapped[str] = mapped_column(Text, nullable=False)  # Full RULE DSL
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, onupdate=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
     def __init__(self, **kwargs):
@@ -71,7 +71,7 @@ class ExecutionLog(Base):
     __tablename__ = "execution_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    timestamp: Mapped[datetime] = mapped_column(default=datetime.utcnow, index=True)
+    timestamp: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), index=True)
     type: Mapped[str] = mapped_column(String(20), nullable=False)  # RULE / ACTION
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     entity_id: Mapped[str | None] = mapped_column(String(255), nullable=True)

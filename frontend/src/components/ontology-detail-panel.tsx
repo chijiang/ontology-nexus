@@ -87,7 +87,7 @@ export function OntologyDetailPanel({ selection, isEditMode, onUpdate, onClose }
         setLoading(true)
 
         try {
-            const schemaRes = await graphApi.getSchema(token)
+            const schemaRes = await graphApi.getSchema()
             const rels: Relationship[] = []
 
             schemaRes.data.relationships?.forEach((rel: any) => {

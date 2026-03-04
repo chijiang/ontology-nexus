@@ -1,7 +1,12 @@
 # backend/app/main.py
-from fastapi import FastAPI
+import logging
+from contextlib import asynccontextmanager
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pathlib import Path
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.api import (
     auth,
@@ -16,7 +21,7 @@ from app.api import (
     users,
     roles,
 )
-from app.core.database import engine, Base, async_session
+from app.core.database import engine, Base, async_session, get_db
 import app.models  # Implicitly registers models
 
 # Import rule engine components
@@ -25,23 +30,26 @@ from app.rule_engine.action_executor import ActionExecutor
 from app.rule_engine.rule_registry import RuleRegistry
 from app.rule_engine.rule_engine import RuleEngine
 from app.rule_engine.event_emitter import GraphEventEmitter
+from app.rule_engine.parser import RuleParser
+from app.rule_engine.models import ActionDef
 from app.services.rule_storage import RuleStorage
 from app.services.permission_service import init_permission_service
 from app.core.init_db import init_db
+from app.repositories.rule_repository import RuleRepository
+from app.models.rule import Rule, ActionDefinition
 
-app = FastAPI(title="Knowledge Graph QA API")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+logger = logging.getLogger(__name__)
 
-@app.on_event("startup")
-async def startup():
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # === Startup ===
     await init_db()
 
     # Create event emitter early for dependency injection
@@ -73,20 +81,11 @@ async def startup():
         if rule_details:
             try:
                 rule_registry.load_from_dsl(rule_details["dsl_content"])
-            except Exception:
-                # Skip invalid rules
-                pass
+            except Exception as e:
+                logger.warning("Failed to load rule '%s' from file storage: %s", rule_data["name"], e)
 
     # Load rules from database
-    import logging
-
-    logger = logging.getLogger(__name__)
     async with async_session() as session:
-        from app.repositories.rule_repository import RuleRepository
-        from sqlalchemy import select
-        from app.models.rule import Rule
-
-        repo = RuleRepository(session)
         result = await session.execute(select(Rule).where(Rule.is_active == True))
         db_rules = result.scalars().all()
 
@@ -103,17 +102,12 @@ async def startup():
 
     # Load actions from database
     async with async_session() as session:
-        from app.models.rule import ActionDefinition
-        from app.rule_engine.models import ActionDef
-
         result = await session.execute(
             select(ActionDefinition).where(ActionDefinition.is_active == True)
         )
         db_actions = result.scalars().all()
 
         logger.info(f"Loading {len(db_actions)} actions from database")
-
-        from app.rule_engine.parser import RuleParser
 
         parser = RuleParser()
         for db_action in db_actions:
@@ -139,12 +133,22 @@ async def startup():
     app.state.rule_storage = rule_storage
     app.state.event_emitter = event_emitter
 
+    yield
 
-@app.on_event("shutdown")
-async def shutdown():
-    # Cleanup resources
-    pass
+    # === Shutdown ===
+    await engine.dispose()
+    logger.info("Database engine disposed")
 
+
+app = FastAPI(title="Knowledge Graph QA API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 app.include_router(auth.router)
 app.include_router(config.router)
@@ -160,8 +164,12 @@ app.include_router(roles.router)
 
 
 @app.get("/health")
-async def health():
-    return {"status": "ok"}
+async def health(db: AsyncSession = Depends(get_db)):
+    try:
+        await db.execute(text("SELECT 1"))
+        return {"status": "ok"}
+    except Exception:
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": "database unreachable"})
 
 
 if __name__ == "__main__":

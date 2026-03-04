@@ -317,7 +317,7 @@ RULE NewRule PRIORITY 100 {
 
         // Fetch schema when opening
         if (open && token) {
-            graphApi.getSchema(token).then(res => {
+            graphApi.getSchema().then(res => {
                 setSchema(res.data)
             }).catch(console.error)
         }
@@ -656,7 +656,7 @@ ACTION Entity.submit {
 
         // Fetch schema when opening
         if (open && token) {
-            graphApi.getSchema(token).then(res => {
+            graphApi.getSchema().then(res => {
                 setSchema(res.data)
             }).catch(console.error)
         }

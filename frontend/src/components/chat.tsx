@@ -1,7 +1,7 @@
 // frontend/src/components/chat.tsx
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { chatApi, conversationApi, Message as ApiMessage } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
@@ -12,20 +12,15 @@ import { useTranslations } from 'next-intl'
 import { ThinkingProcess } from './thinking-process'
 
 
-// ... (skipping interfaces) ...
-
-// Inside Chat function:
-// Remove internal mode state
-
 interface Message {
   role: 'user' | 'assistant'
   content: string
   thinking?: string
-  graphData?: any
+  graphData?: { nodes: unknown[]; edges: unknown[] }
 }
 
 interface ChatProps {
-  onGraphData: (data: any) => void
+  onGraphData: (data: { nodes: unknown[]; edges: unknown[] }) => void
   conversationId: number | null
   initialMessages: ApiMessage[]
   onConversationCreated: (id: number) => void
@@ -43,10 +38,18 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(conversationId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const hasGeneratedTitle = useRef(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
-  // 初始化消息
+  // Cleanup on unmount
   useEffect(() => {
-    // 如果当前的 ID 已经匹配且消息不为空，说明是刚创建的对话并正在流式传输，不要重置
+    return () => {
+      abortControllerRef.current?.abort()
+    }
+  }, [])
+
+  // Initialize messages from props
+  useEffect(() => {
+    // If current ID matches and we have messages, skip reset during streaming
     if (conversationId !== null && conversationId === currentConversationId && messages.length > 0) {
       return
     }
@@ -60,19 +63,25 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
     setMessages(msgs)
     setCurrentConversationId(conversationId)
     hasGeneratedTitle.current = conversationId !== null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialMessages, conversationId])
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  }, [])
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, scrollToBottom])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || loading) return
+    if (!input.trim() || loading || !token) return
+
+    // Abort any in-flight stream
+    abortControllerRef.current?.abort()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     const userMessage = input
     setInput('')
@@ -80,80 +89,93 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
     setLoading(true)
 
     try {
-      const response = await chatApi.stream(userMessage, token!, currentConversationId || undefined, mode)
-      const reader = response.body!.getReader()
+      const response = await chatApi.stream(userMessage, token, currentConversationId || undefined, mode)
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      if (!response.body) {
+        throw new Error('Response body is null')
+      }
+
+      const reader = response.body.getReader()
       const decoder = new TextDecoder()
 
       let assistantMessage = ''
       let thinking = ''
       let newConversationId = currentConversationId
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
+      try {
+        while (true) {
+          if (controller.signal.aborted) break
+          const { done, value } = await reader.read()
+          if (done) break
 
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n').filter(Boolean)
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n').filter(Boolean)
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          try {
-            const data = JSON.parse(line.slice(6))
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            try {
+              const data = JSON.parse(line.slice(6))
 
-            if (data.type === 'thinking') {
-              thinking += data.content
-              if (data.conversation_id) {
-                newConversationId = data.conversation_id
-                setCurrentConversationId(data.conversation_id)
+              if (data.type === 'thinking') {
+                thinking += data.content
+                if (data.conversation_id) {
+                  newConversationId = data.conversation_id
+                  setCurrentConversationId(data.conversation_id)
+                }
+                setMessages((prev) => {
+                  const newMsgs = [...prev]
+                  const last = newMsgs[newMsgs.length - 1]
+                  if (last?.role === 'assistant') {
+                    newMsgs[newMsgs.length - 1] = { ...last, thinking }
+                  } else {
+                    newMsgs.push({ role: 'assistant', content: '', thinking })
+                  }
+                  return newMsgs
+                })
+              } else if (data.type === 'content') {
+                assistantMessage += data.content
+                setMessages((prev) => {
+                  const newMsgs = [...prev]
+                  const last = newMsgs[newMsgs.length - 1]
+                  if (last?.role === 'assistant') {
+                    newMsgs[newMsgs.length - 1] = { ...last, content: assistantMessage }
+                  } else {
+                    newMsgs.push({ role: 'assistant', content: assistantMessage })
+                  }
+                  return newMsgs
+                })
+              } else if (data.type === 'graph_data') {
+                const graphData = { nodes: data.nodes || [], edges: data.edges || [] }
+                onGraphData(graphData)
+                setMessages((prev) => {
+                  const newMsgs = [...prev]
+                  const last = newMsgs[newMsgs.length - 1]
+                  if (last) {
+                    newMsgs[newMsgs.length - 1] = { ...last, graphData }
+                  }
+                  return newMsgs
+                })
+              } else if (data.type === 'conversation_id') {
+                newConversationId = data.id
               }
-              setMessages((prev) => {
-                const newMsgs = [...prev]
-                const last = newMsgs[newMsgs.length - 1]
-                if (last?.role === 'assistant') {
-                  last.thinking = thinking
-                } else {
-                  newMsgs.push({ role: 'assistant', content: '', thinking })
-                }
-                return newMsgs
-              })
-            } else if (data.type === 'content') {
-              assistantMessage += data.content
-              setMessages((prev) => {
-                const newMsgs = [...prev]
-                const last = newMsgs[newMsgs.length - 1]
-                if (last?.role === 'assistant') {
-                  last.content = assistantMessage
-                } else {
-                  newMsgs.push({ role: 'assistant', content: assistantMessage })
-                }
-                return newMsgs
-              })
-            } else if (data.type === 'graph_data') {
-              const graphData = { nodes: data.nodes || [], edges: data.edges || [] }
-              onGraphData(graphData)
-              setMessages((prev) => {
-                const newMsgs = [...prev]
-                const last = newMsgs[newMsgs.length - 1]
-                if (last) {
-                  last.graphData = graphData
-                }
-                return newMsgs
-              })
-            } else if (data.type === 'conversation_id') {
-              newConversationId = data.id
+            } catch {
+              // Skip unparseable SSE lines
             }
-          } catch (e) {
-            console.error('Failed to parse SSE data:', e)
           }
         }
+      } finally {
+        reader.releaseLock()
       }
 
-      // 更新对话 ID
+      // Update conversation ID
       if (newConversationId && newConversationId !== currentConversationId) {
         setCurrentConversationId(newConversationId)
         onConversationCreated(newConversationId)
 
-        // 生成标题
+        // Generate title
         if (!hasGeneratedTitle.current) {
           hasGeneratedTitle.current = true
           try {
@@ -164,6 +186,7 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
         }
       }
     } catch (err) {
+      if (controller.signal.aborted) return
       console.error('Chat error:', err)
       setMessages((prev) => [...prev, { role: 'assistant', content: t('error') }])
     } finally {

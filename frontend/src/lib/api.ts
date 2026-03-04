@@ -6,12 +6,16 @@ const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth-storage')
-  if (token) {
-    const auth = JSON.parse(token)
-    if (auth.state.token) {
-      config.headers.Authorization = `Bearer ${auth.state.token}`
+  try {
+    const token = localStorage.getItem('auth-storage')
+    if (token) {
+      const auth = JSON.parse(token)
+      if (auth?.state?.token) {
+        config.headers.Authorization = `Bearer ${auth.state.token}`
+      }
     }
+  } catch {
+    localStorage.removeItem('auth-storage')
   }
   return config
 })
@@ -128,7 +132,7 @@ export const conversationApi = {
 }
 
 export const graphApi = {
-  import: (file: File, token: string) => {
+  import: (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
     return api.post('/graph/import', formData, {
@@ -138,21 +142,21 @@ export const graphApi = {
     })
   },
 
-  getNode: (uri: string, token: string) =>
+  getNode: (uri: string) =>
     api.get(`/graph/node/${encodeURIComponent(uri)}`),
-  getNeighbors: (name: string, hops: number, token: string) =>
+  getNeighbors: (name: string, hops: number) =>
     api.get(`/graph/neighbors?name=${encodeURIComponent(name)}&hops=${hops}`),
-  findPath: (start: string, end: string, token: string) =>
+  findPath: (start: string, end: string) =>
     api.post('/graph/path', { start_uri: start, end_uri: end }),
-  getNodesByLabel: (label: string, limit: number, token: string) =>
+  getNodesByLabel: (label: string, limit: number) =>
     api.get(`/graph/nodes?label=${encodeURIComponent(label)}&limit=${limit}`),
-  getStatistics: (token: string) => api.get('/graph/statistics'),
-  getSchema: (token: string) => api.get('/graph/schema'),
+  getStatistics: () => api.get('/graph/statistics'),
+  getSchema: () => api.get('/graph/schema'),
   clear: (clearOntology: boolean = true) =>
     api.post('/graph/clear', null, { params: { clear_ontology: clearOntology } }),
 
   // 搜索实例
-  searchInstances: (className: string, keyword: string, filters: Record<string, any>, limit: number, token: string) =>
+  searchInstances: (className: string, keyword: string, filters: Record<string, any>, limit: number) =>
     api.get('/graph/instances/search', {
       params: { class_name: className, keyword, limit, ...filters }
     }),
@@ -162,7 +166,7 @@ export const graphApi = {
     api.get('/graph/instances/random', { params: { limit } }),
 
   // 更新实体属性
-  updateEntity: (entityType: string, entityId: string, updates: Record<string, any>, token: string) =>
+  updateEntity: (entityType: string, entityId: string, updates: Record<string, any>) =>
     api.put(`/graph/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`, updates),
 
   // Ontology Schema 增删改查

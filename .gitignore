@@ -38,3 +38,7 @@ backend/logs/
 
 dev_backlog.txt
 
+# AI assistant
+.claude/
+CLAUDE.md
+

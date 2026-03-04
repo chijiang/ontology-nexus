@@ -56,7 +56,7 @@ export default function ImportPage() {
 
     setLoading(true)
     try {
-      const res = await graphApi.import(file, token)
+      const res = await graphApi.import(file)
       setResult(res.data)
       toast.success(t('graph.import.clearSuccess'))
     } catch (err: any) {

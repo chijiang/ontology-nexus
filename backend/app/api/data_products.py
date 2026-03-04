@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from app.core.database import get_db
@@ -227,7 +227,7 @@ async def test_connection(
                 product.connection_status = ConnectionStatus.DISCONNECTED
                 product.last_error = message
 
-            product.last_health_check = datetime.utcnow()
+            product.last_health_check = datetime.now(timezone.utc)
             await db.commit()
 
             if not success:
@@ -245,7 +245,7 @@ async def test_connection(
         logger.error(f"Error testing connection for product {product_id}: {e}")
         product.connection_status = ConnectionStatus.DISCONNECTED
         product.last_error = str(e)
-        product.last_health_check = datetime.utcnow()
+        product.last_health_check = datetime.now(timezone.utc)
         await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -66,6 +66,7 @@ import {
     RelationshipMapping,
     SyncLogResponse
 } from '@/lib/api'
+import { useAuthStore } from '@/lib/auth'
 
 interface OntologyClass {
     name: string
@@ -82,6 +83,7 @@ export default function DataMappingsPage({ params }: { params: Promise<{ id: str
     const tMappings = useTranslations('mappings')
     const tDataProducts = useTranslations('dataProducts')
     const locale = useLocale()
+    const token = useAuthStore((state) => state.token)
 
     const [product, setProduct] = useState<DataProduct | null>(null)
     const [entityMappings, setEntityMappings] = useState<EntityMapping[]>([])
@@ -167,10 +169,8 @@ export default function DataMappingsPage({ params }: { params: Promise<{ id: str
             setSyncLogs(logsRes.data)
 
             // Load ontology classes
-            const tokenValue = localStorage.getItem('auth-storage')
-            if (tokenValue) {
-                const auth = JSON.parse(tokenValue)
-                const schemaRes = await graphApi.getSchema(auth.state.token)
+            if (token) {
+                const schemaRes = await graphApi.getSchema()
                 // 后端返回的 nodes 列表直接就是类定义对象
                 const classes = (schemaRes.data.nodes || []).map((n: any) => ({
                     name: n.name,

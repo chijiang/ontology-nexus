@@ -31,4 +31,35 @@ async def get_current_user(
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="User account is deactivated")
+
+    if user.approval_status != "approved":
+        raise HTTPException(status_code=403, detail="User account is not approved")
+
     return user
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """验证用户是否为admin"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+
+def handle_dsl_exception(e: Exception, operation: str) -> HTTPException:
+    """Convert DSL parsing/validation exceptions to appropriate HTTP errors.
+
+    Args:
+        e: The exception raised during DSL processing
+        operation: Description of the operation (e.g., "upload rule", "update action")
+
+    Returns:
+        HTTPException with appropriate status code
+    """
+    if isinstance(e, ValueError):
+        raise HTTPException(status_code=400, detail=str(e))
+    error_type = type(e).__name__
+    if "Unexpected" in error_type or "Visit" in error_type:
+        raise HTTPException(status_code=400, detail=f"Invalid DSL: {str(e)}")
+    raise HTTPException(status_code=500, detail=f"Failed to {operation}: {str(e)}")

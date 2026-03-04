@@ -6,7 +6,7 @@ RBAC (Role-Based Access Control) implementation for multi-role user support.
 Defines roles and their associated permissions for pages, actions, and entity types.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
@@ -28,10 +28,10 @@ class Role(Base):
         String(20), default="system", nullable=False
     )  # "system" or "business"
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
     )
 
 
@@ -54,7 +54,7 @@ class UserRole(Base):
         ForeignKey("users.id"), nullable=True
     )
     assigned_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     __table_args__ = (UniqueConstraint("user_id", "role_id", name="uq_user_role"),)

@@ -54,9 +54,9 @@ export function SchemaViewer({
     const cyRef = useRef<Core | null>(null)
     const t = useTranslations('components.schemaViewer')
     const token = useAuthStore((state) => state.token)
-    const [selectedNode, setSelectedNode] = useState<any>(null)
+    const [selectedNode, setSelectedNode] = useState<Record<string, unknown> | null>(null)
     const [legend, setLegend] = useState<{ name: string; color: string }[]>([])
-    const [isMounted, setIsMounted] = useState(false)
+    const isMountedRef = useRef(true)
 
     const onNodeSelectRef = useRef(onNodeSelect)
     const onEdgeSelectRef = useRef(onEdgeSelect)
@@ -67,12 +67,11 @@ export function SchemaViewer({
     }, [onNodeSelect, onEdgeSelect])
 
     useEffect(() => {
-        setIsMounted(true)
-        return () => setIsMounted(false)
+        return () => { isMountedRef.current = false }
     }, [])
 
     useEffect(() => {
-        if (!containerRef.current || !isMounted) return
+        if (!containerRef.current || !isMountedRef.current) return
 
         cyRef.current = cytoscape({
             container: containerRef.current,
@@ -166,19 +165,21 @@ export function SchemaViewer({
             cyRef.current?.destroy()
             cyRef.current = null
         }
-    }, [isMounted])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     useEffect(() => {
-        if (token && cyRef.current && isMounted) {
+        if (token && cyRef.current && isMountedRef.current) {
             loadSchema()
         }
-    }, [token, isMounted, isEditMode, activeStep, sourceNode])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [token, isEditMode, activeStep, sourceNode])
 
     const loadSchema = async () => {
-        if (!cyRef.current || !isMounted) return
+        if (!cyRef.current || !isMountedRef.current) return
 
         try {
-            const res = await graphApi.getSchema(token!)
+            const res = await graphApi.getSchema()
             const data: SchemaData = res.data
 
             const colorMap: Record<string, string> = {}
@@ -218,7 +219,7 @@ export function SchemaViewer({
                 })
             })
 
-            if (!cyRef.current || !isMounted) return
+            if (!cyRef.current || !isMountedRef.current) return
 
             cyRef.current.json({ elements })
             if (activeStep === 'TARGET' && sourceNode) {
@@ -231,7 +232,7 @@ export function SchemaViewer({
 
         } catch (err) {
             console.error('Failed to load schema:', err)
-            if (cyRef.current && isMounted) {
+            if (cyRef.current && isMountedRef.current) {
                 cyRef.current.json({
                     elements: [{
                         data: {

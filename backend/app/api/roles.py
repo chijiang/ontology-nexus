@@ -22,8 +22,7 @@ from app.schemas.role import (
     ActionPermissionCreate,
     EntityPermissionCreate,
 )
-from app.api.deps import get_current_user
-from app.api.users import require_admin
+from app.api.deps import get_current_user, require_admin
 
 router = APIRouter(prefix="/api/roles", tags=["roles"])
 

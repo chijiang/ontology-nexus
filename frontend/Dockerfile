@@ -24,18 +24,24 @@ ENV BACKEND_URL=$BACKEND_URL
 RUN pnpm build
 
 # Final runner stage
-FROM base AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
+# Create non-root user
+RUN addgroup --system --gid 1001 appgroup && adduser --system --uid 1001 --ingroup appgroup appuser
+
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/next.config.ts ./next.config.ts
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+RUN chown -R appuser:appgroup /app
+USER appuser
 
 EXPOSE 3000
+ENV HOSTNAME="0.0.0.0"
+ENV PORT=3000
 
-CMD ["pnpm", "start"]
+CMD ["node", "server.js"]

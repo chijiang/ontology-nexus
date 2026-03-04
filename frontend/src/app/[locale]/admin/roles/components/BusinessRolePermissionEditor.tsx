@@ -193,7 +193,7 @@ export function BusinessRolePermissionEditor({ role, onUpdated }: BusinessRolePe
         setLoadingData(true)
         try {
             const [schemaRes, actionsRes] = await Promise.all([
-                token ? graphApi.getSchema(token) : Promise.resolve({ data: { nodes: [], relationships: [] } }),
+                token ? graphApi.getSchema() : Promise.resolve({ data: { nodes: [], relationships: [] } }),
                 actionsApi.list(),
             ])
 

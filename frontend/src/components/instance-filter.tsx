@@ -49,7 +49,7 @@ export function InstanceFilter({ onSearch, loading }: InstanceFilterProps) {
     const loadClasses = async () => {
         try {
             setLoadingClasses(true)
-            const res = await graphApi.getSchema(token!)
+            const res = await graphApi.getSchema()
             setClasses(res.data.nodes || [])
         } catch (err) {
             console.error('Failed to load classes:', err)

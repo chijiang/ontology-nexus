@@ -19,6 +19,11 @@ RUN uv sync --frozen --no-dev
 # Copy the rest of the application
 COPY . .
 
+# Create non-root user
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+RUN chown -R appuser:appgroup /app
+USER appuser
+
 # Expose the API port
 EXPOSE 8000
 

@@ -1,6 +1,7 @@
 # backend/app/api/auth.py
+import re
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
@@ -12,10 +13,28 @@ from app.api.deps import get_current_user
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _validate_password_strength(password: str) -> str:
+    """Validate password meets minimum complexity requirements."""
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters long")
+    if len(password) > 128:
+        raise ValueError("Password must be at most 128 characters long")
+    if not re.search(r"[a-zA-Z]", password):
+        raise ValueError("Password must contain at least one letter")
+    if not re.search(r"[0-9]", password):
+        raise ValueError("Password must contain at least one digit")
+    return password
+
+
 class RegisterRequest(BaseModel):
     username: str
     password: str
     email: str | None = None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        return _validate_password_strength(v)
 
 
 class LoginRequest(BaseModel):

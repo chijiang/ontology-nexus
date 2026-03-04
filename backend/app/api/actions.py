@@ -1,5 +1,6 @@
 """REST API endpoints for action management."""
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Any
 from pydantic import BaseModel, Field
@@ -13,10 +14,12 @@ from app.services.pg_graph_storage import PGGraphStorage
 from app.services.permission_service import PermissionService
 from app.rule_engine.parser import RuleParser
 from app.rule_engine.models import ActionDef, CallStatement
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin, handle_dsl_exception
 from app.models.user import User
 from app.core.database import get_db
 from app.repositories.rule_repository import ActionDefinitionRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/actions", tags=["actions"])
 
@@ -186,10 +189,6 @@ async def execute_action(
         actor_type="USER",
     )
 
-    import logging
-
-    logger = logging.getLogger(__name__)
-
     if not result.success:
         logger.warning(f"Action {entity_type}.{action_name} failed: {result.error}")
         return {
@@ -221,7 +220,7 @@ async def execute_action(
 @router.post("")
 async def upload_action(
     request: ActionUploadRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
     registry: ActionRegistry = Depends(get_action_registry),
 ) -> dict[str, Any]:
@@ -285,16 +284,8 @@ async def upload_action(
             },
         }
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # Check if it's a parsing error from Lark
-        error_type = type(e).__name__
-        if "Unexpected" in error_type or "Visit" in error_type:
-            raise HTTPException(status_code=400, detail=f"Invalid DSL: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to upload action: {str(e)}"
-        )
+        handle_dsl_exception(e, "upload action")
 
 
 @router.get("")
@@ -425,7 +416,7 @@ class ActionUpdateRequest(BaseModel):
 async def update_action_definition(
     name: str,
     request: ActionUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
     registry: ActionRegistry = Depends(get_action_registry),
 ) -> dict[str, Any]:
@@ -488,22 +479,14 @@ async def update_action_definition(
             },
         }
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # Check if it's a parsing error from Lark
-        error_type = type(e).__name__
-        if "Unexpected" in error_type or "Visit" in error_type:
-            raise HTTPException(status_code=400, detail=f"Invalid DSL: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to update action: {str(e)}"
-        )
+        handle_dsl_exception(e, "update action")
 
 
 @router.delete("/definitions/{name}")
 async def delete_action_definition(
     name: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
     registry: ActionRegistry = Depends(get_action_registry),
 ) -> dict[str, Any]:

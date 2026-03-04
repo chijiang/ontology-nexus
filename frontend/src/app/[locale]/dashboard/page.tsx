@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { AppLayout } from '@/components/layout'
@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const [initialMessages, setInitialMessages] = useState<Message[]>([])
   const [mode, setMode] = useState<'llm' | 'non-llm'>('llm')
+  const loadRequestIdRef = useRef(0)
 
   useEffect(() => {
     setIsHydrated(true)
@@ -35,14 +36,18 @@ export default function DashboardPage() {
     }
   }, [isHydrated, token, router])
 
-  // Load conversation messages
+  // Load conversation messages with race condition protection
   const loadConversation = useCallback(async (id: number | null) => {
+    const requestId = ++loadRequestIdRef.current
     setActiveConversationId(id)
     setGraphData(null)
 
     if (id) {
       try {
         const res = await conversationApi.get(id)
+        // Only apply result if this is still the latest request
+        if (requestId !== loadRequestIdRef.current) return
+
         setInitialMessages(res.data.messages)
 
         // If there is graph_data, display the last one
@@ -53,6 +58,7 @@ export default function DashboardPage() {
           setGraphData(lastWithGraph.extra_metadata.graph_data)
         }
       } catch (err) {
+        if (requestId !== loadRequestIdRef.current) return
         console.error('Failed to load conversation:', err)
         setInitialMessages([])
       }

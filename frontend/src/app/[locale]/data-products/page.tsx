@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations, useLocale } from 'next-intl'
+import { useAuthStore } from '@/lib/auth'
 import { ProtectedPage } from '@/components/auth/ProtectedPage'
 import { AppLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
@@ -63,20 +64,11 @@ export default function DataProductsPage() {
     const router = useRouter()
     const locale = useLocale()
     const t = useTranslations()
+    const token = useAuthStore((state) => state.token)
     const [isHydrated, setIsHydrated] = useState(false)
-    const [token, setToken] = useState<string | null>(null)
 
     useEffect(() => {
         setIsHydrated(true)
-        const stored = localStorage.getItem('auth-storage')
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored)
-                setToken(parsed.state.token)
-            } catch (e) {
-                console.error('Failed to parse auth storage', e)
-            }
-        }
     }, [])
 
     const [products, setProducts] = useState<DataProduct[]>([])
@@ -139,17 +131,7 @@ export default function DataProductsPage() {
     }
 
     useEffect(() => {
-        setIsHydrated(true)
         loadProducts()
-        const stored = localStorage.getItem('auth-storage')
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored)
-                setToken(parsed.state.token)
-            } catch (e) {
-                console.error('Failed to parse auth storage', e)
-            }
-        }
     }, [])
 
     useEffect(() => {

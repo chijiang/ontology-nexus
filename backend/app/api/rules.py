@@ -1,7 +1,7 @@
 """REST API endpoints for rule management."""
 
-from fastapi import APIRouter, Depends, HTTPException
-from pathlib import Path
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Any
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,11 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.rule_engine.rule_registry import RuleRegistry
 from app.rule_engine.parser import RuleParser
 from app.rule_engine.models import RuleDef
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin, handle_dsl_exception
 from app.models.user import User
 from app.core.database import get_db
 from app.repositories.rule_repository import RuleRepository
 from app.services.rule_storage import RuleStorage
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/rules", tags=["rules"])
 
@@ -134,7 +136,7 @@ async def list_rules(
 
 @router.get("/logs")
 async def list_execution_logs(
-    limit: int = 100,
+    limit: int = Query(default=100, ge=1, le=1000),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -216,7 +218,7 @@ async def get_rule(
 @router.post("")
 async def upload_rule(
     request: RuleUploadRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
     registry: RuleRegistry = Depends(get_rule_registry),
 ) -> dict[str, Any]:
@@ -293,14 +295,8 @@ async def upload_rule(
             },
         }
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # Check if it's a parsing error from Lark
-        error_type = type(e).__name__
-        if "Unexpected" in error_type or "Visit" in error_type:
-            raise HTTPException(status_code=400, detail=f"Invalid DSL: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to upload rule: {str(e)}")
+        handle_dsl_exception(e, "upload rule")
 
 
 class RuleUpdateRequest(BaseModel):
@@ -315,7 +311,7 @@ class RuleUpdateRequest(BaseModel):
 async def update_rule(
     name: str,
     request: RuleUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
     registry: RuleRegistry = Depends(get_rule_registry),
 ) -> dict[str, Any]:
@@ -383,8 +379,8 @@ async def update_rule(
                         if isinstance(item, RuleDef):
                             registry.register(item)
                             break
-                except Exception:
-                    pass  # Skip rules with parse errors
+                except Exception as e:
+                    logger.warning("Failed to re-register rule '%s': %s", db_rule.name, e)
 
         return {
             "message": "Rule updated successfully",
@@ -401,21 +397,16 @@ async def update_rule(
             },
         }
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # Check if it's a parsing error from Lark
-        error_type = type(e).__name__
-        if "Unexpected" in error_type or "Visit" in error_type:
-            raise HTTPException(status_code=400, detail=f"Invalid DSL: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to update rule: {str(e)}")
+        handle_dsl_exception(e, "update rule")
 
 
 @router.delete("/{name}")
 async def delete_rule(
     name: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
+    registry: RuleRegistry = Depends(get_rule_registry),
 ) -> dict[str, Any]:
     """Delete a rule.
 
@@ -423,6 +414,7 @@ async def delete_rule(
         name: Rule name
         current_user: Current authenticated user
         db: Database session
+        registry: Rule registry instance
 
     Returns:
         Success message
@@ -437,12 +429,15 @@ async def delete_rule(
 
     await repo.delete(name)
 
+    # Remove from in-memory registry
+    registry.unregister(name)
+
     return {"message": f"Rule '{name}' deleted successfully"}
 
 
 @router.post("/migrate", response_model=MigrationResponse)
 async def migrate_rules(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
     registry: RuleRegistry = Depends(get_rule_registry),
 ) -> dict[str, Any]:
@@ -548,7 +543,7 @@ async def migrate_rules(
 
 @router.post("/reload")
 async def reload_rules(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
     registry: RuleRegistry = Depends(get_rule_registry),
 ) -> dict[str, Any]:

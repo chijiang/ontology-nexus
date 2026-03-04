@@ -4,8 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from typing import Optional, List
 from app.core.database import get_db
-from app.core.security import hash_password
+from app.core.security import hash_password, generate_random_password
 from app.models.user import User
+from app.api.deps import get_current_user, require_admin
 from app.models.role import UserRole, Role
 from app.schemas.role import (
     UserCreate,
@@ -19,20 +20,9 @@ from app.schemas.role import (
     PermissionCacheResponse,
     RoleResponse,
 )
-from app.api.deps import get_current_user
 from app.services.permission_service import PermissionService
 
 router = APIRouter(prefix="/api/users", tags=["users"])
-
-
-async def require_admin(current_user: User = Depends(get_current_user)):
-    """验证用户是否为admin"""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user
-
-
-# ... (skip to end of file to add new endpoint, but I need to handle imports first)
 
 
 @router.get("", response_model=UserListResponse)
@@ -84,9 +74,7 @@ async def create_user(
         raise HTTPException(status_code=400, detail="Username already exists")
 
     # 创建用户（直接approved）
-    from app.core.config import settings
-
-    password = user_data.password or settings.DEFAULT_USER_PASSWORD
+    password = user_data.password or generate_random_password()
     user = User(
         username=user_data.username,
         password_hash=hash_password(password),
@@ -100,6 +88,16 @@ async def create_user(
     await db.refresh(user)
 
     return UserResponse.model_validate(user)
+
+
+@router.get("/me/permissions", response_model=PermissionCacheResponse)
+async def get_my_permissions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取当前用户的权限缓存"""
+    cache = await PermissionService.get_permission_cache(db, current_user)
+    return PermissionCacheResponse(**cache)
 
 
 @router.get("/pending-approvals", response_model=UserListResponse)
@@ -181,10 +179,8 @@ async def reset_user_password(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # 默认密码
-    from app.core.config import settings
-
-    default_password = settings.DEFAULT_USER_PASSWORD
+    # 生成随机临时密码
+    default_password = generate_random_password()
     user.password_hash = hash_password(default_password)
     user.is_password_changed = False
     await db.commit()
@@ -320,11 +316,3 @@ async def remove_role(
     return {"message": "Role removed successfully"}
 
 
-@router.get("/me/permissions", response_model=PermissionCacheResponse)
-async def get_my_permissions(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """获取当前用户的权限缓存"""
-    cache = await PermissionService.get_permission_cache(db, current_user)
-    return PermissionCacheResponse(**cache)

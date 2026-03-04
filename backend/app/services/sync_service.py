@@ -5,9 +5,11 @@
 负责将外部 gRPC 数据源的数据按映射规则同步到 PostgreSQL 知识图谱中。
 """
 
+import ast
 import logging
 import asyncio
-from datetime import datetime
+import operator
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_
@@ -65,6 +67,90 @@ def to_date(value):
     return None
 
 
+_SAFE_EVAL_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.Mod: operator.mod,
+    ast.USub: operator.neg,
+}
+
+
+def safe_eval(expr: str, variables: Dict[str, Any]) -> Any:
+    """Evaluate a simple expression safely using AST parsing.
+
+    Supports: variable references, function calls, attribute access,
+    string/number/bool/None literals, basic arithmetic, subscript access.
+    """
+    tree = ast.parse(expr, mode="eval")
+    return _eval_node(tree.body, variables)
+
+
+def _eval_node(node: ast.AST, variables: Dict[str, Any]) -> Any:
+    if isinstance(node, ast.Expression):
+        return _eval_node(node.body, variables)
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.Name):
+        if node.id in variables:
+            return variables[node.id]
+        raise NameError(f"Name '{node.id}' is not allowed")
+    if isinstance(node, ast.Call):
+        func = _eval_node(node.func, variables)
+        args = [_eval_node(a, variables) for a in node.args]
+        kwargs = {kw.arg: _eval_node(kw.value, variables) for kw in node.keywords}
+        return func(*args, **kwargs)
+    if isinstance(node, ast.Attribute):
+        obj = _eval_node(node.value, variables)
+        attr = node.attr
+        # Only allow safe string/number/datetime methods
+        if not hasattr(obj, attr):
+            raise AttributeError(f"'{type(obj).__name__}' has no attribute '{attr}'")
+        result = getattr(obj, attr)
+        return result
+    if isinstance(node, ast.BinOp):
+        op_func = _SAFE_EVAL_OPS.get(type(node.op))
+        if op_func is None:
+            raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
+        return op_func(_eval_node(node.left, variables), _eval_node(node.right, variables))
+    if isinstance(node, ast.UnaryOp):
+        op_func = _SAFE_EVAL_OPS.get(type(node.op))
+        if op_func is None:
+            raise ValueError(f"Unsupported unary operator: {type(node.op).__name__}")
+        return op_func(_eval_node(node.operand, variables))
+    if isinstance(node, ast.Subscript):
+        obj = _eval_node(node.value, variables)
+        idx = _eval_node(node.slice, variables)
+        return obj[idx]
+    if isinstance(node, ast.IfExp):
+        test = _eval_node(node.test, variables)
+        return _eval_node(node.body, variables) if test else _eval_node(node.orelse, variables)
+    if isinstance(node, ast.Compare):
+        left = _eval_node(node.left, variables)
+        for op, comparator in zip(node.ops, node.comparators):
+            right = _eval_node(comparator, variables)
+            if isinstance(op, ast.Eq):
+                if not (left == right):
+                    return False
+            elif isinstance(op, ast.NotEq):
+                if not (left != right):
+                    return False
+            elif isinstance(op, ast.Is):
+                if left is not right:
+                    return False
+            elif isinstance(op, ast.IsNot):
+                if left is right:
+                    return False
+            else:
+                raise ValueError(f"Unsupported comparison: {type(op).__name__}")
+            left = right
+        return True
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return [_eval_node(e, variables) for e in node.elts]
+    raise ValueError(f"Unsupported expression node: {type(node).__name__}")
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -96,7 +182,7 @@ class SyncService:
             sync_type="manual",
             direction="pull",
             status="started",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
         self.db.add(sync_log)
         await self.db.commit()
@@ -248,10 +334,12 @@ class SyncService:
                                                     "int": int,
                                                     "bool": bool,
                                                     "datetime": datetime,
+                                                    "None": None,
+                                                    "True": True,
+                                                    "False": False,
                                                 }
-                                                val = eval(
+                                                val = safe_eval(
                                                     p_map.transform_expression,
-                                                    {"__builtins__": {}},
                                                     safe_dict,
                                                 )
                                             except Exception as e:
@@ -345,7 +433,7 @@ class SyncService:
 
             # 5. 完成日志
             sync_log.status = "completed"
-            sync_log.completed_at = datetime.utcnow()
+            sync_log.completed_at = datetime.now(timezone.utc)
             sync_log.records_processed = total_processed
             sync_log.records_created = total_created
             sync_log.records_updated = total_updated
@@ -358,7 +446,7 @@ class SyncService:
         except Exception as e:
             logger.exception("Global sync error")
             sync_log.status = "failed"
-            sync_log.completed_at = datetime.utcnow()
+            sync_log.completed_at = datetime.now(timezone.utc)
             sync_log.error_message = str(e)
             await self.db.commit()
             raise

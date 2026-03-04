@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl'
 import { AppLayout } from '@/components/layout'
 import { GraphViewer } from '@/components/graph-viewer'
 import { SchemaViewer } from '@/components/schema-viewer'
+import { ErrorBoundary } from '@/components/error-boundary'
 import { useAuthStore } from '@/lib/auth'
 
 export default function VisualizePage() {
@@ -35,12 +36,16 @@ export default function VisualizePage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
           {/* Left: Schema View */}
           <div className="bg-white rounded-lg border overflow-hidden">
-            <SchemaViewer />
+            <ErrorBoundary>
+              <SchemaViewer />
+            </ErrorBoundary>
           </div>
 
           {/* Right: Instance View */}
           <div className="bg-white rounded-lg border overflow-hidden">
-            <GraphViewer />
+            <ErrorBoundary>
+              <GraphViewer />
+            </ErrorBoundary>
           </div>
         </div>
       </div>

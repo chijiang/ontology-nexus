@@ -63,15 +63,19 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
     const containerRef = useRef<HTMLDivElement>(null)
     const cyRef = useRef<Core | null>(null)
     const layoutRef = useRef<any>(null)
-    const [isMounted, setIsMounted] = useState(true)
+    const isMountedRef = useRef(true)
     const [loading, setLoading] = useState(false)
     const [noData, setNoData] = useState(true)
     const [physicsEnabled, setPhysicsEnabled] = useState(true)
     const physicsEnabledRef = useRef(true)
+    const tokenRef = useRef(token)
 
     useEffect(() => {
-        setIsMounted(true)
-        return () => setIsMounted(false)
+        tokenRef.current = token
+    }, [token])
+
+    useEffect(() => {
+        return () => { isMountedRef.current = false }
     }, [])
 
     useEffect(() => {
@@ -352,8 +356,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                 searchParams.className,
                 searchParams.keyword,
                 filterObj,
-                50,
-                token!
+                50
             )
 
             const instances = res.data || []
@@ -391,7 +394,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
             // 加载这些节点的邻居关系
             for (const instance of instances.slice(0, 20)) {
                 try {
-                    const neighborsRes = await graphApi.getNeighbors(instance.name, 1, token!)
+                    const neighborsRes = await graphApi.getNeighbors(instance.name, 1)
                     const neighbors = neighborsRes.data || []
 
                     neighbors.forEach((n: any) => {
@@ -486,7 +489,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
 
     const expandNode = async (nodeName: string) => {
         try {
-            const res = await graphApi.getNeighbors(nodeName, 1, token!)
+            const res = await graphApi.getNeighbors(nodeName, 1)
             const neighbors = res.data
 
             const newElements: ElementDefinition[] = []

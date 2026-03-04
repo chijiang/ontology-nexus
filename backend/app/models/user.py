@@ -1,5 +1,5 @@
 # backend/app/models/user.py
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Boolean, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
@@ -20,8 +20,8 @@ class User(Base):
     approved_by: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Foreign key to User.id
     approved_at: Mapped[datetime | None] = mapped_column(nullable=True)
     is_password_changed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def __init__(self, **kwargs):
         if 'is_active' not in kwargs:

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import get_db
 from app.core.security import decrypt_data
 from app.api.deps import get_current_user
@@ -154,7 +154,7 @@ async def add_message(
     db.add(message)
 
     # 更新对话时间
-    conversation.updated_at = datetime.utcnow()
+    conversation.updated_at = datetime.now(timezone.utc)
 
     await db.commit()
     await db.refresh(message)

@@ -7,6 +7,7 @@ import { AppLayout } from '@/components/layout'
 import { InstanceFilter, SearchParams } from '@/components/instance-filter'
 import { InstanceGraphViewer } from '@/components/instance-graph-viewer'
 import { InstanceDetailPanel } from '@/components/instance-detail-panel'
+import { ErrorBoundary } from '@/components/error-boundary'
 import { useAuthStore } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-react'
@@ -146,11 +147,13 @@ export default function InstancesPage() {
                     <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
                         {/* Instance graph */}
                         <div className="lg:col-span-2 bg-white rounded-lg border overflow-hidden">
-                            <InstanceGraphViewer
-                                searchParams={searchParams}
-                                onNodeSelect={setSelectedNode}
-                                refreshTrigger={refreshTrigger}
-                            />
+                            <ErrorBoundary>
+                                <InstanceGraphViewer
+                                    searchParams={searchParams}
+                                    onNodeSelect={setSelectedNode}
+                                    refreshTrigger={refreshTrigger}
+                                />
+                            </ErrorBoundary>
                         </div>
 
                         {/* Instance details panel */}

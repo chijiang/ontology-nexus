@@ -26,7 +26,7 @@ dependencies = [
     "httpcore[socks]>=1.0.9",
     "lark>=1.1",
     "alembic>=1.18.0",
-    "fastmcp",
+    "fastmcp>=2.0.0",
     "grpcio>=1.60.0",
     "grpcio-tools>=1.60.0",
     "grpcio-reflection>=1.78.0",
@@ -37,7 +37,6 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
-    "httpx>=0.28.0",
     "ruff>=0.8.0",
 ]
 

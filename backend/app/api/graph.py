@@ -4,30 +4,77 @@
 Implementation with PostgreSQL.
 """
 
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Request
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Request, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
 from app.core.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin
 from app.models.user import User
 from app.services.pg_graph_storage import PGGraphStorage
 from app.services.pg_graph_importer import PGGraphImporter
 from app.services.permission_service import PermissionService
 from app.rule_engine.event_emitter import GraphEventEmitter
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 
 router = APIRouter(prefix="/graph", tags=["graph"])
+
+
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
+ALLOWED_EXTENSIONS = {".ttl", ".owl", ".rdf", ".xml", ".n3", ".nt"}
+
+
+class OntologyClassCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    label: str | None = None
+    data_properties: list[str] | None = None
+    color: str | None = None
+
+
+class OntologyClassUpdate(BaseModel):
+    label: str | None = None
+    data_properties: list[str] | None = None
+    color: str | None = None
+
+
+class OntologyRelationshipRequest(BaseModel):
+    source: str = Field(..., min_length=1, max_length=255)
+    type: str = Field(..., min_length=1, max_length=255)
+    target: str = Field(..., min_length=1, max_length=255)
 
 
 @router.post("/import")
 async def import_graph(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """导入 OWL/TTL 文件到 PostgreSQL 图存储"""
+    # Validate file extension
+    import os
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
+        )
+
+    # Validate file size
+    if file.size and file.size > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size is {MAX_UPLOAD_SIZE // (1024*1024)}MB",
+        )
+
     content = await file.read()
+
+    # Double-check size after reading (file.size may not always be set)
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size is {MAX_UPLOAD_SIZE // (1024*1024)}MB",
+        )
 
     # 解析并导入
     from app.services.owl_parser import OWLParser
@@ -56,7 +103,7 @@ async def import_graph(
 @router.post("/clear")
 async def clear_graph(
     clear_ontology: bool = True,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """清除图谱数据"""
@@ -104,7 +151,7 @@ async def get_node(
 @router.get("/neighbors")
 async def get_neighbors(
     name: str,
-    hops: int = 1,
+    hops: int = Query(default=1, ge=1, le=10),
     direction: str = "both",
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -142,7 +189,7 @@ async def get_neighbors(
 async def find_path(
     start_uri: str,
     end_uri: str,
-    max_depth: int = 5,
+    max_depth: int = Query(default=5, ge=1, le=15),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -191,7 +238,7 @@ async def get_statistics(
 @router.get("/nodes")
 async def get_nodes_by_label(
     label: str,
-    limit: int = 20,
+    limit: int = Query(default=20, ge=1, le=500),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -233,7 +280,7 @@ async def get_schema(
 async def search_instances(
     class_name: str,
     keyword: str = "",
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=500),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -350,14 +397,14 @@ async def export_ontology(
 
 @router.post("/ontology/classes")
 async def add_ontology_class(
-    data: dict,
-    current_user: User = Depends(get_current_user),
+    data: OntologyClassCreate,
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """添加本体类"""
     storage = PGGraphStorage(db)
     result = await storage.add_ontology_class(
-        data["name"], data.get("label"), data.get("data_properties"), data.get("color")
+        data.name, data.label, data.data_properties, data.color
     )
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -367,14 +414,14 @@ async def add_ontology_class(
 @router.put("/ontology/classes/{name}")
 async def update_ontology_class(
     name: str,
-    data: dict,
-    current_user: User = Depends(get_current_user),
+    data: OntologyClassUpdate,
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """更新本体类"""
     storage = PGGraphStorage(db)
     result = await storage.update_ontology_class(
-        name, data.get("label"), data.get("data_properties"), data.get("color")
+        name, data.label, data.data_properties, data.color
     )
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -384,7 +431,7 @@ async def update_ontology_class(
 @router.delete("/ontology/classes/{name}")
 async def delete_ontology_class(
     name: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """删除本体类"""
@@ -397,14 +444,14 @@ async def delete_ontology_class(
 
 @router.post("/ontology/relationships")
 async def add_ontology_relationship(
-    data: dict,
-    current_user: User = Depends(get_current_user),
+    data: OntologyRelationshipRequest,
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """添加本体关系"""
     storage = PGGraphStorage(db)
     result = await storage.add_ontology_relationship(
-        data["source"], data["type"], data["target"]
+        data.source, data.type, data.target
     )
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -413,14 +460,14 @@ async def add_ontology_relationship(
 
 @router.api_route("/ontology/relationships", methods=["DELETE"])
 async def delete_ontology_relationship(
-    data: dict,
-    current_user: User = Depends(get_current_user),
+    data: OntologyRelationshipRequest,
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """删除本体关系"""
     storage = PGGraphStorage(db)
     result = await storage.delete_ontology_relationship(
-        data["source"], data["type"], data["target"]
+        data.source, data.type, data.target
     )
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -429,7 +476,7 @@ async def delete_ontology_relationship(
 
 @router.get("/instances/random")
 async def get_random_instances(
-    limit: int = 100,
+    limit: int = Query(default=100, ge=1, le=1000),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

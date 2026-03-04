@@ -32,7 +32,6 @@ class EnhancedAgentService:
     def __init__(
         self,
         llm_config: dict[str, Any],
-        neo4j_config: dict[str, Any] | None,
         action_executor: Any = None,
         action_registry: Any = None,
     ):
@@ -40,12 +39,10 @@ class EnhancedAgentService:
 
         Args:
             llm_config: LLM configuration dict with api_key, base_url, model
-            neo4j_config: Deprecated - Neo4j has been replaced with PostgreSQL
             action_executor: Optional ActionExecutor instance for action execution
             action_registry: Optional ActionRegistry instance for looking up actions
         """
         self.llm_config = llm_config
-        self.neo4j_config = neo4j_config  # Kept for compatibility, now unused
         self.action_executor = action_executor
         self.action_registry = action_registry
 
@@ -283,8 +280,8 @@ class EnhancedAgentService:
         finally:
             try:
                 self.event_emitter.unsubscribe(on_graph_event)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to unsubscribe event handler: %s", e)
 
         # Final done event
         yield {"type": "done"}

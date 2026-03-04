@@ -276,8 +276,25 @@ def create_action_tools(
             )
             if result.success:
                 await session.commit()
-                changes_str = ", ".join([f"{k}={v}" for k, v in result.changes.items()])
-                return f"Action {entity_type}.{action_name} executed successfully on {entity_id}\nChanges: {changes_str}"
+                parts = [
+                    f"Action {entity_type}.{action_name} executed successfully on {entity_id}"
+                ]
+                if result.changes:
+                    changes_str = ", ".join(
+                        [f"{k}={v}" for k, v in result.changes.items()]
+                    )
+                    parts.append(f"Changes: {changes_str}")
+                if result.return_value is not None:
+                    import json
+
+                    try:
+                        rv_str = json.dumps(
+                            result.return_value, ensure_ascii=False, indent=2
+                        )
+                    except Exception:
+                        rv_str = str(result.return_value)
+                    parts.append(f"Returned: {rv_str}")
+                return "\n".join(parts)
             else:
                 return f"Action {entity_type}.{action_name} failed on {entity_id}\nReason: {result.error}"
 

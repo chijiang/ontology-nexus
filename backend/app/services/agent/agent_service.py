@@ -240,6 +240,35 @@ class EnhancedAgentService:
                         "content": f"\n\n> **Calling tool**: `{event['name']}`{input_str}...\n",
                     }
 
+                # 3.5 Tool execution end events
+                elif kind == "on_tool_end":
+                    tool_output = event["data"].get("output")
+                    if hasattr(tool_output, "content"):
+                        content = tool_output.content
+                    else:
+                        content = str(tool_output)
+
+                    if content:
+                        import json
+
+                        output_str = ""
+                        try:
+                            try:
+                                parsed = json.loads(content)
+                                output_str = json.dumps(
+                                    parsed, ensure_ascii=False, indent=2
+                                )
+                            except Exception:
+                                output_str = content
+                            output_str = f"\n```json\n{output_str}\n```\n"
+                        except Exception:
+                            output_str = f"\n```\n{content}\n```\n"
+
+                        yield {
+                            "type": "thinking",
+                            "content": f"\n\n> **Tool result**:{output_str}\n",
+                        }
+
                 # 4. Node markers (optional, for logging)
                 elif kind == "on_chain_start" and event.get("metadata", {}).get(
                     "langgraph_node"

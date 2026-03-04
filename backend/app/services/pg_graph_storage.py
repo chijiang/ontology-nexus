@@ -607,7 +607,7 @@ class PGGraphStorage:
         self, search_term: str, class_name: Optional[str] = None, limit: int = 10
     ) -> List[Dict]:
         """根据名称，ID或别名搜索实例节点"""
-        from sqlalchemy import or_, cast, String
+        from sqlalchemy import cast, String
 
         # Escape SQL LIKE wildcards in user input
         escaped_term = (
@@ -739,18 +739,20 @@ class PGGraphStorage:
 
         if not start_entity and entity_name is not None:
             # Try by display name or entity id
-            from sqlalchemy import or_, cast, String
+            from sqlalchemy import cast, String
 
             result = await self.db.execute(
-                select(GraphEntity).where(
+                select(GraphEntity)
+                .where(
                     or_(
                         GraphEntity._display_name == entity_name,
                         cast(GraphEntity.id, String) == entity_name,
                     ),
                     GraphEntity.is_instance == True,
                 )
+                .limit(1)
             )
-            start_entity = result.scalar_one_or_none()
+            start_entity = result.scalars().first()
 
         if not start_entity:
             return []
@@ -830,14 +832,14 @@ class PGGraphStorage:
                                 "id": rel.id,
                                 "type": rel.relationship_type,
                                 "source": (
-                                    instance_name_resolved
+                                    str(start_node)
                                     if direction == "outgoing"
-                                    else entity._display_name
+                                    else str(entity.id)
                                 ),
                                 "target": (
-                                    entity._display_name
+                                    str(entity.id)
                                     if direction == "outgoing"
-                                    else instance_name_resolved
+                                    else str(start_node)
                                 ),
                             }
                         ],
@@ -893,14 +895,14 @@ class PGGraphStorage:
                                     "id": rel.id,
                                     "type": rel.relationship_type,
                                     "source": (
-                                        instance_name_resolved
+                                        str(start_node)
                                         if rel.source_id == start_node
-                                        else entity._display_name
+                                        else str(entity.id)
                                     ),
                                     "target": (
-                                        entity._display_name
+                                        str(entity.id)
                                         if rel.source_id == start_node
-                                        else instance_name_resolved
+                                        else str(start_node)
                                     ),
                                 }
                             ],
@@ -982,18 +984,20 @@ class PGGraphStorage:
 
         if not start_entity and entity_name is not None:
             # Try by display name or source_id
-            from sqlalchemy import or_, cast, String
+            from sqlalchemy import cast, String
 
             result = await self.db.execute(
-                select(GraphEntity).where(
+                select(GraphEntity)
+                .where(
                     or_(
                         GraphEntity._display_name == entity_name,
                         cast(GraphEntity.id, String) == entity_name,
                     ),
                     GraphEntity.is_instance == True,
                 )
+                .limit(1)
             )
-            start_entity = result.scalar_one_or_none()
+            start_entity = result.scalars().first()
 
         if not start_entity:
             return []
@@ -1043,7 +1047,7 @@ class PGGraphStorage:
                 1 as depth,
                 ARRAY[e.id] as path_ids,
                 NULL::varchar as rel_type,
-                NULL::varchar as source_name
+                NULL::bigint as source_id
             FROM graph_entities e
             WHERE e.id = :start_id AND e.is_instance = true
 
@@ -1058,7 +1062,7 @@ class PGGraphStorage:
                 ns.depth + 1 as depth,
                 ns.path_ids || CASE WHEN r.source_id = ns.id THEN r.target_id ELSE r.source_id END as path_ids,
                 r.relationship_type as rel_type,
-                ns.name as source_name
+                ns.id as source_id
             FROM neighbor_search ns
             JOIN graph_relationships r ON {direction_clause}
             JOIN graph_entities s ON r.source_id = s.id
@@ -1067,7 +1071,7 @@ class PGGraphStorage:
             AND NOT (CASE WHEN r.source_id = ns.id THEN r.target_id ELSE r.source_id END = ANY(ns.path_ids))
             {f"AND (CASE WHEN r.source_id = ns.id THEN t.entity_type ELSE s.entity_type END) = ANY(:accessible_entity_types)" if accessible_entity_types else ""}
         )
-        SELECT id, name, entity_type, properties, rel_type, source_name, depth
+        SELECT id, name, entity_type, properties, rel_type, source_id, depth
         FROM neighbor_search
         ORDER BY depth ASC
         LIMIT 500
@@ -1090,7 +1094,7 @@ class PGGraphStorage:
         seen_filtered_ids = set()
 
         for row in rows:
-            node_id, name, etype, props, rel_type, source_name, depth = row
+            node_id, name, etype, props, rel_type, source_id, depth = row
 
             # 添加到全量节点（用于可视化）
             if node_id not in all_nodes:
@@ -1104,9 +1108,13 @@ class PGGraphStorage:
                 }
 
             # 添加边（用于可视化）
-            if rel_type and source_name:
+            if rel_type and source_id:
                 all_edges.append(
-                    {"source": source_name, "target": name, "label": rel_type}
+                    {
+                        "source": str(source_id),
+                        "target": str(node_id),
+                        "label": rel_type,
+                    }
                 )
 
             # 检查是否满足过滤器条件并行成结果
@@ -1133,8 +1141,8 @@ class PGGraphStorage:
                                 [
                                     {
                                         "type": rel_type,
-                                        "source": source_name,
-                                        "target": name,
+                                        "source": str(source_id),
+                                        "target": str(node_id),
                                     }
                                 ]
                                 if rel_type

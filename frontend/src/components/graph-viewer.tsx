@@ -198,17 +198,18 @@ export function GraphViewer() {
             const borderColor = shadeColor(nodeColor, -20)
 
             nodes.forEach((n: any) => {
-              if (!addedNodes.has(n.name)) {
+              const uniqueId = n.id.toString()
+              if (!addedNodes.has(uniqueId)) {
                 elements.push({
                   data: {
-                    id: n.name,
+                    id: uniqueId,
                     label: n.name,
                     nodeLabel: labelName,
                     color: nodeColor,
                     borderColor: borderColor,
                   },
                 })
-                addedNodes.add(n.name)
+                addedNodes.add(uniqueId)
               }
             })
           } catch (err) {
@@ -259,9 +260,9 @@ export function GraphViewer() {
   }
 
 
-  const expandNode = async (nodeName: string) => {
+  const expandNode = async (nodeId: string) => {
     try {
-      const res = await graphApi.getNeighbors(nodeName, 1)
+      const res = await graphApi.getNeighbors(nodeId, 1)
       const neighbors = res.data
 
       const newElements: ElementDefinition[] = []
@@ -274,11 +275,12 @@ export function GraphViewer() {
         const borderColor = shadeColor(nodeColor, -20)
 
         // Add node if not exists (check both cytoscape and current batch)
-        if (!cyRef.current?.getElementById(n.name).length && !addedNodeIds.has(n.name)) {
-          addedNodeIds.add(n.name)
+        const uniqueId = n.id.toString()
+        if (!cyRef.current?.getElementById(uniqueId).length && !addedNodeIds.has(uniqueId)) {
+          addedNodeIds.add(uniqueId)
           newElements.push({
             data: {
-              id: n.name,
+              id: uniqueId,
               label: n.name,
               nodeLabel: labelName,
               color: nodeColor,
@@ -292,7 +294,7 @@ export function GraphViewer() {
           // Use relationship ID if available, otherwise fallback to composite key
           const edgeId = rel.id
             ? `rel-${rel.id}`
-            : (typeof rel === 'object' ? `${rel.source}-${rel.target}-${rel.type}` : `${nodeName}-${n.name}-${i}`)
+            : (typeof rel === 'object' ? `${rel.source}-${rel.target}-${rel.type}` : `${nodeId}-${uniqueId}-${i}`)
 
           // Check both cytoscape and current batch to avoid duplicates
           if (!cyRef.current?.getElementById(edgeId).length && !addedEdgeIds.has(edgeId)) {
@@ -300,8 +302,8 @@ export function GraphViewer() {
             newElements.push({
               data: {
                 id: edgeId,
-                source: typeof rel === 'object' ? rel.source : nodeName,
-                target: typeof rel === 'object' ? rel.target : n.name,
+                source: typeof rel === 'object' ? rel.source : nodeId,
+                target: typeof rel === 'object' ? rel.target : uniqueId,
                 label: typeof rel === 'object' ? rel.type : rel,
               },
             })

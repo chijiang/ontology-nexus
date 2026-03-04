@@ -5,8 +5,9 @@ package work_ticket;
 import "common.proto";
 
 message Survey {
-  string survey_medium = 1;
-  string language = 2;
+  int32 id = 1;
+  string survey_medium = 2;
+  string language = 3;
 }
 
 message GetSurveyRequest {

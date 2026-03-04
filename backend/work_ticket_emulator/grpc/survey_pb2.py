@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from . import common_pb2 as common__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0csurvey.proto\x12\x0bwork_ticket\x1a\x0c\x63ommon.proto\"1\n\x06Survey\x12\x15\n\rsurvey_medium\x18\x01 \x01(\t\x12\x10\n\x08language\x18\x02 \x01(\t\"\x1e\n\x10GetSurveyRequest\x12\n\n\x02id\x18\x01 \x01(\x05\"W\n\x12ListSurveysRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x32\n\npagination\x18\x02 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"n\n\x13ListSurveysResponse\x12\"\n\x05items\x18\x01 \x03(\x0b\x32\x13.work_ticket.Survey\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse2\xa6\x01\n\rSurveyService\x12\x41\n\tGetSurvey\x12\x1d.work_ticket.GetSurveyRequest\x1a\x13.work_ticket.Survey\"\x00\x12R\n\x0bListSurveys\x12\x1f.work_ticket.ListSurveysRequest\x1a .work_ticket.ListSurveysResponse\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0csurvey.proto\x12\x0bwork_ticket\x1a\x0c\x63ommon.proto\"=\n\x06Survey\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x15\n\rsurvey_medium\x18\x02 \x01(\t\x12\x10\n\x08language\x18\x03 \x01(\t\"\x1e\n\x10GetSurveyRequest\x12\n\n\x02id\x18\x01 \x01(\x05\"W\n\x12ListSurveysRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x32\n\npagination\x18\x02 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"n\n\x13ListSurveysResponse\x12\"\n\x05items\x18\x01 \x03(\x0b\x32\x13.work_ticket.Survey\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse2\xa6\x01\n\rSurveyService\x12\x41\n\tGetSurvey\x12\x1d.work_ticket.GetSurveyRequest\x1a\x13.work_ticket.Survey\"\x00\x12R\n\x0bListSurveys\x12\x1f.work_ticket.ListSurveysRequest\x1a .work_ticket.ListSurveysResponse\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,13 +33,13 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'survey_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_SURVEY']._serialized_start=43
-  _globals['_SURVEY']._serialized_end=92
-  _globals['_GETSURVEYREQUEST']._serialized_start=94
-  _globals['_GETSURVEYREQUEST']._serialized_end=124
-  _globals['_LISTSURVEYSREQUEST']._serialized_start=126
-  _globals['_LISTSURVEYSREQUEST']._serialized_end=213
-  _globals['_LISTSURVEYSRESPONSE']._serialized_start=215
-  _globals['_LISTSURVEYSRESPONSE']._serialized_end=325
-  _globals['_SURVEYSERVICE']._serialized_start=328
-  _globals['_SURVEYSERVICE']._serialized_end=494
+  _globals['_SURVEY']._serialized_end=104
+  _globals['_GETSURVEYREQUEST']._serialized_start=106
+  _globals['_GETSURVEYREQUEST']._serialized_end=136
+  _globals['_LISTSURVEYSREQUEST']._serialized_start=138
+  _globals['_LISTSURVEYSREQUEST']._serialized_end=225
+  _globals['_LISTSURVEYSRESPONSE']._serialized_start=227
+  _globals['_LISTSURVEYSRESPONSE']._serialized_end=337
+  _globals['_SURVEYSERVICE']._serialized_start=340
+  _globals['_SURVEYSERVICE']._serialized_end=506
 # @@protoc_insertion_point(module_scope)

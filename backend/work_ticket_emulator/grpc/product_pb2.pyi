@@ -8,16 +8,18 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Product(_message.Message):
-    __slots__ = ("brand_ops", "product_group_ops", "product_series", "machine_type_4_digital")
+    __slots__ = ("id", "brand_ops", "product_group_ops", "product_series", "machine_type_4_digital")
+    ID_FIELD_NUMBER: _ClassVar[int]
     BRAND_OPS_FIELD_NUMBER: _ClassVar[int]
     PRODUCT_GROUP_OPS_FIELD_NUMBER: _ClassVar[int]
     PRODUCT_SERIES_FIELD_NUMBER: _ClassVar[int]
     MACHINE_TYPE_4_DIGITAL_FIELD_NUMBER: _ClassVar[int]
+    id: int
     brand_ops: str
     product_group_ops: str
     product_series: str
     machine_type_4_digital: str
-    def __init__(self, brand_ops: _Optional[str] = ..., product_group_ops: _Optional[str] = ..., product_series: _Optional[str] = ..., machine_type_4_digital: _Optional[str] = ...) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., brand_ops: _Optional[str] = ..., product_group_ops: _Optional[str] = ..., product_series: _Optional[str] = ..., machine_type_4_digital: _Optional[str] = ...) -> None: ...
 
 class GetProductRequest(_message.Message):
     __slots__ = ("id",)

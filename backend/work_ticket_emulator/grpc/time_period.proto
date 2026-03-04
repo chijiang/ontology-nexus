@@ -5,8 +5,9 @@ package work_ticket;
 import "common.proto";
 
 message TimePeriod {
-  string interview_end = 1;
-  string interview_end_month_ops = 2;
+  int32 id = 1;
+  string interview_end = 2;
+  string interview_end_month_ops = 3;
 }
 
 message GetTimePeriodRequest {

@@ -5,10 +5,11 @@ package work_ticket;
 import "common.proto";
 
 message Product {
-  string brand_ops = 1;
-  string product_group_ops = 2;
-  string product_series = 3;
-  string machine_type_4_digital = 4;
+  int32 id = 1;
+  string brand_ops = 2;
+  string product_group_ops = 3;
+  string product_series = 4;
+  string machine_type_4_digital = 5;
 }
 
 message GetProductRequest {

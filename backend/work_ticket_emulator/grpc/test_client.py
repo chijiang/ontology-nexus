@@ -61,7 +61,9 @@ async def run():
                 f"Found total {response.pagination.total} matching locations. Page {response.pagination.page} contains {len(response.items)} items."
             )
             for t in response.items:
-                print(f"- Location: '{t.country_name_ops}' Region: '{t.px_region}'")
+                print(
+                    f"- [ID: {t.id}] Location: '{t.country_name_ops}' Region: '{t.px_region}'"
+                )
         except grpc.RpcError as e:
             print(f"Failed to search locations: {e.details()}")
 
@@ -79,7 +81,7 @@ async def run():
             )
             for t in response.items:
                 print(
-                    f"- Product Brand: '{t.brand_ops}' Group: '{t.product_group_ops}'"
+                    f"- [ID: {t.id}] Product Brand: '{t.brand_ops}' Group: '{t.product_group_ops}'"
                 )
         except grpc.RpcError as e:
             print(f"Failed to search products: {e.details()}")

@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from . import common_pb2 as common__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14so_information.proto\x12\x0bwork_ticket\x1a\x0c\x63ommon.proto\"\xfa\x01\n\rSOInformation\x12\x0f\n\x07program\x18\x01 \x01(\t\x12\x1a\n\x12trans_servdelivery\x18\x02 \x01(\t\x12\x10\n\x08warranty\x18\x03 \x01(\t\x12\x10\n\x08sdf_code\x18\x04 \x01(\t\x12\x17\n\x0fsdf_description\x18\x05 \x01(\t\x12\x14\n\x0c\x63omm_channel\x18\x06 \x01(\t\x12)\n!accounting_indicator_adjusted_ops\x18\x07 \x01(\t\x12\x1f\n\x17service_provider_name_m\x18\x08 \x01(\t\x12\x1d\n\x15primary_vendor_name_m\x18\t \x01(\t\"%\n\x17GetSOInformationRequest\x12\n\n\x02id\x18\x01 \x01(\x05\"^\n\x19ListSOInformationsRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x32\n\npagination\x18\x02 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"|\n\x1aListSOInformationsResponse\x12)\n\x05items\x18\x01 \x03(\x0b\x32\x1a.work_ticket.SOInformation\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse2\xd7\x01\n\x14SOInformationService\x12V\n\x10GetSOInformation\x12$.work_ticket.GetSOInformationRequest\x1a\x1a.work_ticket.SOInformation\"\x00\x12g\n\x12ListSOInformations\x12&.work_ticket.ListSOInformationsRequest\x1a\'.work_ticket.ListSOInformationsResponse\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14so_information.proto\x12\x0bwork_ticket\x1a\x0c\x63ommon.proto\"\x86\x02\n\rSOInformation\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x0f\n\x07program\x18\x02 \x01(\t\x12\x1a\n\x12trans_servdelivery\x18\x03 \x01(\t\x12\x10\n\x08warranty\x18\x04 \x01(\t\x12\x10\n\x08sdf_code\x18\x05 \x01(\t\x12\x17\n\x0fsdf_description\x18\x06 \x01(\t\x12\x14\n\x0c\x63omm_channel\x18\x07 \x01(\t\x12)\n!accounting_indicator_adjusted_ops\x18\x08 \x01(\t\x12\x1f\n\x17service_provider_name_m\x18\t \x01(\t\x12\x1d\n\x15primary_vendor_name_m\x18\n \x01(\t\"%\n\x17GetSOInformationRequest\x12\n\n\x02id\x18\x01 \x01(\x05\"^\n\x19ListSOInformationsRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x32\n\npagination\x18\x02 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"|\n\x1aListSOInformationsResponse\x12)\n\x05items\x18\x01 \x03(\x0b\x32\x1a.work_ticket.SOInformation\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse2\xd7\x01\n\x14SOInformationService\x12V\n\x10GetSOInformation\x12$.work_ticket.GetSOInformationRequest\x1a\x1a.work_ticket.SOInformation\"\x00\x12g\n\x12ListSOInformations\x12&.work_ticket.ListSOInformationsRequest\x1a\'.work_ticket.ListSOInformationsResponse\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,13 +33,13 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'so_information_pb2', _globa
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_SOINFORMATION']._serialized_start=52
-  _globals['_SOINFORMATION']._serialized_end=302
-  _globals['_GETSOINFORMATIONREQUEST']._serialized_start=304
-  _globals['_GETSOINFORMATIONREQUEST']._serialized_end=341
-  _globals['_LISTSOINFORMATIONSREQUEST']._serialized_start=343
-  _globals['_LISTSOINFORMATIONSREQUEST']._serialized_end=437
-  _globals['_LISTSOINFORMATIONSRESPONSE']._serialized_start=439
-  _globals['_LISTSOINFORMATIONSRESPONSE']._serialized_end=563
-  _globals['_SOINFORMATIONSERVICE']._serialized_start=566
-  _globals['_SOINFORMATIONSERVICE']._serialized_end=781
+  _globals['_SOINFORMATION']._serialized_end=314
+  _globals['_GETSOINFORMATIONREQUEST']._serialized_start=316
+  _globals['_GETSOINFORMATIONREQUEST']._serialized_end=353
+  _globals['_LISTSOINFORMATIONSREQUEST']._serialized_start=355
+  _globals['_LISTSOINFORMATIONSREQUEST']._serialized_end=449
+  _globals['_LISTSOINFORMATIONSRESPONSE']._serialized_start=451
+  _globals['_LISTSOINFORMATIONSRESPONSE']._serialized_end=575
+  _globals['_SOINFORMATIONSERVICE']._serialized_start=578
+  _globals['_SOINFORMATIONSERVICE']._serialized_end=793
 # @@protoc_insertion_point(module_scope)

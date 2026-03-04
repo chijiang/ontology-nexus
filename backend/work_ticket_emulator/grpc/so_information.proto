@@ -5,15 +5,16 @@ package work_ticket;
 import "common.proto";
 
 message SOInformation {
-  string program = 1;
-  string trans_servdelivery = 2;
-  string warranty = 3;
-  string sdf_code = 4;
-  string sdf_description = 5;
-  string comm_channel = 6;
-  string accounting_indicator_adjusted_ops = 7;
-  string service_provider_name_m = 8;
-  string primary_vendor_name_m = 9;
+  int32 id = 1;
+  string program = 2;
+  string trans_servdelivery = 3;
+  string warranty = 4;
+  string sdf_code = 5;
+  string sdf_description = 6;
+  string comm_channel = 7;
+  string accounting_indicator_adjusted_ops = 8;
+  string service_provider_name_m = 9;
+  string primary_vendor_name_m = 10;
 }
 
 message GetSOInformationRequest {

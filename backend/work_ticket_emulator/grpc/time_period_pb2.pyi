@@ -8,12 +8,14 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class TimePeriod(_message.Message):
-    __slots__ = ("interview_end", "interview_end_month_ops")
+    __slots__ = ("id", "interview_end", "interview_end_month_ops")
+    ID_FIELD_NUMBER: _ClassVar[int]
     INTERVIEW_END_FIELD_NUMBER: _ClassVar[int]
     INTERVIEW_END_MONTH_OPS_FIELD_NUMBER: _ClassVar[int]
+    id: int
     interview_end: str
     interview_end_month_ops: str
-    def __init__(self, interview_end: _Optional[str] = ..., interview_end_month_ops: _Optional[str] = ...) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., interview_end: _Optional[str] = ..., interview_end_month_ops: _Optional[str] = ...) -> None: ...
 
 class GetTimePeriodRequest(_message.Message):
     __slots__ = ("id",)

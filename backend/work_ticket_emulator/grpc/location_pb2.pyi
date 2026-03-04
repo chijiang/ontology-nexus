@@ -8,18 +8,20 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Location(_message.Message):
-    __slots__ = ("geo_ops", "px_region", "px_sub_region", "sub_region_1", "country_name_ops")
+    __slots__ = ("id", "geo_ops", "px_region", "px_sub_region", "sub_region_1", "country_name_ops")
+    ID_FIELD_NUMBER: _ClassVar[int]
     GEO_OPS_FIELD_NUMBER: _ClassVar[int]
     PX_REGION_FIELD_NUMBER: _ClassVar[int]
     PX_SUB_REGION_FIELD_NUMBER: _ClassVar[int]
     SUB_REGION_1_FIELD_NUMBER: _ClassVar[int]
     COUNTRY_NAME_OPS_FIELD_NUMBER: _ClassVar[int]
+    id: int
     geo_ops: str
     px_region: str
     px_sub_region: str
     sub_region_1: str
     country_name_ops: str
-    def __init__(self, geo_ops: _Optional[str] = ..., px_region: _Optional[str] = ..., px_sub_region: _Optional[str] = ..., sub_region_1: _Optional[str] = ..., country_name_ops: _Optional[str] = ...) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., geo_ops: _Optional[str] = ..., px_region: _Optional[str] = ..., px_sub_region: _Optional[str] = ..., sub_region_1: _Optional[str] = ..., country_name_ops: _Optional[str] = ...) -> None: ...
 
 class GetLocationRequest(_message.Message):
     __slots__ = ("id",)

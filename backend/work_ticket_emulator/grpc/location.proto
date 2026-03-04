@@ -5,11 +5,12 @@ package work_ticket;
 import "common.proto";
 
 message Location {
-  string geo_ops = 1;
-  string px_region = 2;
-  string px_sub_region = 3;
-  string sub_region_1 = 4;
-  string country_name_ops = 5;
+  int32 id = 1;
+  string geo_ops = 2;
+  string px_region = 3;
+  string px_sub_region = 4;
+  string sub_region_1 = 5;
+  string country_name_ops = 6;
 }
 
 message GetLocationRequest {

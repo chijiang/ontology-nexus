@@ -8,12 +8,14 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Survey(_message.Message):
-    __slots__ = ("survey_medium", "language")
+    __slots__ = ("id", "survey_medium", "language")
+    ID_FIELD_NUMBER: _ClassVar[int]
     SURVEY_MEDIUM_FIELD_NUMBER: _ClassVar[int]
     LANGUAGE_FIELD_NUMBER: _ClassVar[int]
+    id: int
     survey_medium: str
     language: str
-    def __init__(self, survey_medium: _Optional[str] = ..., language: _Optional[str] = ...) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., survey_medium: _Optional[str] = ..., language: _Optional[str] = ...) -> None: ...
 
 class GetSurveyRequest(_message.Message):
     __slots__ = ("id",)

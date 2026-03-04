@@ -61,6 +61,7 @@ class SurveyServicer(survey_pb2_grpc.SurveyServiceServicer):
             if not obj:
                 await context.abort(grpc.StatusCode.NOT_FOUND, "Survey not found")
             return survey_pb2.Survey(
+                id=obj.id,
                 survey_medium=_safe_str(obj.survey_medium),
                 language=_safe_str(obj.language),
             )
@@ -87,6 +88,7 @@ class SurveyServicer(survey_pb2_grpc.SurveyServiceServicer):
 
             items = [
                 survey_pb2.Survey(
+                    id=o.id,
                     survey_medium=_safe_str(o.survey_medium),
                     language=_safe_str(o.language),
                 )
@@ -108,6 +110,7 @@ class TimePeriodServicer(time_period_pb2_grpc.TimePeriodServiceServicer):
             if not obj:
                 await context.abort(grpc.StatusCode.NOT_FOUND, "TimePeriod not found")
             return time_period_pb2.TimePeriod(
+                id=obj.id,
                 interview_end=_safe_str(obj.interview_end),
                 interview_end_month_ops=_safe_str(obj.interview_end_month_ops),
             )
@@ -137,6 +140,7 @@ class TimePeriodServicer(time_period_pb2_grpc.TimePeriodServiceServicer):
 
             items = [
                 time_period_pb2.TimePeriod(
+                    id=o.id,
                     interview_end=_safe_str(o.interview_end),
                     interview_end_month_ops=_safe_str(o.interview_end_month_ops),
                 )
@@ -158,6 +162,7 @@ class LocationServicer(location_pb2_grpc.LocationServiceServicer):
             if not obj:
                 await context.abort(grpc.StatusCode.NOT_FOUND, "Location not found")
             return location_pb2.Location(
+                id=obj.id,
                 geo_ops=_safe_str(obj.geo_ops),
                 px_region=_safe_str(obj.px_region),
                 px_sub_region=_safe_str(obj.px_sub_region),
@@ -191,6 +196,7 @@ class LocationServicer(location_pb2_grpc.LocationServiceServicer):
 
             items = [
                 location_pb2.Location(
+                    id=o.id,
                     geo_ops=_safe_str(o.geo_ops),
                     px_region=_safe_str(o.px_region),
                     px_sub_region=_safe_str(o.px_sub_region),
@@ -215,6 +221,7 @@ class ProductServicer(product_pb2_grpc.ProductServiceServicer):
             if not obj:
                 await context.abort(grpc.StatusCode.NOT_FOUND, "Product not found")
             return product_pb2.Product(
+                id=obj.id,
                 brand_ops=_safe_str(obj.brand_ops),
                 product_group_ops=_safe_str(obj.product_group_ops),
                 product_series=_safe_str(obj.product_series),
@@ -247,6 +254,7 @@ class ProductServicer(product_pb2_grpc.ProductServiceServicer):
 
             items = [
                 product_pb2.Product(
+                    id=o.id,
                     brand_ops=_safe_str(o.brand_ops),
                     product_group_ops=_safe_str(o.product_group_ops),
                     product_series=_safe_str(o.product_series),
@@ -272,6 +280,7 @@ class SOInformationServicer(so_information_pb2_grpc.SOInformationServiceServicer
                     grpc.StatusCode.NOT_FOUND, "SOInformation not found"
                 )
             return so_information_pb2.SOInformation(
+                id=obj.id,
                 program=_safe_str(obj.program),
                 trans_servdelivery=_safe_str(obj.trans_servdelivery),
                 warranty=_safe_str(obj.warranty),
@@ -311,6 +320,7 @@ class SOInformationServicer(so_information_pb2_grpc.SOInformationServiceServicer
 
             items = [
                 so_information_pb2.SOInformation(
+                    id=o.id,
                     program=_safe_str(o.program),
                     trans_servdelivery=_safe_str(o.trans_servdelivery),
                     warranty=_safe_str(o.warranty),
@@ -340,12 +350,14 @@ class WorkTicketServicer(work_ticket_pb2_grpc.WorkTicketServiceServicer):
             first_time_resolution=model.first_time_resolution or 0,
             ease_use=model.ease_use or 0,
             survey=survey_pb2.Survey(
+                id=model.survey.id if model.survey else 0,
                 survey_medium=_safe_str(
                     model.survey.survey_medium if model.survey else ""
                 ),
                 language=_safe_str(model.survey.language if model.survey else ""),
             ),
             time_period=time_period_pb2.TimePeriod(
+                id=model.time_period.id if model.time_period else 0,
                 interview_end=_safe_str(
                     model.time_period.interview_end if model.time_period else ""
                 ),
@@ -356,6 +368,7 @@ class WorkTicketServicer(work_ticket_pb2_grpc.WorkTicketServiceServicer):
                 ),
             ),
             location=location_pb2.Location(
+                id=model.location.id if model.location else 0,
                 geo_ops=_safe_str(model.location.geo_ops if model.location else ""),
                 px_region=_safe_str(model.location.px_region if model.location else ""),
                 px_sub_region=_safe_str(
@@ -369,6 +382,7 @@ class WorkTicketServicer(work_ticket_pb2_grpc.WorkTicketServiceServicer):
                 ),
             ),
             product=product_pb2.Product(
+                id=model.product.id if model.product else 0,
                 brand_ops=_safe_str(model.product.brand_ops if model.product else ""),
                 product_group_ops=_safe_str(
                     model.product.product_group_ops if model.product else ""
@@ -381,6 +395,7 @@ class WorkTicketServicer(work_ticket_pb2_grpc.WorkTicketServiceServicer):
                 ),
             ),
             so_information=so_information_pb2.SOInformation(
+                id=model.so_information.id if model.so_information else 0,
                 program=_safe_str(
                     model.so_information.program if model.so_information else ""
                 ),

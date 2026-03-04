@@ -8,7 +8,8 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class SOInformation(_message.Message):
-    __slots__ = ("program", "trans_servdelivery", "warranty", "sdf_code", "sdf_description", "comm_channel", "accounting_indicator_adjusted_ops", "service_provider_name_m", "primary_vendor_name_m")
+    __slots__ = ("id", "program", "trans_servdelivery", "warranty", "sdf_code", "sdf_description", "comm_channel", "accounting_indicator_adjusted_ops", "service_provider_name_m", "primary_vendor_name_m")
+    ID_FIELD_NUMBER: _ClassVar[int]
     PROGRAM_FIELD_NUMBER: _ClassVar[int]
     TRANS_SERVDELIVERY_FIELD_NUMBER: _ClassVar[int]
     WARRANTY_FIELD_NUMBER: _ClassVar[int]
@@ -18,6 +19,7 @@ class SOInformation(_message.Message):
     ACCOUNTING_INDICATOR_ADJUSTED_OPS_FIELD_NUMBER: _ClassVar[int]
     SERVICE_PROVIDER_NAME_M_FIELD_NUMBER: _ClassVar[int]
     PRIMARY_VENDOR_NAME_M_FIELD_NUMBER: _ClassVar[int]
+    id: int
     program: str
     trans_servdelivery: str
     warranty: str
@@ -27,7 +29,7 @@ class SOInformation(_message.Message):
     accounting_indicator_adjusted_ops: str
     service_provider_name_m: str
     primary_vendor_name_m: str
-    def __init__(self, program: _Optional[str] = ..., trans_servdelivery: _Optional[str] = ..., warranty: _Optional[str] = ..., sdf_code: _Optional[str] = ..., sdf_description: _Optional[str] = ..., comm_channel: _Optional[str] = ..., accounting_indicator_adjusted_ops: _Optional[str] = ..., service_provider_name_m: _Optional[str] = ..., primary_vendor_name_m: _Optional[str] = ...) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., program: _Optional[str] = ..., trans_servdelivery: _Optional[str] = ..., warranty: _Optional[str] = ..., sdf_code: _Optional[str] = ..., sdf_description: _Optional[str] = ..., comm_channel: _Optional[str] = ..., accounting_indicator_adjusted_ops: _Optional[str] = ..., service_provider_name_m: _Optional[str] = ..., primary_vendor_name_m: _Optional[str] = ...) -> None: ...
 
 class GetSOInformationRequest(_message.Message):
     __slots__ = ("id",)

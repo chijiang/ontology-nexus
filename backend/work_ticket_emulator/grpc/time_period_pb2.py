@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from . import common_pb2 as common__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11time_period.proto\x12\x0bwork_ticket\x1a\x0c\x63ommon.proto\"D\n\nTimePeriod\x12\x15\n\rinterview_end\x18\x01 \x01(\t\x12\x1f\n\x17interview_end_month_ops\x18\x02 \x01(\t\"\"\n\x14GetTimePeriodRequest\x12\n\n\x02id\x18\x01 \x01(\x05\"[\n\x16ListTimePeriodsRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x32\n\npagination\x18\x02 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"v\n\x17ListTimePeriodsResponse\x12&\n\x05items\x18\x01 \x03(\x0b\x32\x17.work_ticket.TimePeriod\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse2\xc2\x01\n\x11TimePeriodService\x12M\n\rGetTimePeriod\x12!.work_ticket.GetTimePeriodRequest\x1a\x17.work_ticket.TimePeriod\"\x00\x12^\n\x0fListTimePeriods\x12#.work_ticket.ListTimePeriodsRequest\x1a$.work_ticket.ListTimePeriodsResponse\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11time_period.proto\x12\x0bwork_ticket\x1a\x0c\x63ommon.proto\"P\n\nTimePeriod\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x15\n\rinterview_end\x18\x02 \x01(\t\x12\x1f\n\x17interview_end_month_ops\x18\x03 \x01(\t\"\"\n\x14GetTimePeriodRequest\x12\n\n\x02id\x18\x01 \x01(\x05\"[\n\x16ListTimePeriodsRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x32\n\npagination\x18\x02 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"v\n\x17ListTimePeriodsResponse\x12&\n\x05items\x18\x01 \x03(\x0b\x32\x17.work_ticket.TimePeriod\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse2\xc2\x01\n\x11TimePeriodService\x12M\n\rGetTimePeriod\x12!.work_ticket.GetTimePeriodRequest\x1a\x17.work_ticket.TimePeriod\"\x00\x12^\n\x0fListTimePeriods\x12#.work_ticket.ListTimePeriodsRequest\x1a$.work_ticket.ListTimePeriodsResponse\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,13 +33,13 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'time_period_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_TIMEPERIOD']._serialized_start=48
-  _globals['_TIMEPERIOD']._serialized_end=116
-  _globals['_GETTIMEPERIODREQUEST']._serialized_start=118
-  _globals['_GETTIMEPERIODREQUEST']._serialized_end=152
-  _globals['_LISTTIMEPERIODSREQUEST']._serialized_start=154
-  _globals['_LISTTIMEPERIODSREQUEST']._serialized_end=245
-  _globals['_LISTTIMEPERIODSRESPONSE']._serialized_start=247
-  _globals['_LISTTIMEPERIODSRESPONSE']._serialized_end=365
-  _globals['_TIMEPERIODSERVICE']._serialized_start=368
-  _globals['_TIMEPERIODSERVICE']._serialized_end=562
+  _globals['_TIMEPERIOD']._serialized_end=128
+  _globals['_GETTIMEPERIODREQUEST']._serialized_start=130
+  _globals['_GETTIMEPERIODREQUEST']._serialized_end=164
+  _globals['_LISTTIMEPERIODSREQUEST']._serialized_start=166
+  _globals['_LISTTIMEPERIODSREQUEST']._serialized_end=257
+  _globals['_LISTTIMEPERIODSRESPONSE']._serialized_start=259
+  _globals['_LISTTIMEPERIODSRESPONSE']._serialized_end=377
+  _globals['_TIMEPERIODSERVICE']._serialized_start=380
+  _globals['_TIMEPERIODSERVICE']._serialized_end=574
 # @@protoc_insertion_point(module_scope)

@@ -349,104 +349,16 @@ class WorkTicketServicer(work_ticket_pb2_grpc.WorkTicketServiceServicer):
             why_osat_en_mask=_safe_str(model.why_osat_en_mask),
             first_time_resolution=model.first_time_resolution or 0,
             ease_use=model.ease_use or 0,
-            survey=survey_pb2.Survey(
-                id=model.survey.id if model.survey else 0,
-                survey_medium=_safe_str(
-                    model.survey.survey_medium if model.survey else ""
-                ),
-                language=_safe_str(model.survey.language if model.survey else ""),
-            ),
-            time_period=time_period_pb2.TimePeriod(
-                id=model.time_period.id if model.time_period else 0,
-                interview_end=_safe_str(
-                    model.time_period.interview_end if model.time_period else ""
-                ),
-                interview_end_month_ops=_safe_str(
-                    model.time_period.interview_end_month_ops
-                    if model.time_period
-                    else ""
-                ),
-            ),
-            location=location_pb2.Location(
-                id=model.location.id if model.location else 0,
-                geo_ops=_safe_str(model.location.geo_ops if model.location else ""),
-                px_region=_safe_str(model.location.px_region if model.location else ""),
-                px_sub_region=_safe_str(
-                    model.location.px_sub_region if model.location else ""
-                ),
-                sub_region_1=_safe_str(
-                    model.location.sub_region_1 if model.location else ""
-                ),
-                country_name_ops=_safe_str(
-                    model.location.country_name_ops if model.location else ""
-                ),
-            ),
-            product=product_pb2.Product(
-                id=model.product.id if model.product else 0,
-                brand_ops=_safe_str(model.product.brand_ops if model.product else ""),
-                product_group_ops=_safe_str(
-                    model.product.product_group_ops if model.product else ""
-                ),
-                product_series=_safe_str(
-                    model.product.product_series if model.product else ""
-                ),
-                machine_type_4_digital=_safe_str(
-                    model.product.machine_type_4_digital if model.product else ""
-                ),
-            ),
-            so_information=so_information_pb2.SOInformation(
-                id=model.so_information.id if model.so_information else 0,
-                program=_safe_str(
-                    model.so_information.program if model.so_information else ""
-                ),
-                trans_servdelivery=_safe_str(
-                    model.so_information.trans_servdelivery
-                    if model.so_information
-                    else ""
-                ),
-                warranty=_safe_str(
-                    model.so_information.warranty if model.so_information else ""
-                ),
-                sdf_code=_safe_str(
-                    model.so_information.sdf_code if model.so_information else ""
-                ),
-                sdf_description=_safe_str(
-                    model.so_information.sdf_description if model.so_information else ""
-                ),
-                comm_channel=_safe_str(
-                    model.so_information.comm_channel if model.so_information else ""
-                ),
-                accounting_indicator_adjusted_ops=_safe_str(
-                    model.so_information.accounting_indicator_adjusted_ops
-                    if model.so_information
-                    else ""
-                ),
-                service_provider_name_m=_safe_str(
-                    model.so_information.service_provider_name_m
-                    if model.so_information
-                    else ""
-                ),
-                primary_vendor_name_m=_safe_str(
-                    model.so_information.primary_vendor_name_m
-                    if model.so_information
-                    else ""
-                ),
-            ),
+            survey_id=model.survey_id or 0,
+            time_period_id=model.time_period_id or 0,
+            location_id=model.location_id or 0,
+            product_id=model.product_id or 0,
+            so_information_id=model.so_information_id or 0,
         )
 
     async def GetWorkTicket(self, request, context: ServicerContext):
         async with async_session_maker() as session:
-            stmt = (
-                select(WorkTicket)
-                .where(WorkTicket.responseid == request.responseid)
-                .options(
-                    selectinload(WorkTicket.survey),
-                    selectinload(WorkTicket.time_period),
-                    selectinload(WorkTicket.location),
-                    selectinload(WorkTicket.product),
-                    selectinload(WorkTicket.so_information),
-                )
-            )
+            stmt = select(WorkTicket).where(WorkTicket.responseid == request.responseid)
             result = await session.execute(stmt)
             ticket = result.scalar_one_or_none()
 
@@ -460,13 +372,7 @@ class WorkTicketServicer(work_ticket_pb2_grpc.WorkTicketServiceServicer):
 
     async def ListWorkTickets(self, request, context: ServicerContext):
         async with async_session_maker() as session:
-            stmt = select(WorkTicket).options(
-                selectinload(WorkTicket.survey),
-                selectinload(WorkTicket.time_period),
-                selectinload(WorkTicket.location),
-                selectinload(WorkTicket.product),
-                selectinload(WorkTicket.so_information),
-            )
+            stmt = select(WorkTicket)
 
             if request.query:
                 q = f"%{request.query}%"

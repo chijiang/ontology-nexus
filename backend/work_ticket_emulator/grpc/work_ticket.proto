@@ -3,11 +3,6 @@ syntax = "proto3";
 package work_ticket;
 
 import "common.proto";
-import "survey.proto";
-import "time_period.proto";
-import "location.proto";
-import "product.proto";
-import "so_information.proto";
 
 message WorkTicket {
   string responseid = 1;
@@ -16,11 +11,11 @@ message WorkTicket {
   int32 first_time_resolution = 4;
   int32 ease_use = 5;
   
-  Survey survey = 6;
-  TimePeriod time_period = 7;
-  Location location = 8;
-  Product product = 9;
-  SOInformation so_information = 10;
+  int32 survey_id = 6;
+  int32 time_period_id = 7;
+  int32 location_id = 8;
+  int32 product_id = 9;
+  int32 so_information_id = 10;
 }
 
 message GetWorkTicketRequest {

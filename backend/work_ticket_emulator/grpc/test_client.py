@@ -24,8 +24,8 @@ async def run():
                 work_ticket_pb2.GetWorkTicketRequest(responseid="3856498")
             )
             print(f"Ticket responseid: '{response.responseid}'")
-            print(f"Product Brand: '{response.product.brand_ops}'")
-            print(f"Location Country: '{response.location.country_name_ops}'")
+            print(f"Product ID: {response.product_id}")
+            print(f"Location ID: {response.location_id}")
         except grpc.RpcError as e:
             print(f"Failed to get ticket: {e.details()}")
 
@@ -42,9 +42,7 @@ async def run():
                 f"Found total {response.pagination.total} matching tickets. Page {response.pagination.page} contains {len(response.items)} items."
             )
             for t in response.items:
-                print(
-                    f"- Ticket: '{t.responseid}' Location: '{t.location.country_name_ops}'"
-                )
+                print(f"- Ticket: '{t.responseid}' Location ID: {t.location_id}")
         except grpc.RpcError as e:
             print(f"Failed to list tickets: {e.details()}")
 

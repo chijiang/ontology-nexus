@@ -23,28 +23,23 @@ _sym_db = _symbol_database.Default()
 
 
 from . import common_pb2 as common__pb2
-from . import survey_pb2 as survey__pb2
-from . import time_period_pb2 as time__period__pb2
-from . import location_pb2 as location__pb2
-from . import product_pb2 as product__pb2
-from . import so_information_pb2 as so__information__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11work_ticket.proto\x12\x0bwork_ticket\x1a\x0c\x63ommon.proto\x1a\x0csurvey.proto\x1a\x11time_period.proto\x1a\x0elocation.proto\x1a\rproduct.proto\x1a\x14so_information.proto\"\xd0\x02\n\nWorkTicket\x12\x12\n\nresponseid\x18\x01 \x01(\t\x12\x0c\n\x04osat\x18\x02 \x01(\x05\x12\x18\n\x10why_osat_en_mask\x18\x03 \x01(\t\x12\x1d\n\x15\x66irst_time_resolution\x18\x04 \x01(\x05\x12\x10\n\x08\x65\x61se_use\x18\x05 \x01(\x05\x12#\n\x06survey\x18\x06 \x01(\x0b\x32\x13.work_ticket.Survey\x12,\n\x0btime_period\x18\x07 \x01(\x0b\x32\x17.work_ticket.TimePeriod\x12\'\n\x08location\x18\x08 \x01(\x0b\x32\x15.work_ticket.Location\x12%\n\x07product\x18\t \x01(\x0b\x32\x14.work_ticket.Product\x12\x32\n\x0eso_information\x18\n \x01(\x0b\x32\x1a.work_ticket.SOInformation\"*\n\x14GetWorkTicketRequest\x12\x12\n\nresponseid\x18\x01 \x01(\t\"[\n\x16ListWorkTicketsRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x32\n\npagination\x18\x02 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"v\n\x17ListWorkTicketsResponse\x12&\n\x05items\x18\x01 \x03(\x0b\x32\x17.work_ticket.WorkTicket\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse2\xc2\x01\n\x11WorkTicketService\x12M\n\rGetWorkTicket\x12!.work_ticket.GetWorkTicketRequest\x1a\x17.work_ticket.WorkTicket\"\x00\x12^\n\x0fListWorkTickets\x12#.work_ticket.ListWorkTicketsRequest\x1a$.work_ticket.ListWorkTicketsResponse\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11work_ticket.proto\x12\x0bwork_ticket\x1a\x0c\x63ommon.proto\"\xe8\x01\n\nWorkTicket\x12\x12\n\nresponseid\x18\x01 \x01(\t\x12\x0c\n\x04osat\x18\x02 \x01(\x05\x12\x18\n\x10why_osat_en_mask\x18\x03 \x01(\t\x12\x1d\n\x15\x66irst_time_resolution\x18\x04 \x01(\x05\x12\x10\n\x08\x65\x61se_use\x18\x05 \x01(\x05\x12\x11\n\tsurvey_id\x18\x06 \x01(\x05\x12\x16\n\x0etime_period_id\x18\x07 \x01(\x05\x12\x13\n\x0blocation_id\x18\x08 \x01(\x05\x12\x12\n\nproduct_id\x18\t \x01(\x05\x12\x19\n\x11so_information_id\x18\n \x01(\x05\"*\n\x14GetWorkTicketRequest\x12\x12\n\nresponseid\x18\x01 \x01(\t\"[\n\x16ListWorkTicketsRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x32\n\npagination\x18\x02 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"v\n\x17ListWorkTicketsResponse\x12&\n\x05items\x18\x01 \x03(\x0b\x32\x17.work_ticket.WorkTicket\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse2\xc2\x01\n\x11WorkTicketService\x12M\n\rGetWorkTicket\x12!.work_ticket.GetWorkTicketRequest\x1a\x17.work_ticket.WorkTicket\"\x00\x12^\n\x0fListWorkTickets\x12#.work_ticket.ListWorkTicketsRequest\x1a$.work_ticket.ListWorkTicketsResponse\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'work_ticket_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_WORKTICKET']._serialized_start=135
-  _globals['_WORKTICKET']._serialized_end=471
-  _globals['_GETWORKTICKETREQUEST']._serialized_start=473
-  _globals['_GETWORKTICKETREQUEST']._serialized_end=515
-  _globals['_LISTWORKTICKETSREQUEST']._serialized_start=517
-  _globals['_LISTWORKTICKETSREQUEST']._serialized_end=608
-  _globals['_LISTWORKTICKETSRESPONSE']._serialized_start=610
-  _globals['_LISTWORKTICKETSRESPONSE']._serialized_end=728
-  _globals['_WORKTICKETSERVICE']._serialized_start=731
-  _globals['_WORKTICKETSERVICE']._serialized_end=925
+  _globals['_WORKTICKET']._serialized_start=49
+  _globals['_WORKTICKET']._serialized_end=281
+  _globals['_GETWORKTICKETREQUEST']._serialized_start=283
+  _globals['_GETWORKTICKETREQUEST']._serialized_end=325
+  _globals['_LISTWORKTICKETSREQUEST']._serialized_start=327
+  _globals['_LISTWORKTICKETSREQUEST']._serialized_end=418
+  _globals['_LISTWORKTICKETSRESPONSE']._serialized_start=420
+  _globals['_LISTWORKTICKETSRESPONSE']._serialized_end=538
+  _globals['_WORKTICKETSERVICE']._serialized_start=541
+  _globals['_WORKTICKETSERVICE']._serialized_end=735
 # @@protoc_insertion_point(module_scope)

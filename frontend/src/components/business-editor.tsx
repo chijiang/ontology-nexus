@@ -152,6 +152,58 @@ const reorderNodesInTree = (nodes: LogicBlockData[], activeId: string, overId: s
 
 // --- DSL Parser ---
 
+const parseArgsStr = (argsStr: string) => {
+    const args: { name: string; value: string }[] = [];
+    let currentName = '';
+    let currentValue = '';
+    let inQuotes = false;
+    let bracketLevel = 0;
+    let braceLevel = 0;
+    let state = 'NAME';
+
+    for (let i = 0; i < argsStr.length; i++) {
+        const char = argsStr[i];
+
+        if (state === 'NAME') {
+            if (char === ':') {
+                state = 'VALUE';
+            } else if (char !== ' ' && char !== '\n' && char !== '\t') {
+                currentName += char;
+            }
+        } else if (state === 'VALUE') {
+            if (char === '"' && argsStr[i - 1] !== '\\') {
+                inQuotes = !inQuotes;
+                currentValue += char;
+            } else if (!inQuotes && char === '[') {
+                bracketLevel++;
+                currentValue += char;
+            } else if (!inQuotes && char === ']') {
+                bracketLevel--;
+                currentValue += char;
+            } else if (!inQuotes && char === '{') {
+                braceLevel++;
+                currentValue += char;
+            } else if (!inQuotes && char === '}') {
+                braceLevel--;
+                currentValue += char;
+            } else if (!inQuotes && bracketLevel === 0 && braceLevel === 0 && char === ',') {
+                if (currentName) {
+                    args.push({ name: currentName.trim(), value: currentValue.trim() });
+                }
+                currentName = '';
+                currentValue = '';
+                state = 'NAME';
+            } else {
+                currentValue += char;
+            }
+        }
+    }
+    if (currentName) {
+        args.push({ name: currentName.trim(), value: currentValue.trim() });
+    }
+    return args;
+};
+
 const parseDslToBlocks = (dsl: string, mode: 'RULE' | 'ACTION'): { statements: LogicBlockData[], preconditions: LogicBlockData[] } => {
     const statements: LogicBlockData[] = [];
     const preconditions: LogicBlockData[] = [];
@@ -247,15 +299,9 @@ const parseDslToBlocks = (dsl: string, mode: 'RULE' | 'ACTION'): { statements: L
                 const methodName = match[3];
                 const argsStr = match[4];
                 const intoVar = match[5];
-                const args: { name: string; value: string }[] = [];
+                let args: { name: string; value: string }[] = [];
                 if (argsStr && argsStr.trim()) {
-                    const argParts = argsStr.split(',').map(p => p.trim());
-                    argParts.forEach(p => {
-                        const [name, ...valParts] = p.split(':').map(x => x.trim());
-                        if (name && valParts.length > 0) {
-                            args.push({ name, value: valParts.join(':').trim() });
-                        }
-                    });
+                    args = parseArgsStr(argsStr.trim());
                 }
                 stack[stack.length - 1].push({
                     id: Math.random().toString(36).substr(2, 9),
@@ -719,13 +765,13 @@ const CallBlockConfig = ({ data, updateStatement }: { data: LogicBlockData, upda
                     {methodParams.map((param: any) => (
                         <div key={param.name} className="flex items-center gap-2 overflow-hidden">
                             <span className="text-[10px] font-mono text-slate-500 w-20 truncate" title={param.name}>
-                                {param.name}:
+                                {param.name}{param.label === 3 ? '[]' : ''}:
                             </span>
                             <input
                                 type="text"
                                 value={data.args?.find(a => a.name === param.name)?.value || ''}
                                 onChange={(e) => handleParamChange(param.name, e.target.value)}
-                                placeholder={param.type}
+                                placeholder={param.label === 3 ? '["val1", "val2"]' : param.type}
                                 className="flex-1 px-2 py-0.5 border border-slate-200 rounded text-xs outline-none focus:border-indigo-400 font-mono"
                             />
                         </div>
@@ -740,11 +786,7 @@ const CallBlockConfig = ({ data, updateStatement }: { data: LogicBlockData, upda
                         value={data.args?.map(a => `${a.name}: ${a.value}`).join(', ') || ''}
                         onChange={(e) => {
                             const val = e.target.value;
-                            const pairs = val.split(',').map(p => p.trim()).filter(p => p);
-                            const newArgs = pairs.map(p => {
-                                const [name, ...v] = p.split(':').map(x => x.trim());
-                                return { name, value: v.join(':') };
-                            });
+                            const newArgs = parseArgsStr(val);
                             updateStatement('args', newArgs);
                         }}
                         placeholder="arg1: val1, arg2: val2"

@@ -89,6 +89,7 @@ class ActionUploadRequest(BaseModel):
     entity_type: str = Field(..., description="Entity type (e.g., 'PurchaseOrder')")
     dsl_content: str = Field(..., description="DSL content of the action")
     is_active: bool = Field(default=True, description="Whether the action is active")
+    description: str | None = Field(default=None, description="Action description")
 
 
 class ActionInfo(BaseModel):
@@ -264,7 +265,11 @@ async def upload_action(
             entity_type=request.entity_type,
             dsl_content=request.dsl_content,
             is_active=request.is_active,
-            description=action_defs[0].description if action_defs else None,
+            description=(
+                request.description
+                if request.description is not None
+                else (action_defs[0].description if action_defs else None)
+            ),
         )
 
         # Load and register in memory
@@ -411,6 +416,7 @@ class ActionUpdateRequest(BaseModel):
 
     dsl_content: str = Field(..., description="DSL content of the action")
     is_active: bool = Field(default=True, description="Whether the action is active")
+    description: str | None = Field(default=None, description="Action description")
 
 
 @router.put("/definitions/{name}")
@@ -463,7 +469,11 @@ async def update_action_definition(
             name=name,
             dsl_content=request.dsl_content,
             is_active=request.is_active,
-            description=action_defs[0].description if action_defs else None,
+            description=(
+                request.description
+                if request.description is not None
+                else (action_defs[0].description if action_defs else None)
+            ),
         )
 
         # Re-register in the in-memory registry

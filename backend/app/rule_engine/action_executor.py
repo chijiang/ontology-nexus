@@ -319,6 +319,11 @@ class ActionExecutor:
         for field_name, expr in statement.arguments.items():
             request_data[field_name] = await evaluator.evaluate(expr)
 
+        logger.info(
+            f"CALL {statement.service_name}.{statement.method_name} "
+            f"args={statement.arguments} request_data={request_data}"
+        )
+
         # 3. Call gRPC method
         async with DynamicGrpcClient(product.grpc_host, product.grpc_port) as client:
             response = await client.call_method(

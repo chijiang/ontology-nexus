@@ -354,6 +354,23 @@ class WorkTicketServicer(work_ticket_pb2_grpc.WorkTicketServiceServicer):
             location_id=model.location_id or 0,
             product_id=model.product_id or 0,
             so_information_id=model.so_information_id or 0,
+            kpi_id=model.kpi_id or "T3B",
+        )
+
+    async def ListKPIs(self, request, context: ServicerContext):
+        page = request.pagination.page if request.HasField("pagination") else 1
+        page_size = (
+            request.pagination.page_size if request.HasField("pagination") else 20
+        )
+        return work_ticket_pb2.ListKPIsResponse(
+            items=[
+                work_ticket_pb2.KPI(
+                    id="T3B",
+                    name="T3B",
+                    description="客户评分大于等于8分的比例  (越高越好）",
+                )
+            ],
+            pagination=_calc_pagination(1, page, page_size),
         )
 
     async def GetWorkTicket(self, request, context: ServicerContext):
@@ -406,6 +423,77 @@ class WorkTicketServicer(work_ticket_pb2_grpc.WorkTicketServiceServicer):
             return work_ticket_pb2.ListWorkTicketsResponse(
                 items=pb_tickets, pagination=_calc_pagination(total, page, page_size)
             )
+
+    async def CalculateT3bPipeline(self, request, context: ServicerContext):
+        from ..t3bCalculator import t3b_pipeline
+
+        conditions = {}
+
+        GEO_OPS_MAP = {
+            work_ticket_pb2.AP: "AP",
+            work_ticket_pb2.NA: "NA",
+            work_ticket_pb2.EMEA: "EMEA",
+        }
+        PX_REGION_MAP = {
+            work_ticket_pb2.WE: "WE",
+        }
+        COUNTRY_NAME_MAP = {
+            work_ticket_pb2.INDIA: "INDIA",
+            work_ticket_pb2.CANADA: "CANADA",
+            work_ticket_pb2.FRANCE: "FRANCE",
+        }
+        PROGRAM_MAP = {
+            work_ticket_pb2.Standard_Commercial: "Standard Commercial",
+            work_ticket_pb2.Premier_Support: "Premier Support",
+        }
+        TRANS_MAP = {
+            work_ticket_pb2.ONS: "ONS",
+            work_ticket_pb2.CRU: "CRU",
+            work_ticket_pb2.CIN: "CIN",
+        }
+
+        if request.geo_ops:
+            conditions["geo_ops"] = [
+                GEO_OPS_MAP[v] for v in request.geo_ops if v in GEO_OPS_MAP
+            ]
+        if request.px_region:
+            conditions["PX_Region"] = [
+                PX_REGION_MAP[v] for v in request.px_region if v in PX_REGION_MAP
+            ]
+        if request.country_name_ops:
+            conditions["country_name_ops"] = [
+                COUNTRY_NAME_MAP[v]
+                for v in request.country_name_ops
+                if v in COUNTRY_NAME_MAP
+            ]
+        if request.program:
+            conditions["program"] = [
+                PROGRAM_MAP[v] for v in request.program if v in PROGRAM_MAP
+            ]
+        if request.trans_servdelivery:
+            conditions["trans_servdelivery"] = [
+                TRANS_MAP[v] for v in request.trans_servdelivery if v in TRANS_MAP
+            ]
+
+        if request.HasField("start_year"):
+            conditions["start_year"] = request.start_year
+        if request.HasField("start_month"):
+            conditions["start_month"] = request.start_month
+        if request.HasField("end_year"):
+            conditions["end_year"] = request.end_year
+        if request.HasField("end_month"):
+            conditions["end_month"] = request.end_month
+
+        try:
+            df_t3b, r2, dim_importance = await asyncio.to_thread(
+                t3b_pipeline, conditions
+            )
+            return work_ticket_pb2.T3bPipelineResponse(
+                t3b_by_month=df_t3b, overall_r2=r2, dim_importance=dim_importance
+            )
+        except Exception as e:
+            logger.error(f"Error in CalculateT3bPipeline: {e}", exc_info=True)
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
 
 async def serve(host="[::]", port="50052"):

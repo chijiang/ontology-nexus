@@ -59,6 +59,7 @@ class WorkTicket(Base):
     why_osat_en_mask = Column(String)
     first_time_resolution = Column(Integer)
     ease_use = Column(Integer)
+    kpi_id = Column(String, default="T3B")
 
     # Foreign Keys
     survey_id = Column(Integer, ForeignKey("surveys.id"))

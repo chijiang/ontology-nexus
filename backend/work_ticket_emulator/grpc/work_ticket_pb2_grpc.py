@@ -44,6 +44,16 @@ class WorkTicketServiceStub(object):
                 request_serializer=work__ticket__pb2.ListWorkTicketsRequest.SerializeToString,
                 response_deserializer=work__ticket__pb2.ListWorkTicketsResponse.FromString,
                 _registered_method=True)
+        self.CalculateT3bPipeline = channel.unary_unary(
+                '/work_ticket.WorkTicketService/CalculateT3bPipeline',
+                request_serializer=work__ticket__pb2.T3bPipelineRequest.SerializeToString,
+                response_deserializer=work__ticket__pb2.T3bPipelineResponse.FromString,
+                _registered_method=True)
+        self.ListKPIs = channel.unary_unary(
+                '/work_ticket.WorkTicketService/ListKPIs',
+                request_serializer=work__ticket__pb2.ListKPIsRequest.SerializeToString,
+                response_deserializer=work__ticket__pb2.ListKPIsResponse.FromString,
+                _registered_method=True)
 
 
 class WorkTicketServiceServicer(object):
@@ -61,6 +71,18 @@ class WorkTicketServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CalculateT3bPipeline(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListKPIs(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WorkTicketServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -73,6 +95,16 @@ def add_WorkTicketServiceServicer_to_server(servicer, server):
                     servicer.ListWorkTickets,
                     request_deserializer=work__ticket__pb2.ListWorkTicketsRequest.FromString,
                     response_serializer=work__ticket__pb2.ListWorkTicketsResponse.SerializeToString,
+            ),
+            'CalculateT3bPipeline': grpc.unary_unary_rpc_method_handler(
+                    servicer.CalculateT3bPipeline,
+                    request_deserializer=work__ticket__pb2.T3bPipelineRequest.FromString,
+                    response_serializer=work__ticket__pb2.T3bPipelineResponse.SerializeToString,
+            ),
+            'ListKPIs': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListKPIs,
+                    request_deserializer=work__ticket__pb2.ListKPIsRequest.FromString,
+                    response_serializer=work__ticket__pb2.ListKPIsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -129,6 +161,60 @@ class WorkTicketService(object):
             '/work_ticket.WorkTicketService/ListWorkTickets',
             work__ticket__pb2.ListWorkTicketsRequest.SerializeToString,
             work__ticket__pb2.ListWorkTicketsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CalculateT3bPipeline(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/work_ticket.WorkTicketService/CalculateT3bPipeline',
+            work__ticket__pb2.T3bPipelineRequest.SerializeToString,
+            work__ticket__pb2.T3bPipelineResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListKPIs(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/work_ticket.WorkTicketService/ListKPIs',
+            work__ticket__pb2.ListKPIsRequest.SerializeToString,
+            work__ticket__pb2.ListKPIsResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -276,10 +276,10 @@ export const actionsApi = {
   get: (name: string) =>
     api.get<ActionDetail>(`/api/actions/definitions/${encodeURIComponent(name)}`),
 
-  create: (data: { name: string; entity_type: string; dsl_content: string; is_active?: boolean }) =>
+  create: (data: { name: string; entity_type: string; dsl_content: string; is_active?: boolean; description?: string }) =>
     api.post('/api/actions', data),
 
-  update: (name: string, data: { dsl_content: string; is_active?: boolean }) =>
+  update: (name: string, data: { dsl_content: string; is_active?: boolean; description?: string }) =>
     api.put(`/api/actions/definitions/${encodeURIComponent(name)}`, data),
 
   delete: (name: string) =>

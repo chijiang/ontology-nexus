@@ -381,15 +381,17 @@ class SyncService:
                                         )
 
                                     ent_result = await self.db.execute(
-                                        select(GraphEntity).where(
+                                        select(GraphEntity)
+                                        .where(
                                             and_(
                                                 GraphEntity.entity_type
                                                 == mapping.ontology_class_name,
                                                 *lookup_cond,
                                             )
                                         )
+                                        .limit(1)
                                     )
-                                    entity = ent_result.scalar_one_or_none()
+                                    entity = ent_result.scalars().first()
 
                                     if entity:
                                         # Merge existing properties with new ones
@@ -588,28 +590,34 @@ class SyncService:
                                 continue
 
                             # 查找源节点 ID
-                            # 查找最稳妥的方式是根据 source_id 列。
+                            # TODO: Since item is from source_product, its ID is just id_field_mapping
+                            # and the fk_val points to the target. This logic looks correct.
+                            # Let's consider if the ids are mistyped (int vs str).
 
                             source_ent_res = await self.db.execute(
-                                select(GraphEntity.id).where(
+                                select(GraphEntity.id)
+                                .where(
                                     and_(
                                         GraphEntity.entity_type
                                         == source_mapping.ontology_class_name,
                                         GraphEntity.source_id == str(source_raw_id),
                                     )
                                 )
+                                .limit(1)
                             )
                             source_id = source_ent_res.scalars().first()
 
                             # 查找目标节点 ID
                             target_ent_res = await self.db.execute(
-                                select(GraphEntity.id).where(
+                                select(GraphEntity.id)
+                                .where(
                                     and_(
                                         GraphEntity.entity_type
                                         == target_mapping.ontology_class_name,
                                         GraphEntity.source_id == str(fk_val),
                                     )
                                 )
+                                .limit(1)
                             )
                             target_id = target_ent_res.scalars().first()
 
@@ -625,7 +633,7 @@ class SyncService:
                                         )
                                     )
                                 )
-                                if not rel_check.scalar_one_or_none():
+                                if not rel_check.scalars().first():
                                     new_rel = GraphRelationship(
                                         source_id=source_id,
                                         target_id=target_id,

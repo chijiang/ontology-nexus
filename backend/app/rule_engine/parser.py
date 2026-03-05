@@ -466,6 +466,13 @@ class ASTTransformer(Transformer):
     def false_lit(self, items):
         return False
 
+    def array_lit(self, items):
+        """Handle array literal."""
+        # items has 1 element which is the list of values from value_list (or none if empty)
+        if not items or items[0] is None:
+            return []
+        return items[0]
+
     def value(self, items):
         # items can be empty for boolean/NULL literals that are matched directly
         if not items:

@@ -178,14 +178,35 @@ export function InstanceDetailPanel({ node, onClose, onUpdate }: InstanceDetailP
         setExecutingAction(actionKey)
 
         try {
-            const params = actionParams[actionKey] || {}
+            const rawParams = actionParams[actionKey] || {}
+            const processedParams: Record<string, any> = {}
+
+            for (const key in rawParams) {
+                const paramDef = action.parameters?.find((p: any) => p.name === key)
+                let val = rawParams[key]
+
+                if (paramDef?.type === 'array' && typeof val === 'string') {
+                    const trimmed = val.trim()
+                    if (trimmed.startsWith('[')) {
+                        try {
+                            val = JSON.parse(trimmed)
+                        } catch {
+                            val = trimmed.split(',').map(s => s.trim()).filter(Boolean)
+                        }
+                    } else {
+                        val = trimmed.split(',').map(s => s.trim()).filter(Boolean)
+                    }
+                }
+                processedParams[key] = val
+            }
+
             const entityId = String(metadata.ID || node.id || node.name)
             const res = await actionsApi.execute(
                 action.entity_type,
                 action.action_name,
                 entityId,
                 expandedProps,
-                params
+                processedParams
             )
 
             if (res.data?.success) {

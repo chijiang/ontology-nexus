@@ -25,21 +25,49 @@ _sym_db = _symbol_database.Default()
 from . import common_pb2 as common__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11work_ticket.proto\x12\x0bwork_ticket\x1a\x0c\x63ommon.proto\"\xe8\x01\n\nWorkTicket\x12\x12\n\nresponseid\x18\x01 \x01(\t\x12\x0c\n\x04osat\x18\x02 \x01(\x05\x12\x18\n\x10why_osat_en_mask\x18\x03 \x01(\t\x12\x1d\n\x15\x66irst_time_resolution\x18\x04 \x01(\x05\x12\x10\n\x08\x65\x61se_use\x18\x05 \x01(\x05\x12\x11\n\tsurvey_id\x18\x06 \x01(\x05\x12\x16\n\x0etime_period_id\x18\x07 \x01(\x05\x12\x13\n\x0blocation_id\x18\x08 \x01(\x05\x12\x12\n\nproduct_id\x18\t \x01(\x05\x12\x19\n\x11so_information_id\x18\n \x01(\x05\"*\n\x14GetWorkTicketRequest\x12\x12\n\nresponseid\x18\x01 \x01(\t\"[\n\x16ListWorkTicketsRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x32\n\npagination\x18\x02 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"v\n\x17ListWorkTicketsResponse\x12&\n\x05items\x18\x01 \x03(\x0b\x32\x17.work_ticket.WorkTicket\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse2\xc2\x01\n\x11WorkTicketService\x12M\n\rGetWorkTicket\x12!.work_ticket.GetWorkTicketRequest\x1a\x17.work_ticket.WorkTicket\"\x00\x12^\n\x0fListWorkTickets\x12#.work_ticket.ListWorkTicketsRequest\x1a$.work_ticket.ListWorkTicketsResponse\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11work_ticket.proto\x12\x0bwork_ticket\x1a\x0c\x63ommon.proto\"\xf8\x01\n\nWorkTicket\x12\x12\n\nresponseid\x18\x01 \x01(\t\x12\x0c\n\x04osat\x18\x02 \x01(\x05\x12\x18\n\x10why_osat_en_mask\x18\x03 \x01(\t\x12\x1d\n\x15\x66irst_time_resolution\x18\x04 \x01(\x05\x12\x10\n\x08\x65\x61se_use\x18\x05 \x01(\x05\x12\x11\n\tsurvey_id\x18\x06 \x01(\x05\x12\x16\n\x0etime_period_id\x18\x07 \x01(\x05\x12\x13\n\x0blocation_id\x18\x08 \x01(\x05\x12\x12\n\nproduct_id\x18\t \x01(\x05\x12\x19\n\x11so_information_id\x18\n \x01(\x05\x12\x0e\n\x06kpi_id\x18\x0b \x01(\t\"*\n\x14GetWorkTicketRequest\x12\x12\n\nresponseid\x18\x01 \x01(\t\"[\n\x16ListWorkTicketsRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x32\n\npagination\x18\x02 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"v\n\x17ListWorkTicketsResponse\x12&\n\x05items\x18\x01 \x03(\x0b\x32\x17.work_ticket.WorkTicket\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse\"4\n\x03KPI\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x03 \x01(\t\"E\n\x0fListKPIsRequest\x12\x32\n\npagination\x18\x01 \x01(\x0b\x32\x1e.work_ticket.PaginationRequest\"h\n\x10ListKPIsResponse\x12\x1f\n\x05items\x18\x01 \x03(\x0b\x32\x10.work_ticket.KPI\x12\x33\n\npagination\x18\x02 \x01(\x0b\x32\x1f.work_ticket.PaginationResponse\"\x9a\x03\n\x12T3bPipelineRequest\x12$\n\x07geo_ops\x18\x01 \x03(\x0e\x32\x13.work_ticket.GeoOps\x12(\n\tpx_region\x18\x02 \x03(\x0e\x32\x15.work_ticket.PxRegion\x12\x35\n\x10\x63ountry_name_ops\x18\x03 \x03(\x0e\x32\x1b.work_ticket.CountryNameOps\x12%\n\x07program\x18\x04 \x03(\x0e\x32\x14.work_ticket.Program\x12:\n\x12trans_servdelivery\x18\x05 \x03(\x0e\x32\x1e.work_ticket.TransServdelivery\x12\x17\n\nstart_year\x18\x06 \x01(\x05H\x00\x88\x01\x01\x12\x18\n\x0bstart_month\x18\x07 \x01(\x05H\x01\x88\x01\x01\x12\x15\n\x08\x65nd_year\x18\x08 \x01(\x05H\x02\x88\x01\x01\x12\x16\n\tend_month\x18\t \x01(\x05H\x03\x88\x01\x01\x42\r\n\x0b_start_yearB\x0e\n\x0c_start_monthB\x0b\n\t_end_yearB\x0c\n\n_end_month\"\xa7\x02\n\x13T3bPipelineResponse\x12\x46\n\x0ct3b_by_month\x18\x01 \x03(\x0b\x32\x30.work_ticket.T3bPipelineResponse.T3bByMonthEntry\x12\x12\n\noverall_r2\x18\x02 \x01(\x01\x12K\n\x0e\x64im_importance\x18\x03 \x03(\x0b\x32\x33.work_ticket.T3bPipelineResponse.DimImportanceEntry\x1a\x31\n\x0fT3bByMonthEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x1a\x34\n\x12\x44imImportanceEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01*;\n\x06GeoOps\x12\x17\n\x13GEO_OPS_UNSPECIFIED\x10\x00\x12\x06\n\x02\x41P\x10\x01\x12\x06\n\x02NA\x10\x02\x12\x08\n\x04\x45MEA\x10\x03*-\n\x08PxRegion\x12\x19\n\x15PX_REGION_UNSPECIFIED\x10\x00\x12\x06\n\x02WE\x10\x01*U\n\x0e\x43ountryNameOps\x12 \n\x1c\x43OUNTRY_NAME_OPS_UNSPECIFIED\x10\x00\x12\t\n\x05INDIA\x10\x01\x12\n\n\x06\x43\x41NADA\x10\x02\x12\n\n\x06\x46RANCE\x10\x03*P\n\x07Program\x12\x17\n\x13PROGRAM_UNSPECIFIED\x10\x00\x12\x17\n\x13Standard_Commercial\x10\x01\x12\x13\n\x0fPremier_Support\x10\x02*R\n\x11TransServdelivery\x12\"\n\x1eTRANS_SERVDELIVERY_UNSPECIFIED\x10\x00\x12\x07\n\x03ONS\x10\x01\x12\x07\n\x03\x43RU\x10\x02\x12\x07\n\x03\x43IN\x10\x03\x32\xea\x02\n\x11WorkTicketService\x12M\n\rGetWorkTicket\x12!.work_ticket.GetWorkTicketRequest\x1a\x17.work_ticket.WorkTicket\"\x00\x12^\n\x0fListWorkTickets\x12#.work_ticket.ListWorkTicketsRequest\x1a$.work_ticket.ListWorkTicketsResponse\"\x00\x12[\n\x14\x43\x61lculateT3bPipeline\x12\x1f.work_ticket.T3bPipelineRequest\x1a .work_ticket.T3bPipelineResponse\"\x00\x12I\n\x08ListKPIs\x12\x1c.work_ticket.ListKPIsRequest\x1a\x1d.work_ticket.ListKPIsResponse\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'work_ticket_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
+  _globals['_T3BPIPELINERESPONSE_T3BBYMONTHENTRY']._loaded_options = None
+  _globals['_T3BPIPELINERESPONSE_T3BBYMONTHENTRY']._serialized_options = b'8\001'
+  _globals['_T3BPIPELINERESPONSE_DIMIMPORTANCEENTRY']._loaded_options = None
+  _globals['_T3BPIPELINERESPONSE_DIMIMPORTANCEENTRY']._serialized_options = b'8\001'
+  _globals['_GEOOPS']._serialized_start=1498
+  _globals['_GEOOPS']._serialized_end=1557
+  _globals['_PXREGION']._serialized_start=1559
+  _globals['_PXREGION']._serialized_end=1604
+  _globals['_COUNTRYNAMEOPS']._serialized_start=1606
+  _globals['_COUNTRYNAMEOPS']._serialized_end=1691
+  _globals['_PROGRAM']._serialized_start=1693
+  _globals['_PROGRAM']._serialized_end=1773
+  _globals['_TRANSSERVDELIVERY']._serialized_start=1775
+  _globals['_TRANSSERVDELIVERY']._serialized_end=1857
   _globals['_WORKTICKET']._serialized_start=49
-  _globals['_WORKTICKET']._serialized_end=281
-  _globals['_GETWORKTICKETREQUEST']._serialized_start=283
-  _globals['_GETWORKTICKETREQUEST']._serialized_end=325
-  _globals['_LISTWORKTICKETSREQUEST']._serialized_start=327
-  _globals['_LISTWORKTICKETSREQUEST']._serialized_end=418
-  _globals['_LISTWORKTICKETSRESPONSE']._serialized_start=420
-  _globals['_LISTWORKTICKETSRESPONSE']._serialized_end=538
-  _globals['_WORKTICKETSERVICE']._serialized_start=541
-  _globals['_WORKTICKETSERVICE']._serialized_end=735
+  _globals['_WORKTICKET']._serialized_end=297
+  _globals['_GETWORKTICKETREQUEST']._serialized_start=299
+  _globals['_GETWORKTICKETREQUEST']._serialized_end=341
+  _globals['_LISTWORKTICKETSREQUEST']._serialized_start=343
+  _globals['_LISTWORKTICKETSREQUEST']._serialized_end=434
+  _globals['_LISTWORKTICKETSRESPONSE']._serialized_start=436
+  _globals['_LISTWORKTICKETSRESPONSE']._serialized_end=554
+  _globals['_KPI']._serialized_start=556
+  _globals['_KPI']._serialized_end=608
+  _globals['_LISTKPISREQUEST']._serialized_start=610
+  _globals['_LISTKPISREQUEST']._serialized_end=679
+  _globals['_LISTKPISRESPONSE']._serialized_start=681
+  _globals['_LISTKPISRESPONSE']._serialized_end=785
+  _globals['_T3BPIPELINEREQUEST']._serialized_start=788
+  _globals['_T3BPIPELINEREQUEST']._serialized_end=1198
+  _globals['_T3BPIPELINERESPONSE']._serialized_start=1201
+  _globals['_T3BPIPELINERESPONSE']._serialized_end=1496
+  _globals['_T3BPIPELINERESPONSE_T3BBYMONTHENTRY']._serialized_start=1393
+  _globals['_T3BPIPELINERESPONSE_T3BBYMONTHENTRY']._serialized_end=1442
+  _globals['_T3BPIPELINERESPONSE_DIMIMPORTANCEENTRY']._serialized_start=1444
+  _globals['_T3BPIPELINERESPONSE_DIMIMPORTANCEENTRY']._serialized_end=1496
+  _globals['_WORKTICKETSERVICE']._serialized_start=1860
+  _globals['_WORKTICKETSERVICE']._serialized_end=2222
 # @@protoc_insertion_point(module_scope)

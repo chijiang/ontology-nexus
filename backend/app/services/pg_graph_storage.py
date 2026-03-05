@@ -604,14 +604,18 @@ class PGGraphStorage:
     # ==================== Instance 查询 ====================
 
     async def search_instances(
-        self, search_term: str, class_name: Optional[str] = None, limit: int = 10
+        self,
+        keyword: str,
+        entity_type: Optional[str] = None,
+        limit: int = 10,
+        accessible_entity_types: Optional[List[str]] = None,
     ) -> List[Dict]:
         """根据名称，ID或别名搜索实例节点"""
         from sqlalchemy import cast, String
 
         # Escape SQL LIKE wildcards in user input
         escaped_term = (
-            search_term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         )
 
         # 搜索名称、ID 或别名
@@ -628,11 +632,14 @@ class PGGraphStorage:
             GraphEntity.is_instance == True,
         )
 
-        if class_name:
-            query = query.where(GraphEntity.entity_type == class_name)
+        if entity_type:
+            query = query.where(GraphEntity.entity_type == entity_type)
+
+        if accessible_entity_types is not None and accessible_entity_types:
+            query = query.where(GraphEntity.entity_type.in_(accessible_entity_types))
 
         query = query.limit(limit)
-        result = await self.db.execute(query, {"term": f"%{search_term}%"})
+        result = await self.db.execute(query, {"term": f"%{keyword}%"})
         entities = result.scalars().all()
 
         results = [
@@ -1337,16 +1344,23 @@ class PGGraphStorage:
         return {"nodes": nodes, "relationships": relationships}
 
     async def get_instances_by_class(
-        self, class_name: str, filters: Optional[Dict[str, Any]] = None, limit: int = 20
+        self,
+        entity_type: str,
+        property_filter: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        accessible_entity_types: Optional[List[str]] = None,
     ) -> List[Dict]:
         """获取某个类的所有实例"""
         query = select(GraphEntity).where(
-            GraphEntity.entity_type == class_name, GraphEntity.is_instance == True
+            GraphEntity.entity_type == entity_type, GraphEntity.is_instance == True
         )
 
+        if accessible_entity_types is not None and accessible_entity_types:
+            query = query.where(GraphEntity.entity_type.in_(accessible_entity_types))
+
         # 应用过滤条件（JSONB 属性查询）
-        if filters:
-            for key, value in filters.items():
+        if property_filter:
+            for key, value in property_filter.items():
                 # 使用 JSONB 操作符查询属性
                 query = query.where(GraphEntity.properties[key].astext == str(value))
 
@@ -1376,7 +1390,7 @@ class PGGraphStorage:
                 {
                     "id": r["name"],
                     "label": r["name"],
-                    "type": class_name,
+                    "type": entity_type,
                     "properties": r["properties"],
                 }
             )

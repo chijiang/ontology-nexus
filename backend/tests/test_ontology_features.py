@@ -117,7 +117,7 @@ async def test_ontology_features():
         await importer.import_instances(schema_triples, instance_triples)
 
         # Search for p1
-        results = await storage.search_instances(search_term="p1")
+        results = await storage.search_instances(keyword="p1")
         print(f"\nSearch results for p1: {results}")
         assert len(results) > 0
         p1 = results[0]

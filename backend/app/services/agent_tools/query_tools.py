@@ -98,7 +98,9 @@ def create_query_tools(
         """Search for entity instances in the knowledge graph."""
 
         async def _execute(tools) -> str:
-            results = await tools.search_instances(search_term, class_name, limit)
+            results = await tools.search_instances(
+                keyword=search_term, entity_type=class_name, limit=limit
+            )
             if not results:
                 return f"No matches found for '{search_term}'"
             output = [f"Found {len(results)} matches for '{search_term}':\n"]
@@ -123,7 +125,9 @@ def create_query_tools(
         """Get all instances of a specified type."""
 
         async def _execute(tools) -> str:
-            results = await tools.get_instances_by_class(class_name, None, limit)
+            results = await tools.get_instances_by_class(
+                entity_type=class_name, property_filter=None, limit=limit
+            )
             if not results:
                 return f"No instances found for type '{class_name}'."
             output = [f"Found {len(results)} instances of type '{class_name}':\n"]

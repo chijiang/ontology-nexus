@@ -15,7 +15,7 @@ export default function LoginPage() {
   const router = useRouter()
   const locale = useLocale()
   const t = useTranslations()
-  const { user, token, setAuth } = useAuthStore()
+  const { user, token, setAuth, logout } = useAuthStore()
   const [isLogin, setIsLogin] = useState(true)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -24,9 +24,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
-    if (token) {
-      router.replace(`/${locale}/dashboard`)
-    }
+    // Note: We don't automatically redirect if token exists here, 
+    // because permissions might not be loaded yet or they might not have access,
+    // which causes the infinite loop with ProtectedPage.
+    // The redirect happens after login when we explicitly check permissions.
   }, [token, locale, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,8 +38,44 @@ export default function LoginPage() {
       if (isLogin) {
         const res = await authApi.login(username, password)
         setAuth({ id: 0, username: username }, res.data.access_token)
-        toast.success(t('auth.loginSuccess'))
-        router.push(`/${locale}/dashboard`)
+
+        // Fetch permissions directly after login to check access
+        try {
+          // Setting the auth token is asynchronous or at least state-based, 
+          // but we can pass the token directly to the API if needed.
+          // Since authApi intercepts requests, it might not have the token instantly 
+          // if it uses a store subscription. But wait, authApi uses the store 
+          // usually, wait let's just use the usersApi directly.
+          // Actually, let's just rely on usersApi.getMyPermissions()
+          // because the interceptor will get it from the store.
+
+          // Wait a tick for Zustand to update localStorage/store
+          await new Promise(resolve => setTimeout(resolve, 50))
+
+          const { usersApi } = await import('@/lib/api')
+          const permRes = await usersApi.getMyPermissions()
+          const perms = permRes.data
+
+          if (!perms.is_admin && (!perms.accessible_pages || !perms.accessible_pages.includes('chat'))) {
+            // User logged in successfully but has no access to the dashboard (chat) page
+            logout()
+            toast.error(t('auth.noPermission') || 'Access denied: No permissions configured for this user.')
+            return
+          }
+
+          // Set permissions in store
+          useAuthStore.getState().setPermissions(perms)
+          if (perms.is_admin) {
+            useAuthStore.getState().updateUser({ is_admin: true })
+          }
+
+          toast.success(t('auth.loginSuccess'))
+          router.push(`/${locale}/dashboard`)
+        } catch (permError) {
+          console.error("Failed to load permissions during login", permError)
+          logout()
+          toast.error(t('common.error') || 'Failed to verify permissions')
+        }
       } else {
         await authApi.register(username, password, email)
         toast.success(t('auth.registerSuccess'))

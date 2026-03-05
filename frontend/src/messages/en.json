@@ -70,7 +70,8 @@
     "loginSuccess": "Login successful",
     "registerSuccess": "Registration successful, please login",
     "noAccount": "Don't have an account?",
-    "hasAccount": "Already have an account?"
+    "hasAccount": "Already have an account?",
+    "noPermission": "Access denied: No permissions configured for this user."
   },
   "nav": {
     "qa": "Intelligent Agent Assistant",

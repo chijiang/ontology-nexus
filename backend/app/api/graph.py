@@ -247,7 +247,23 @@ async def get_nodes_by_label(
 ):
     """根据标签获取节点"""
     storage = PGGraphStorage(db)
-    nodes = await storage.get_instances_by_class(label, None, limit)
+
+    # 获取用户可访问的实体类型
+    accessible_entities = await PermissionService.get_accessible_entities(
+        db, current_user
+    )
+    # 如果是受限用户，且无任何实体级权限，直接返回空
+    if not current_user.is_admin and not accessible_entities:
+        return []
+
+    entity_types = None if current_user.is_admin else accessible_entities
+
+    nodes = await storage.get_instances_by_class(
+        entity_type=label,
+        property_filter=None,
+        limit=limit,
+        accessible_entity_types=entity_types,
+    )
     return nodes
 
 
@@ -263,6 +279,10 @@ async def get_schema(
     )
 
     # Admin用户拥有所有权限，传None不过滤
+    # 如果是受限用户，且无任何实体级权限，直接返回空
+    if not current_user.is_admin and not accessible_entities:
+        return {"nodes": [], "relationships": []}
+
     entity_types = None if current_user.is_admin else accessible_entities
 
     storage = PGGraphStorage(db)
@@ -290,10 +310,30 @@ async def search_instances(
     """搜索实例，支持类名、关键词"""
     storage = PGGraphStorage(db)
 
+    # 获取用户可访问的实体类型
+    accessible_entities = await PermissionService.get_accessible_entities(
+        db, current_user
+    )
+    # 如果是受限用户，且无任何实体级权限，直接返回空
+    if not current_user.is_admin and not accessible_entities:
+        return []
+
+    entity_types = None if current_user.is_admin else accessible_entities
+
     if keyword:
-        instances = await storage.search_instances(keyword, class_name, limit)
+        instances = await storage.search_instances(
+            keyword=keyword,
+            entity_type=class_name,
+            limit=limit,
+            accessible_entity_types=entity_types,
+        )
     else:
-        instances = await storage.get_instances_by_class(class_name, None, limit)
+        instances = await storage.get_instances_by_class(
+            entity_type=class_name,
+            property_filter=None,
+            limit=limit,
+            accessible_entity_types=entity_types,
+        )
 
     return instances
 
@@ -330,6 +370,10 @@ async def get_classes(
     )
 
     # Admin用户拥有所有权限，传None不过滤
+    # 如果是受限用户，且无任何实体级权限，直接返回空
+    if not current_user.is_admin and not accessible_entities:
+        return []
+
     entity_types = None if current_user.is_admin else accessible_entities
 
     storage = PGGraphStorage(db)
@@ -347,6 +391,10 @@ async def get_schema_relationships(
     accessible_entities = await PermissionService.get_accessible_entities(
         db, current_user
     )
+    # 如果是受限用户，且无任何实体级权限，直接返回空
+    if not current_user.is_admin and not accessible_entities:
+        return []
+
     entity_types = None if current_user.is_admin else accessible_entities
 
     storage = PGGraphStorage(db)
@@ -365,6 +413,10 @@ async def describe_class(
     accessible_entities = await PermissionService.get_accessible_entities(
         db, current_user
     )
+    # 如果是受限用户，且无任何实体级权限，直接返回空
+    if not current_user.is_admin and not accessible_entities:
+        raise HTTPException(status_code=403, detail="No entity access permissions")
+
     entity_types = None if current_user.is_admin else accessible_entities
 
     storage = PGGraphStorage(db)
@@ -488,6 +540,10 @@ async def get_random_instances(
     accessible_entities = await PermissionService.get_accessible_entities(
         db, current_user
     )
+
+    # 如果是受限用户，且无任何实体级权限，直接返回空
+    if not current_user.is_admin and not accessible_entities:
+        return {"nodes": [], "relationships": []}
 
     # Admin用户拥有所有权限，传None不过滤
     entity_types = None if current_user.is_admin else accessible_entities

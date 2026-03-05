@@ -17,8 +17,12 @@ def mock_session():
 @pytest.fixture
 def mock_get_session_func(mock_session):
     """Create a mock get_session function."""
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
     async def _get_session():
         yield mock_session
+
     return _get_session
 
 
@@ -26,38 +30,72 @@ def mock_get_session_func(mock_session):
 def mock_graph_tools():
     """Create a mock GraphTools instance."""
     tools = MagicMock()
-    tools.search_instances = AsyncMock(return_value=[
-        {"name": "PO_001", "labels": ["PurchaseOrder"], "properties": {"status": "pending"}}
-    ])
-    tools.get_instances_by_class = AsyncMock(return_value=[
-        {"name": "PO_001", "properties": {"status": "pending"}}
-    ])
-    tools.get_instance_neighbors = AsyncMock(return_value=[
-        {"name": "Supplier_001", "labels": ["Supplier"], "properties": {"name": "Acme"}}
-    ])
-    tools.find_path_between_instances = AsyncMock(return_value={
-        "nodes": [
-            {"name": "PO_001", "labels": ["PurchaseOrder"]},
-            {"name": "Supplier_001", "labels": ["Supplier"]}
-        ],
-        "relationships": [
-            {"type": "FROM_SUPPLIER", "source": "PO_001", "target": "Supplier_001"}
+    tools.search_instances = AsyncMock(
+        return_value=[
+            {
+                "name": "PO_001",
+                "labels": ["PurchaseOrder"],
+                "properties": {"status": "pending"},
+            }
         ]
-    })
-    tools.describe_class = AsyncMock(return_value={
-        "class": {"name": "PurchaseOrder", "label": "Purchase Order", "dataProperties": ["status", "total"]},
-        "relationships": []
-    })
-    tools.get_ontology_classes = AsyncMock(return_value=[
-        {"name": "PurchaseOrder", "label": "Purchase Order", "dataProperties": ["status"]}
-    ])
-    tools.get_ontology_relationships = AsyncMock(return_value=[
-        {"source_class": "PurchaseOrder", "relationship": "FROM_SUPPLIER", "target_class": "Supplier"}
-    ])
-    tools.get_node_statistics = AsyncMock(return_value={
-        "total_count": 100,
-        "sample_names": ["PO_001", "PO_002", "PO_003"]
-    })
+    )
+    tools.get_instances_by_class = AsyncMock(
+        return_value=[{"name": "PO_001", "properties": {"status": "pending"}}]
+    )
+    tools.get_instance_neighbors = AsyncMock(
+        return_value=[
+            {
+                "name": "Supplier_001",
+                "labels": ["Supplier"],
+                "properties": {"name": "Acme"},
+            }
+        ]
+    )
+    tools.find_path_between_instances = AsyncMock(
+        return_value={
+            "nodes": [
+                {"name": "PO_001", "labels": ["PurchaseOrder"]},
+                {"name": "Supplier_001", "labels": ["Supplier"]},
+            ],
+            "relationships": [
+                {"type": "FROM_SUPPLIER", "source": "PO_001", "target": "Supplier_001"}
+            ],
+        }
+    )
+    tools.describe_class = AsyncMock(
+        return_value={
+            "class": {
+                "name": "PurchaseOrder",
+                "label": "Purchase Order",
+                "dataProperties": ["status", "total"],
+            },
+            "relationships": [],
+        }
+    )
+    tools.get_ontology_classes = AsyncMock(
+        return_value=[
+            {
+                "name": "PurchaseOrder",
+                "label": "Purchase Order",
+                "dataProperties": ["status"],
+            }
+        ]
+    )
+    tools.get_ontology_relationships = AsyncMock(
+        return_value=[
+            {
+                "source": "PurchaseOrder",
+                "type": "FROM_SUPPLIER",
+                "target": "Supplier",
+            }
+        ]
+    )
+    tools.get_node_statistics = AsyncMock(
+        return_value={
+            "total_count": 100,
+            "sample_names": ["PO_001", "PO_002", "PO_003"],
+        }
+    )
     return tools
 
 
@@ -67,7 +105,10 @@ class TestCreateQueryTools:
     @pytest.mark.asyncio
     async def test_search_instances(self, mock_get_session_func, mock_graph_tools):
         """Test search_instances tool."""
-        with patch('app.services.agent_tools.query_tools.GraphTools', return_value=mock_graph_tools):
+        with patch(
+            "app.services.agent_tools.query_tools.PGGraphStorage",
+            return_value=mock_graph_tools,
+        ):
             tools = create_query_tools(mock_get_session_func)
             search_tool = next(t for t in tools if t.name == "search_instances")
 
@@ -75,48 +116,80 @@ class TestCreateQueryTools:
 
             assert "PO_001" in result
             assert "PurchaseOrder" in result
-            mock_graph_tools.search_instances.assert_called_once_with("PO", None, 10)
+            mock_graph_tools.search_instances.assert_called_once_with(
+                keyword="PO", entity_type=None, limit=10
+            )
 
     @pytest.mark.asyncio
-    async def test_get_instances_by_class(self, mock_get_session_func, mock_graph_tools):
+    async def test_get_instances_by_class(
+        self, mock_get_session_func, mock_graph_tools
+    ):
         """Test get_instances_by_class tool."""
-        with patch('app.services.agent_tools.query_tools.GraphTools', return_value=mock_graph_tools):
+        with patch(
+            "app.services.agent_tools.query_tools.PGGraphStorage",
+            return_value=mock_graph_tools,
+        ):
             tools = create_query_tools(mock_get_session_func)
             tool = next(t for t in tools if t.name == "get_instances_by_class")
 
             result = await tool.coroutine(class_name="PurchaseOrder")
 
             assert "PO_001" in result
-            mock_graph_tools.get_instances_by_class.assert_called_once_with("PurchaseOrder", None, 20)
+            mock_graph_tools.get_instances_by_class.assert_called_once_with(
+                entity_type="PurchaseOrder", property_filter=None, limit=20
+            )
 
     @pytest.mark.asyncio
-    async def test_get_instances_by_class_without_filters(self, mock_get_session_func, mock_graph_tools):
+    async def test_get_instances_by_class_without_filters(
+        self, mock_get_session_func, mock_graph_tools
+    ):
         """Test get_instances_by_class without filters parameter."""
-        with patch('app.services.agent_tools.query_tools.GraphTools', return_value=mock_graph_tools):
+        with patch(
+            "app.services.agent_tools.query_tools.PGGraphStorage",
+            return_value=mock_graph_tools,
+        ):
             tools = create_query_tools(mock_get_session_func)
             tool = next(t for t in tools if t.name == "get_instances_by_class")
 
             result = await tool.coroutine(class_name="PurchaseOrder")
 
             # Should be called with None for filters (the parameter was removed)
-            mock_graph_tools.get_instances_by_class.assert_called_once_with("PurchaseOrder", None, 20)
+            mock_graph_tools.get_instances_by_class.assert_called_once_with(
+                entity_type="PurchaseOrder", property_filter=None, limit=20
+            )
 
     @pytest.mark.asyncio
-    async def test_get_instance_neighbors(self, mock_get_session_func, mock_graph_tools):
+    async def test_get_instance_neighbors(
+        self, mock_get_session_func, mock_graph_tools
+    ):
         """Test get_instance_neighbors tool."""
-        with patch('app.services.agent_tools.query_tools.GraphTools', return_value=mock_graph_tools):
+        with patch(
+            "app.services.agent_tools.query_tools.PGGraphStorage",
+            return_value=mock_graph_tools,
+        ):
             tools = create_query_tools(mock_get_session_func)
             tool = next(t for t in tools if t.name == "get_instance_neighbors")
 
             result = await tool.coroutine(instance_name="PO_001")
 
             assert "Supplier_001" in result
-            mock_graph_tools.get_instance_neighbors.assert_called_once_with("PO_001", 1, "both")
+            mock_graph_tools.get_instance_neighbors.assert_called_once_with(
+                hops=1,
+                direction="both",
+                entity_type=None,
+                property_filter=None,
+                entity_name="PO_001",
+            )
 
     @pytest.mark.asyncio
-    async def test_find_path_between_instances(self, mock_get_session_func, mock_graph_tools):
+    async def test_find_path_between_instances(
+        self, mock_get_session_func, mock_graph_tools
+    ):
         """Test find_path_between_instances tool."""
-        with patch('app.services.agent_tools.query_tools.GraphTools', return_value=mock_graph_tools):
+        with patch(
+            "app.services.agent_tools.query_tools.PGGraphStorage",
+            return_value=mock_graph_tools,
+        ):
             tools = create_query_tools(mock_get_session_func)
             tool = next(t for t in tools if t.name == "find_path_between_instances")
 
@@ -124,12 +197,17 @@ class TestCreateQueryTools:
 
             assert "PO_001" in result
             assert "Supplier_001" in result
-            mock_graph_tools.find_path_between_instances.assert_called_once_with("PO_001", "Supplier_001", 5)
+            mock_graph_tools.find_path_between_instances.assert_called_once_with(
+                max_depth=5, start_name="PO_001", end_name="Supplier_001"
+            )
 
     @pytest.mark.asyncio
     async def test_describe_class(self, mock_get_session_func, mock_graph_tools):
         """Test describe_class tool."""
-        with patch('app.services.agent_tools.query_tools.GraphTools', return_value=mock_graph_tools):
+        with patch(
+            "app.services.agent_tools.query_tools.PGGraphStorage",
+            return_value=mock_graph_tools,
+        ):
             tools = create_query_tools(mock_get_session_func)
             tool = next(t for t in tools if t.name == "describe_class")
 
@@ -142,7 +220,10 @@ class TestCreateQueryTools:
     @pytest.mark.asyncio
     async def test_get_ontology_classes(self, mock_get_session_func, mock_graph_tools):
         """Test get_ontology_classes tool."""
-        with patch('app.services.agent_tools.query_tools.GraphTools', return_value=mock_graph_tools):
+        with patch(
+            "app.services.agent_tools.query_tools.PGGraphStorage",
+            return_value=mock_graph_tools,
+        ):
             tools = create_query_tools(mock_get_session_func)
             tool = next(t for t in tools if t.name == "get_ontology_classes")
 
@@ -152,9 +233,14 @@ class TestCreateQueryTools:
             mock_graph_tools.get_ontology_classes.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_get_ontology_relationships(self, mock_get_session_func, mock_graph_tools):
+    async def test_get_ontology_relationships(
+        self, mock_get_session_func, mock_graph_tools
+    ):
         """Test get_ontology_relationships tool."""
-        with patch('app.services.agent_tools.query_tools.GraphTools', return_value=mock_graph_tools):
+        with patch(
+            "app.services.agent_tools.query_tools.PGGraphStorage",
+            return_value=mock_graph_tools,
+        ):
             tools = create_query_tools(mock_get_session_func)
             tool = next(t for t in tools if t.name == "get_ontology_relationships")
 
@@ -166,14 +252,19 @@ class TestCreateQueryTools:
     @pytest.mark.asyncio
     async def test_get_node_statistics(self, mock_get_session_func, mock_graph_tools):
         """Test get_node_statistics tool."""
-        with patch('app.services.agent_tools.query_tools.GraphTools', return_value=mock_graph_tools):
+        with patch(
+            "app.services.agent_tools.query_tools.PGGraphStorage",
+            return_value=mock_graph_tools,
+        ):
             tools = create_query_tools(mock_get_session_func)
             tool = next(t for t in tools if t.name == "get_node_statistics")
 
             result = await tool.coroutine(node_label="PurchaseOrder")
 
             assert "100" in result
-            mock_graph_tools.get_node_statistics.assert_called_once_with("PurchaseOrder")
+            mock_graph_tools.get_node_statistics.assert_called_once_with(
+                "PurchaseOrder"
+            )
 
     def test_tools_are_structured_tools(self, mock_get_session_func):
         """Test that all returned tools are StructuredTool instances."""

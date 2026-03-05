@@ -34,7 +34,9 @@ async def search_instances(
         limit: Number of results to return (default: 10)
     """
     async with get_storage() as storage:
-        return await storage.search_instances(search_term, class_name, limit)
+        return await storage.search_instances(
+            keyword=search_term, entity_type=class_name, limit=limit
+        )
 
 
 @mcp.tool()
@@ -48,7 +50,7 @@ async def get_instances_by_class(
         limit: Number of results to return (default: 20)
     """
     async with get_storage() as storage:
-        return await storage.get_instances_by_class(class_name, limit=limit)
+        return await storage.get_instances_by_class(entity_type=class_name, limit=limit)
 
 
 @mcp.tool()

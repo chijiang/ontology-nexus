@@ -70,7 +70,8 @@
     "loginSuccess": "登录成功",
     "registerSuccess": "注册成功，请登录",
     "noAccount": "还没有账号？",
-    "hasAccount": "已有账号？"
+    "hasAccount": "已有账号？",
+    "noPermission": "访问被拒绝：未为该用户配置权限。"
   },
   "nav": {
     "qa": "智能体助手",

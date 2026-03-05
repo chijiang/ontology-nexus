@@ -399,7 +399,9 @@ class EnhancedAgentService:
 
         async with async_session() as db:
             storage = PGGraphStorage(db)
-            instances = await storage.search_instances(entity_id, entity_type, limit=1)
+            instances = await storage.search_instances(
+                keyword=entity_id, entity_type=entity_type, limit=1
+            )
 
             if not instances:
                 return {

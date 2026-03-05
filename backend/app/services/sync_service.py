@@ -167,7 +167,10 @@ class SyncService:
         self.db = db
 
     async def sync_data_product(
-        self, product_id: int, sync_relationships: bool = True
+        self,
+        product_id: int,
+        sync_relationships: bool = True,
+        sync_log_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """同步单个数据产品"""
         # 1. 加载数据产品和所有映射
@@ -184,17 +187,25 @@ class SyncService:
         if not product:
             raise ValueError(f"Data product {product_id} not found")
 
-        # 2. 初始化同步日志
-        sync_log = SyncLog(
-            data_product_id=product.id,
-            sync_type="manual",
-            direction="pull",
-            status="started",
-            started_at=datetime.now(timezone.utc).replace(tzinfo=None),
-        )
-        self.db.add(sync_log)
-        await self.db.commit()
-        await self.db.refresh(sync_log)
+        # 2. 初始化或加载同步日志
+        if sync_log_id is not None:
+            sync_log_result = await self.db.execute(
+                select(SyncLog).where(SyncLog.id == sync_log_id)
+            )
+            sync_log = sync_log_result.scalar_one_or_none()
+            if not sync_log:
+                raise ValueError(f"Sync Log {sync_log_id} not found")
+        else:
+            sync_log = SyncLog(
+                data_product_id=product.id,
+                sync_type="manual",
+                direction="pull",
+                status="started",
+                started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            )
+            self.db.add(sync_log)
+            await self.db.commit()
+            await self.db.refresh(sync_log)
 
         total_processed = 0
         total_created = 0

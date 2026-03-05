@@ -5,7 +5,7 @@
 提供数据产品的注册、配置、连接测试和 Schema 发现功能。
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -13,7 +13,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 import logging
 
-from app.core.database import get_db
+from app.core.database import get_db, async_session
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.data_product import (
@@ -22,6 +22,7 @@ from app.models.data_product import (
     PropertyMapping,
     RelationshipMapping,
     ConnectionStatus,
+    SyncLog,
 )
 from app.schemas.data_product import (
     DataProductCreate,
@@ -417,47 +418,66 @@ async def list_entity_mappings(
 # ============================================================================
 
 
+async def _run_sync_task_bg(product_id: int, sync_log_id: int):
+    async with async_session() as session:
+        sync_service = SyncService(session)
+        try:
+            await sync_service.sync_data_product(
+                product_id, sync_relationships=True, sync_log_id=sync_log_id
+            )
+        except Exception as e:
+            logger.exception(f"Background sync failed for product {product_id}: {e}")
+
+
+async def _run_sync_all_task_bg():
+    async with async_session() as session:
+        sync_service = SyncService(session)
+        try:
+            await sync_service.sync_all_data_products()
+        except Exception as e:
+            logger.exception(f"Background global sync failed: {e}")
+
+
 @router.post("/{product_id}/sync", response_model=SyncLogResponse)
 async def trigger_sync(
     product_id: int,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """触发数据产品同步"""
-    sync_service = SyncService(db)
-    try:
-        # 这里为了简单直接阻塞运行，在大规模场景下应使用 BackgroundTasks 或 Celery
-        result = await sync_service.sync_data_product(product_id)
-
-        # 获取最新的日志记录
-        logs = await sync_service.get_sync_logs(product_id=product_id, limit=1)
-        if not logs:
-            raise HTTPException(status_code=500, detail="同步已触发但未找到日志")
-        return logs[0]
-    except Exception as e:
-        logger.exception(f"Sync failed for product {product_id}")
+    result = await db.execute(select(DataProduct).where(DataProduct.id == product_id))
+    product = result.scalar_one_or_none()
+    if not product:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"同步失败: {str(e)}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"数据产品 ID={product_id} 不存在",
         )
+
+    sync_log = SyncLog(
+        data_product_id=product.id,
+        sync_type="manual",
+        direction="pull",
+        status="started",
+        started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    db.add(sync_log)
+    await db.commit()
+    await db.refresh(sync_log)
+
+    background_tasks.add_task(_run_sync_task_bg, product_id, sync_log.id)
+    return sync_log
 
 
 @router.post("/sync-all")
 async def trigger_sync_all(
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """全局同步所有数据产品"""
-    sync_service = SyncService(db)
-    try:
-        result = await sync_service.sync_all_data_products()
-        return result
-    except Exception as e:
-        logger.exception("Global sync failed")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"全局同步失败: {str(e)}",
-        )
+    background_tasks.add_task(_run_sync_all_task_bg)
+    return {"message": "Sync all started in background"}
 
 
 @router.get("/{product_id}/sync-logs", response_model=List[SyncLogResponse])

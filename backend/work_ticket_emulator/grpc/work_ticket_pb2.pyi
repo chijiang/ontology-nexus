@@ -58,14 +58,15 @@ CRU: TransServdelivery
 CIN: TransServdelivery
 
 class WorkTicket(_message.Message):
-    __slots__ = ("responseid", "osat", "why_osat_en_mask", "first_time_resolution", "ease_use", "survey_id", "time_period_id", "location_id", "product_id", "so_information_id", "kpi_id")
+    __slots__ = ("responseid", "osat", "why_osat_en_mask", "first_time_resolution", "ease_use", "survey_id", "interview_end", "interview_end_month_ops", "location_id", "product_id", "so_information_id", "kpi_id")
     RESPONSEID_FIELD_NUMBER: _ClassVar[int]
     OSAT_FIELD_NUMBER: _ClassVar[int]
     WHY_OSAT_EN_MASK_FIELD_NUMBER: _ClassVar[int]
     FIRST_TIME_RESOLUTION_FIELD_NUMBER: _ClassVar[int]
     EASE_USE_FIELD_NUMBER: _ClassVar[int]
     SURVEY_ID_FIELD_NUMBER: _ClassVar[int]
-    TIME_PERIOD_ID_FIELD_NUMBER: _ClassVar[int]
+    INTERVIEW_END_FIELD_NUMBER: _ClassVar[int]
+    INTERVIEW_END_MONTH_OPS_FIELD_NUMBER: _ClassVar[int]
     LOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     PRODUCT_ID_FIELD_NUMBER: _ClassVar[int]
     SO_INFORMATION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -76,12 +77,13 @@ class WorkTicket(_message.Message):
     first_time_resolution: int
     ease_use: int
     survey_id: int
-    time_period_id: int
+    interview_end: str
+    interview_end_month_ops: str
     location_id: int
     product_id: int
     so_information_id: int
     kpi_id: str
-    def __init__(self, responseid: _Optional[str] = ..., osat: _Optional[int] = ..., why_osat_en_mask: _Optional[str] = ..., first_time_resolution: _Optional[int] = ..., ease_use: _Optional[int] = ..., survey_id: _Optional[int] = ..., time_period_id: _Optional[int] = ..., location_id: _Optional[int] = ..., product_id: _Optional[int] = ..., so_information_id: _Optional[int] = ..., kpi_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, responseid: _Optional[str] = ..., osat: _Optional[int] = ..., why_osat_en_mask: _Optional[str] = ..., first_time_resolution: _Optional[int] = ..., ease_use: _Optional[int] = ..., survey_id: _Optional[int] = ..., interview_end: _Optional[str] = ..., interview_end_month_ops: _Optional[str] = ..., location_id: _Optional[int] = ..., product_id: _Optional[int] = ..., so_information_id: _Optional[int] = ..., kpi_id: _Optional[str] = ...) -> None: ...
 
 class GetWorkTicketRequest(_message.Message):
     __slots__ = ("responseid",)

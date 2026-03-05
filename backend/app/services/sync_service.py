@@ -666,8 +666,7 @@ class SyncService:
                             f"Error syncing relationship {rm.ontology_relationship} page {current_page}: {e}"
                         )
                         stats["failed"] += 1
-                    # Choose whether to break or continue; breaking avoids infinite loops on error
-                    break
+                        break  # Break on error to avoid infinite loops
             finally:
                 if not is_own_client:
                     await src_client.close()

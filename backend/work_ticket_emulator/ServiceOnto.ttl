@@ -7,9 +7,13 @@ base:COMMUNICATED_BY a owl:ObjectProperty ;
     rdfs:domain base:ServiceResponse ;
     rdfs:range base:Survey .
 
-base:ENDED_AT a owl:ObjectProperty ;
+base:interview_end a owl:DatatypeProperty ;
     rdfs:domain base:ServiceResponse ;
-    rdfs:range base:TimePeriod .
+    rdfs:range xsd:string .
+
+base:interview_end_month_ops a owl:DatatypeProperty ;
+    rdfs:domain base:ServiceResponse ;
+    rdfs:range xsd:string .
 
 base:OCCURRED_IN a owl:ObjectProperty ;
     rdfs:domain base:ServiceResponse ;
@@ -68,17 +72,13 @@ base:responseid a owl:DatatypeProperty ;
         base:Product,
         base:SOInformation,
         base:ServiceResponse,
-        base:Survey,
-        base:TimePeriod ;
+        base:Survey ;
     rdfs:range xsd:string .
 
 base:trans_servdelivery a owl:DatatypeProperty ;
     rdfs:domain base:SOInformation ;
     rdfs:range xsd:string .
 
-base:TimePeriod a owl:Class ;
-    rdfs:label "TimePeriod",
-        "服务终止时间" .
 
 base:Product a owl:Class ;
     rdfs:label "Product",

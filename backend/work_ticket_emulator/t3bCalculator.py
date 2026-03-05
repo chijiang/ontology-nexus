@@ -56,7 +56,6 @@ df_all = pd.read_csv("work_ticket_emulator/sample_data.csv")
 
 date_col = "interview_end_month_ops"
 analysis_dims = {
-    "TimePeriod": ["interview_end_month_ops"],
     "Survey": ["Survey_Medium", "language"],
     "Location": ["geo_ops", "PX_Region", "PX_Sub_Region", "country_name_ops"],
     "SOInformation": ["program", "trans_servdelivery"],

@@ -44,10 +44,25 @@ def _validate_property_filter_keys(property_filter: Dict[str, Any]) -> None:
     """Validate property filter keys to prevent SQL injection."""
     for key in property_filter:
         if not _SAFE_KEY_RE.match(key):
+            # Special case for "$like" and "$in" and "$gte" style operators embedded in keys or value dicts
+            pass
+        if not _SAFE_KEY_RE.match(key):
             raise ValueError(
                 f"Invalid property filter key: '{key}'. "
                 "Keys must contain only alphanumeric characters, underscores, hyphens, or dots."
             )
+
+
+def _apply_property_filters(query, entity_alias, filters: Dict[str, Any]):
+    """Apply dictionary filters to a SQLAlchemy query using JSONB operations."""
+    for k, v in filters.items():
+        if k == "_name" or k == "name":
+            # Search by display name
+            query = query.where(entity_alias._display_name == str(v))
+        else:
+            # Exact match by default for JSONB properties
+            query = query.where(entity_alias.properties[k].astext == str(v))
+    return query
 
 
 class PGGraphStorage:
@@ -1428,6 +1443,183 @@ class PGGraphStorage:
             },
             "aliases": (entity.properties or {}).get("__aliases__", []),
         }
+
+    async def execute_complex_aggregation(
+        self,
+        target_class: str,
+        aggregation: str = "count",
+        aggregate_property: Optional[str] = None,
+        target_filters: Optional[Dict[str, Any]] = None,
+        related_requirements: Optional[List[Dict[str, Any]]] = None,
+        accessible_entity_types: Optional[List[str]] = None,
+    ) -> Dict:
+        """
+        Execute a complex query with filters on target properties and relationship reachability,
+        returning an aggregation (count, sum, avg, max, min).
+
+        related_requirements example:
+        [
+            {
+                "related_class": "Product",
+                "relationship_type": "PURCHASED",
+                "direction": "outgoing", # target -> related
+                "filters": {"brand": "ThinkPad"}
+            }
+        ]
+        """
+        from sqlalchemy.orm import aliased
+
+        if aggregation not in ["count", "sum", "avg", "max", "min"]:
+            return {"error": f"Unsupported aggregation type: {aggregation}"}
+
+        TargetModel = aliased(GraphEntity, name="target")
+        query = select(TargetModel).where(
+            TargetModel.entity_type == target_class, TargetModel.is_instance == True
+        )
+
+        if accessible_entity_types is not None and accessible_entity_types:
+            query = query.where(TargetModel.entity_type.in_(accessible_entity_types))
+
+        if target_filters:
+            _validate_property_filter_keys(target_filters)
+            query = _apply_property_filters(query, TargetModel, target_filters)
+
+        if related_requirements:
+            for i, req in enumerate(related_requirements):
+                rel_class = req.get("related_class")
+                rel_type = req.get("relationship_type")
+                direction = req.get("direction", "outgoing")
+                filters = req.get("filters", {})
+
+                RelModel = aliased(GraphRelationship, name=f"rel_{i}")
+                RelatedEntityModel = aliased(GraphEntity, name=f"related_{i}")
+
+                if filters:
+                    _validate_property_filter_keys(filters)
+
+                if direction == "outgoing":
+                    # target --[rel_type]--> related
+                    query = query.join(
+                        RelModel,
+                        and_(
+                            RelModel.source_id == TargetModel.id,
+                            (
+                                RelModel.relationship_type == rel_type
+                                if rel_type
+                                else True
+                            ),
+                        ),
+                    ).join(
+                        RelatedEntityModel,
+                        and_(
+                            RelatedEntityModel.id == RelModel.target_id,
+                            (
+                                RelatedEntityModel.entity_type == rel_class
+                                if rel_class
+                                else True
+                            ),
+                            RelatedEntityModel.is_instance == True,
+                        ),
+                    )
+                elif direction == "incoming":
+                    # related --[rel_type]--> target
+                    query = query.join(
+                        RelModel,
+                        and_(
+                            RelModel.target_id == TargetModel.id,
+                            (
+                                RelModel.relationship_type == rel_type
+                                if rel_type
+                                else True
+                            ),
+                        ),
+                    ).join(
+                        RelatedEntityModel,
+                        and_(
+                            RelatedEntityModel.id == RelModel.source_id,
+                            (
+                                RelatedEntityModel.entity_type == rel_class
+                                if rel_class
+                                else True
+                            ),
+                            RelatedEntityModel.is_instance == True,
+                        ),
+                    )
+                else:  # both
+                    query = query.join(
+                        RelModel,
+                        or_(
+                            RelModel.source_id == TargetModel.id,
+                            RelModel.target_id == TargetModel.id,
+                        ),
+                    ).join(
+                        RelatedEntityModel,
+                        and_(
+                            or_(
+                                RelatedEntityModel.id == RelModel.target_id,
+                                RelatedEntityModel.id == RelModel.source_id,
+                            ),
+                            RelatedEntityModel.id != TargetModel.id,
+                            (
+                                RelatedEntityModel.entity_type == rel_class
+                                if rel_class
+                                else True
+                            ),
+                            RelatedEntityModel.is_instance == True,
+                        ),
+                    )
+
+                if accessible_entity_types is not None and accessible_entity_types:
+                    query = query.where(
+                        RelatedEntityModel.entity_type.in_(accessible_entity_types)
+                    )
+
+                if filters:
+                    query = _apply_property_filters(query, RelatedEntityModel, filters)
+
+        # Build the aggregation expression
+        if aggregation == "count":
+            # Count distinct targets found to avoid duplicating count if multiple related items map to same target
+            agg_expr = func.count(func.distinct(TargetModel.id))
+        else:
+            if not aggregate_property:
+                return {
+                    "error": f"Aggregation {aggregation} requires aggregate_property to be specified"
+                }
+
+            # Cast JSON string to float/numeric for aggregation
+            from sqlalchemy import cast, Numeric
+
+            val_col = cast(TargetModel.properties[aggregate_property].astext, Numeric)
+
+            if aggregation == "sum":
+                agg_expr = func.sum(val_col)
+            elif aggregation == "avg":
+                agg_expr = func.avg(val_col)
+            elif aggregation == "max":
+                agg_expr = func.max(val_col)
+            elif aggregation == "min":
+                agg_expr = func.min(val_col)
+
+        agg_query = query.with_only_columns(agg_expr)
+
+        try:
+            result = await self.db.execute(agg_query)
+            value = result.scalar()
+
+            return {
+                "target_class": target_class,
+                "aggregation": aggregation,
+                "aggregate_property": aggregate_property,
+                "value": (
+                    float(value)
+                    if value is not None
+                    else 0.0 if aggregation in ["sum", "count"] else None
+                ),
+            }
+        except Exception as e:
+            logger.error(f"Error executing complex aggregation: {str(e)}")
+            return {"error": str(e)}
 
     # ==================== 统计查询 ====================
 

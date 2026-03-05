@@ -55,6 +55,31 @@ class FindPathInput(BaseModel):
     max_depth: int = Field(5, description="Maximum depth, default 5")
 
 
+class StructuredAggregationInput(BaseModel):
+    """Input for structured_aggregation_query tool."""
+
+    target_class: str = Field(
+        description="The primary entity class to aggregate over, e.g. ServiceResponse"
+    )
+    aggregation: str = Field(
+        "count", description="Aggregation function: count, sum, avg, max, min"
+    )
+    aggregate_property: str | None = Field(
+        None, description="Property to aggregate on (required for sum, avg, max, min)"
+    )
+    target_filters_json: str | None = Field(
+        None,
+        description='JSON string of filters on the target entity, e.g. {"OSAT": "10"}',
+    )
+    related_requirements_json: str | None = Field(
+        None,
+        description=(
+            "JSON string of a list of related entity requirements. "
+            'Example: [{"related_class": "Product", "relationship_type": "PURCHASED", "direction": "outgoing", "filters": {"product_group_ops": "THINK"}}]'
+        ),
+    )
+
+
 class DescribeClassInput(BaseModel):
     """Input for describe_class tool."""
 
@@ -320,6 +345,57 @@ def create_query_tools(
 
         return await _execute_with_session(get_session_func, _execute, event_emitter)
 
+    async def structured_aggregation_query(
+        target_class: str,
+        aggregation: str = "count",
+        aggregate_property: str | None = None,
+        target_filters_json: str | None = None,
+        related_requirements_json: str | None = None,
+    ) -> str:
+        """Execute a complex aggregation query on the knowledge graph."""
+        import json as _json
+
+        def _safe_parse_json(raw: str | None) -> Any:
+            """Robustly parse a JSON string, handling common LLM mistakes."""
+            if raw is None:
+                return None
+            if isinstance(raw, (dict, list)):
+                return raw  # already parsed
+            try:
+                return _json.loads(raw)
+            except (_json.JSONDecodeError, TypeError):
+                return None
+
+        target_filters = _safe_parse_json(target_filters_json)
+        related_requirements = _safe_parse_json(related_requirements_json)
+
+        async def _execute(tools) -> str:
+            result = await tools.execute_complex_aggregation(
+                target_class=target_class,
+                aggregation=aggregation,
+                aggregate_property=aggregate_property,
+                target_filters=(
+                    target_filters if isinstance(target_filters, dict) else None
+                ),
+                related_requirements=(
+                    related_requirements
+                    if isinstance(related_requirements, list)
+                    else None
+                ),
+            )
+
+            if "error" in result:
+                return f"Error executing aggregation: {result['error']}"
+
+            return (
+                f"Aggregation result for {aggregation}"
+                f"{f'({aggregate_property})' if aggregate_property else ''} "
+                f"on {target_class}:\n"
+                f"Value: {result.get('value')}"
+            )
+
+        return await _execute_with_session(get_session_func, _execute, event_emitter)
+
     return [
         StructuredTool.from_function(
             coroutine=search_instances,
@@ -368,6 +444,24 @@ def create_query_tools(
             name="get_node_statistics",
             description="Get node statistics to understand data distribution.",
             args_schema=GetNodeStatisticsInput,
+        ),
+        StructuredTool.from_function(
+            coroutine=structured_aggregation_query,
+            name="structured_aggregation_query",
+            description=(
+                "Execute complex aggregation queries (count/sum/avg/max/min) on knowledge graph entities. "
+                "Supports filtering by the target entity's own properties AND by requiring connections to related entities with specific properties.\n"
+                "Parameters:\n"
+                "  target_class: Entity class to aggregate (e.g. 'ServiceResponse')\n"
+                "  aggregation: 'count', 'sum', 'avg', 'max', or 'min'\n"
+                '  target_filters_json: Optional JSON string of filters on target, e.g. \'{"OSAT": "10"}\'\n'
+                "  related_requirements_json: Optional JSON string, a list of related entity conditions.\n"
+                "EXAMPLE: Count ServiceResponse where product_group_ops=THINK:\n"
+                '  target_class="ServiceResponse", related_requirements_json=\'[{"related_class": "Product", "relationship_type": "PURCHASED", "direction": "outgoing", "filters": {"product_group_ops": "THINK"}}]\'\n'
+                "EXAMPLE: Count ServiceResponse in a specific time period with THINK product:\n"
+                '  target_class="ServiceResponse", target_filters_json=\'{"interview_end_month_ops": "2025-03"}\', related_requirements_json=\'[{"related_class": "Product", "relationship_type": "PURCHASED", "direction": "outgoing", "filters": {"product_group_ops": "THINK"}}]\''
+            ),
+            args_schema=StructuredAggregationInput,
         ),
     ]
 

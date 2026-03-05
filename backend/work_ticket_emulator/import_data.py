@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from .database import sync_engine, sync_session_maker
 from .models import (
     Survey,
-    TimePeriod,
     Location,
     Product,
     SOInformation,
@@ -52,7 +51,6 @@ def import_data(excel_path: str):
     with sync_session_maker() as session:
         # Caches to avoid duplicate DB insertions during processing
         survey_cache = {}
-        time_period_cache = {}
         location_cache = {}
         product_cache = {}
         so_info_cache = {}
@@ -81,17 +79,6 @@ def import_data(excel_path: str):
                 session.flush()  # get id
                 survey_cache[s_key] = survey.id
             survey_id = survey_cache[s_key]
-
-            # --- TimePeriod ---
-            t_end = safe_str(row.get("interview_end"))
-            t_end_m = safe_str(row.get("interview_end_month_ops"))
-            t_key = create_hash_key(t_end, t_end_m)
-            if t_key not in time_period_cache:
-                tp = TimePeriod(interview_end=t_end, interview_end_month_ops=t_end_m)
-                session.add(tp)
-                session.flush()
-                time_period_cache[t_key] = tp.id
-            time_period_id = time_period_cache[t_key]
 
             # --- Location ---
             l_geo = safe_str(row.get("geo_ops"))
@@ -169,7 +156,8 @@ def import_data(excel_path: str):
                 first_time_resolution=safe_int(row.get("First_Time_Resolution")),
                 ease_use=safe_int(row.get("Ease_Use")),
                 survey_id=survey_id,
-                time_period_id=time_period_id,
+                interview_end=safe_str(row.get("interview_end")),
+                interview_end_month_ops=safe_str(row.get("interview_end_month_ops")),
                 location_id=location_id,
                 product_id=product_id,
                 so_information_id=so_information_id,

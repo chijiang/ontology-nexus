@@ -12,11 +12,12 @@ message WorkTicket {
   int32 ease_use = 5;
   
   int32 survey_id = 6;
-  int32 time_period_id = 7;
-  int32 location_id = 8;
-  int32 product_id = 9;
-  int32 so_information_id = 10;
-  string kpi_id = 11;
+  string interview_end = 7;
+  string interview_end_month_ops = 8;
+  int32 location_id = 9;
+  int32 product_id = 10;
+  int32 so_information_id = 11;
+  string kpi_id = 12;
 }
 
 message GetWorkTicketRequest {

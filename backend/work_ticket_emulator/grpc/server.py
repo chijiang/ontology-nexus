@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from grpc_reflection.v1alpha import reflection
 
 from ..database import async_session_maker
-from ..models import WorkTicket, Survey, TimePeriod, Location, Product, SOInformation
+from ..models import WorkTicket, Survey, Location, Product, SOInformation
 
 # Import generated protobuf classes
 from . import (
@@ -22,8 +22,6 @@ from . import (
     product_pb2_grpc,
     survey_pb2,
     survey_pb2_grpc,
-    time_period_pb2,
-    time_period_pb2_grpc,
     so_information_pb2,
     so_information_pb2_grpc,
     work_ticket_pb2,
@@ -95,58 +93,6 @@ class SurveyServicer(survey_pb2_grpc.SurveyServiceServicer):
                 for o in objs
             ]
             return survey_pb2.ListSurveysResponse(
-                items=items, pagination=_calc_pagination(total, page, page_size)
-            )
-
-
-# --- TimePeriod Servicer ---
-class TimePeriodServicer(time_period_pb2_grpc.TimePeriodServiceServicer):
-    async def GetTimePeriod(self, request, context: ServicerContext):
-        async with async_session_maker() as session:
-            result = await session.execute(
-                select(TimePeriod).where(TimePeriod.id == request.id)
-            )
-            obj = result.scalar_one_or_none()
-            if not obj:
-                await context.abort(grpc.StatusCode.NOT_FOUND, "TimePeriod not found")
-            return time_period_pb2.TimePeriod(
-                id=obj.id,
-                interview_end=_safe_str(obj.interview_end),
-                interview_end_month_ops=_safe_str(obj.interview_end_month_ops),
-            )
-
-    async def ListTimePeriods(self, request, context: ServicerContext):
-        async with async_session_maker() as session:
-            stmt = select(TimePeriod)
-            if request.query:
-                q = f"%{request.query}%"
-                stmt = stmt.where(
-                    or_(
-                        TimePeriod.interview_end.ilike(q),
-                        TimePeriod.interview_end_month_ops.ilike(q),
-                    )
-                )
-
-            total = await session.scalar(
-                select(func.count()).select_from(stmt.subquery())
-            )
-            page = request.pagination.page if request.HasField("pagination") else 1
-            page_size = (
-                request.pagination.page_size if request.HasField("pagination") else 20
-            )
-
-            stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-            objs = (await session.execute(stmt)).scalars().all()
-
-            items = [
-                time_period_pb2.TimePeriod(
-                    id=o.id,
-                    interview_end=_safe_str(o.interview_end),
-                    interview_end_month_ops=_safe_str(o.interview_end_month_ops),
-                )
-                for o in objs
-            ]
-            return time_period_pb2.ListTimePeriodsResponse(
                 items=items, pagination=_calc_pagination(total, page, page_size)
             )
 
@@ -350,7 +296,8 @@ class WorkTicketServicer(work_ticket_pb2_grpc.WorkTicketServiceServicer):
             first_time_resolution=model.first_time_resolution or 0,
             ease_use=model.ease_use or 0,
             survey_id=model.survey_id or 0,
-            time_period_id=model.time_period_id or 0,
+            interview_end=_safe_str(model.interview_end),
+            interview_end_month_ops=_safe_str(model.interview_end_month_ops),
             location_id=model.location_id or 0,
             product_id=model.product_id or 0,
             so_information_id=model.so_information_id or 0,
@@ -505,9 +452,7 @@ async def serve(host="[::]", port="50052"):
         WorkTicketServicer(), server
     )
     survey_pb2_grpc.add_SurveyServiceServicer_to_server(SurveyServicer(), server)
-    time_period_pb2_grpc.add_TimePeriodServiceServicer_to_server(
-        TimePeriodServicer(), server
-    )
+
     location_pb2_grpc.add_LocationServiceServicer_to_server(LocationServicer(), server)
     product_pb2_grpc.add_ProductServiceServicer_to_server(ProductServicer(), server)
     so_information_pb2_grpc.add_SOInformationServiceServicer_to_server(
@@ -517,7 +462,6 @@ async def serve(host="[::]", port="50052"):
     service_names = (
         work_ticket_pb2.DESCRIPTOR.services_by_name["WorkTicketService"].full_name,
         survey_pb2.DESCRIPTOR.services_by_name["SurveyService"].full_name,
-        time_period_pb2.DESCRIPTOR.services_by_name["TimePeriodService"].full_name,
         location_pb2.DESCRIPTOR.services_by_name["LocationService"].full_name,
         product_pb2.DESCRIPTOR.services_by_name["ProductService"].full_name,
         so_information_pb2.DESCRIPTOR.services_by_name[

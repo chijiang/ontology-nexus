@@ -11,13 +11,6 @@ class Survey(Base):
     language = Column(String)
 
 
-class TimePeriod(Base):
-    __tablename__ = "time_periods"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    interview_end = Column(String)
-    interview_end_month_ops = Column(String)
-
-
 class Location(Base):
     __tablename__ = "locations"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -60,17 +53,17 @@ class WorkTicket(Base):
     first_time_resolution = Column(Integer)
     ease_use = Column(Integer)
     kpi_id = Column(String, default="T3B")
+    interview_end = Column(String)
+    interview_end_month_ops = Column(String)
 
     # Foreign Keys
     survey_id = Column(Integer, ForeignKey("surveys.id"))
-    time_period_id = Column(Integer, ForeignKey("time_periods.id"))
     location_id = Column(Integer, ForeignKey("locations.id"))
     product_id = Column(Integer, ForeignKey("products.id"))
     so_information_id = Column(Integer, ForeignKey("so_informations.id"))
 
     # Relationships
     survey = relationship("Survey")
-    time_period = relationship("TimePeriod")
     location = relationship("Location")
     product = relationship("Product")
     so_information = relationship("SOInformation")

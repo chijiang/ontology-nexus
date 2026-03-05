@@ -485,7 +485,10 @@ class SyncService:
         self, client: DynamicGrpcClient, product: DataProduct
     ) -> Dict[str, int]:
         """根据外键同步实体间的关系"""
-        stats = {"created": 0, "failed": 0}
+        stats = {"created": 0, "failed": 0, "source_missing": 0, "target_missing": 0}
+        id_cache: Dict[Tuple[str, str], int] = (
+            {}
+        )  # (entity_type, source_id) -> graph_id
 
         # 加载所有涉及到该数据产品的关系映射 (无论该产品是源还是目标)
         mappings_ids = [m.id for m in product.entity_mappings]
@@ -589,37 +592,51 @@ class SyncService:
                             if fk_val is None or source_raw_id is None:
                                 continue
 
-                            # 查找源节点 ID
-                            # TODO: Since item is from source_product, its ID is just id_field_mapping
-                            # and the fk_val points to the target. This logic looks correct.
-                            # Let's consider if the ids are mistyped (int vs str).
-
-                            source_ent_res = await self.db.execute(
-                                select(GraphEntity.id)
-                                .where(
-                                    and_(
-                                        GraphEntity.entity_type
-                                        == source_mapping.ontology_class_name,
-                                        GraphEntity.source_id == str(source_raw_id),
-                                    )
-                                )
-                                .limit(1)
+                            # 查找源节点 ID (优先从缓存读取)
+                            source_cache_key = (
+                                source_mapping.ontology_class_name,
+                                str(source_raw_id),
                             )
-                            source_id = source_ent_res.scalars().first()
-
-                            # 查找目标节点 ID
-                            target_ent_res = await self.db.execute(
-                                select(GraphEntity.id)
-                                .where(
-                                    and_(
-                                        GraphEntity.entity_type
-                                        == target_mapping.ontology_class_name,
-                                        GraphEntity.source_id == str(fk_val),
+                            if source_cache_key in id_cache:
+                                source_id = id_cache[source_cache_key]
+                            else:
+                                source_ent_res = await self.db.execute(
+                                    select(GraphEntity.id)
+                                    .where(
+                                        and_(
+                                            GraphEntity.entity_type
+                                            == source_mapping.ontology_class_name,
+                                            GraphEntity.source_id == str(source_raw_id),
+                                        )
                                     )
+                                    .limit(1)
                                 )
-                                .limit(1)
+                                source_id = source_ent_res.scalars().first()
+                                if source_id:
+                                    id_cache[source_cache_key] = source_id
+
+                            # 查找目标节点 ID (优先从缓存读取)
+                            target_cache_key = (
+                                target_mapping.ontology_class_name,
+                                str(fk_val),
                             )
-                            target_id = target_ent_res.scalars().first()
+                            if target_cache_key in id_cache:
+                                target_id = id_cache[target_cache_key]
+                            else:
+                                target_ent_res = await self.db.execute(
+                                    select(GraphEntity.id)
+                                    .where(
+                                        and_(
+                                            GraphEntity.entity_type
+                                            == target_mapping.ontology_class_name,
+                                            GraphEntity.source_id == str(fk_val),
+                                        )
+                                    )
+                                    .limit(1)
+                                )
+                                target_id = target_ent_res.scalars().first()
+                                if target_id:
+                                    id_cache[target_cache_key] = target_id
 
                             if source_id and target_id:
                                 # 插入或更新关系
@@ -642,21 +659,30 @@ class SyncService:
                                     self.db.add(new_rel)
                                     stats["created"] += 1
                             else:
-                                # Debug logging for missing entities
+                                # Optimized logging: only log the first 5 missing entities per relationship type
                                 if not source_id:
-                                    logger.warning(
-                                        f"Source entity not found for relationship {rm.ontology_relationship}: "
-                                        f"class={source_mapping.ontology_class_name}, "
-                                        f"id_field={source_mapping.id_field_mapping}, "
-                                        f"raw_id={source_raw_id}"
-                                    )
+                                    stats["source_missing"] += 1
+                                    if stats["source_missing"] <= 5:
+                                        logger.warning(
+                                            f"[{rm.ontology_relationship}] Source entity not found: "
+                                            f"class={source_mapping.ontology_class_name}, raw_id={source_raw_id}"
+                                        )
+                                    elif stats["source_missing"] == 6:
+                                        logger.warning(
+                                            f"[{rm.ontology_relationship}] Further source missing warnings suppressed..."
+                                        )
+
                                 if not target_id:
-                                    logger.warning(
-                                        f"Target entity not found for relationship {rm.ontology_relationship}: "
-                                        f"class={target_mapping.ontology_class_name}, "
-                                        f"target_id_field={rm.target_id_field}, "
-                                        f"fk_val={fk_val}"
-                                    )
+                                    stats["target_missing"] += 1
+                                    if stats["target_missing"] <= 5:
+                                        logger.warning(
+                                            f"[{rm.ontology_relationship}] Target entity not found: "
+                                            f"class={target_mapping.ontology_class_name}, fk_val={fk_val}"
+                                        )
+                                    elif stats["target_missing"] == 6:
+                                        logger.warning(
+                                            f"[{rm.ontology_relationship}] Further target missing warnings suppressed..."
+                                        )
 
                         await self.db.commit()
                         current_page += 1
@@ -667,6 +693,12 @@ class SyncService:
                         )
                         stats["failed"] += 1
                         break  # Break on error to avoid infinite loops
+
+                if stats["source_missing"] > 5 or stats["target_missing"] > 5:
+                    logger.info(
+                        f"Relationship {rm.ontology_relationship} sync summary: "
+                        f"Created: {stats['created']}, Missing Source: {stats['source_missing']}, Missing Target: {stats['target_missing']}"
+                    )
             finally:
                 if not is_own_client:
                     await src_client.close()

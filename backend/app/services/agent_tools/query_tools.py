@@ -450,16 +450,25 @@ def create_query_tools(
             name="structured_aggregation_query",
             description=(
                 "Execute complex aggregation queries (count/sum/avg/max/min) on knowledge graph entities. "
-                "Supports filtering by the target entity's own properties AND by requiring connections to related entities with specific properties.\n"
+                "Supports filtering by the target entity's own properties AND by requiring connections to related entities with specific properties.\n\n"
+                "BEST PRACTICE: ALWAYS call `describe_class(target_class)` first to check which properties are direct attributes of the target entity. "
+                "Properties belonging to DIFFERENT entities (e.g. country_name for a ServiceResponse) MUST be placed in `related_requirements_json`, not `target_filters_json`.\n\n"
+                "Property filters (target_filters_json and related entity filters) support:\n"
+                '  - Exact match: {"key": "value"}\n'
+                '  - Operators: {"key": {"$gt": 8, "$lt": 20}} (also supports $gte, $lte, $ne)\n'
+                '  - Pattern match: {"key": {"$like": "%pattern%"}}\n'
+                '  - Membership: {"key": {"$in": ["val1", "val2"]}}\n'
                 "Parameters:\n"
                 "  target_class: Entity class to aggregate (e.g. 'ServiceResponse')\n"
                 "  aggregation: 'count', 'sum', 'avg', 'max', or 'min'\n"
-                '  target_filters_json: Optional JSON string of filters on target, e.g. \'{"OSAT": "10"}\'\n'
+                "  target_filters_json: Optional JSON string of filters on target.\n"
                 "  related_requirements_json: Optional JSON string, a list of related entity conditions.\n"
+                "EXAMPLE: Count ServiceResponse where OSAT > 8 and Location country is India:\n"
+                '  target_class="ServiceResponse", '
+                '  target_filters_json=\'{"OSAT": {"$gt": 8}}\', '
+                '  related_requirements_json=\'[{"related_class": "Location", "relationship_type": "OCCURRED_IN", "filters": {"country_name": "India"}}]\''
                 "EXAMPLE: Count ServiceResponse where product_group_ops=THINK:\n"
-                '  target_class="ServiceResponse", related_requirements_json=\'[{"related_class": "Product", "relationship_type": "PURCHASED", "direction": "outgoing", "filters": {"product_group_ops": "THINK"}}]\'\n'
-                "EXAMPLE: Count ServiceResponse in a specific time period with THINK product:\n"
-                '  target_class="ServiceResponse", target_filters_json=\'{"interview_end_month_ops": "2025-03"}\', related_requirements_json=\'[{"related_class": "Product", "relationship_type": "PURCHASED", "direction": "outgoing", "filters": {"product_group_ops": "THINK"}}]\''
+                '  target_class="ServiceResponse", related_requirements_json=\'[{"related_class": "Product", "relationship_type": "PURCHASED", "filters": {"product_group_ops": "THINK"}}]\''
             ),
             args_schema=StructuredAggregationInput,
         ),

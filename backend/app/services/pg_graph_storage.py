@@ -42,26 +42,49 @@ _SAFE_KEY_RE = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
 
 def _validate_property_filter_keys(property_filter: Dict[str, Any]) -> None:
     """Validate property filter keys to prevent SQL injection."""
-    for key in property_filter:
-        if not _SAFE_KEY_RE.match(key):
-            # Special case for "$like" and "$in" and "$gte" style operators embedded in keys or value dicts
-            pass
-        if not _SAFE_KEY_RE.match(key):
+    for key, value in property_filter.items():
+        if not (key.startswith("$") or _SAFE_KEY_RE.match(key)):
             raise ValueError(
                 f"Invalid property filter key: '{key}'. "
-                "Keys must contain only alphanumeric characters, underscores, hyphens, or dots."
+                "Keys must contain only alphanumeric characters, underscores, hyphens, dots or start with '$'."
             )
+        if isinstance(value, dict):
+            _validate_property_filter_keys(value)
 
 
 def _apply_property_filters(query, entity_alias, filters: Dict[str, Any]):
     """Apply dictionary filters to a SQLAlchemy query using JSONB operations."""
+    from sqlalchemy import cast, Numeric
+
     for k, v in filters.items():
         if k == "_name" or k == "name":
             # Search by display name
             query = query.where(entity_alias._display_name == str(v))
         else:
-            # Exact match by default for JSONB properties
-            query = query.where(entity_alias.properties[k].astext == str(v))
+            # Handle operator filters like {"OSAT": {"$gt": "8"}}
+            if isinstance(v, dict):
+                for op, val in v.items():
+                    # Cast the property to text for comparisons
+                    prop_text = entity_alias.properties[k].astext
+
+                    if op == "$gt":
+                        query = query.where(cast(prop_text, Numeric) > float(val))
+                    elif op == "$gte":
+                        query = query.where(cast(prop_text, Numeric) >= float(val))
+                    elif op == "$lt":
+                        query = query.where(cast(prop_text, Numeric) < float(val))
+                    elif op == "$lte":
+                        query = query.where(cast(prop_text, Numeric) <= float(val))
+                    elif op == "$ne":
+                        query = query.where(prop_text != str(val))
+                    elif op == "$like":
+                        query = query.where(prop_text.ilike(str(val)))
+                    elif op == "$in":
+                        if isinstance(val, list):
+                            query = query.where(prop_text.in_([str(i) for i in val]))
+            else:
+                # Exact match by default for JSONB properties
+                query = query.where(entity_alias.properties[k].astext == str(v))
     return query
 
 

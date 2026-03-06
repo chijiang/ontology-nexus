@@ -49,7 +49,7 @@ class ScheduledTask(Base):
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=300, nullable=False)  # 5 minutes default
     max_retries: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     retry_interval_seconds: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
-    priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
@@ -110,13 +110,13 @@ class TaskExecution(Base):
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(nullable=True)
     result_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_retry: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    triggered_by: Mapped[str] = mapped_column(String(20), default="cron", nullable=False)  # 'cron' | 'manual' | 'retry'
+    triggered_by: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 'cron' | 'manual' | 'retry'
 
     # Relationship to scheduled task
     scheduled_task: Mapped["ScheduledTask"] = relationship(
@@ -125,7 +125,6 @@ class TaskExecution(Base):
 
     __table_args__ = (
         Index("idx_task_executions_task_status", "task_id", "status"),
-        Index("idx_task_executions_started_at", "started_at"),
     )
 
     def __repr__(self) -> str:

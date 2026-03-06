@@ -10,7 +10,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Callable, Awaitable
+from typing import Dict, Any, Optional, Callable
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.exc import IntegrityError
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 # Error patterns for retry determination
-RETRYABLE_PATTERNS = [
+RETRYABLE_ERROR_PATTERNS = [
     r"connection.*timeout",
     r"network.*unreachable",
     r"503",
@@ -35,7 +35,7 @@ RETRYABLE_PATTERNS = [
     r"timeout awaiting",
 ]
 
-NON_RETRYABLE_PATTERNS = [
+NON_RETRYABLE_ERROR_PATTERNS = [
     r"auth.*failed",
     r"unauthorized",
     r"401",
@@ -103,7 +103,6 @@ class TaskExecutor:
         """
         execution_id: Optional[int] = None
         retry_count = 0
-        last_error: Optional[Exception] = None
         last_error_type: Optional[str] = None
         last_error_message: Optional[str] = None
 
@@ -179,7 +178,6 @@ class TaskExecutor:
                         }
 
                     except asyncio.TimeoutError as e:
-                        last_error = e
                         last_error_type = "TimeoutError"
                         last_error_message = (
                             f"Task exceeded timeout of {timeout} seconds"
@@ -192,7 +190,6 @@ class TaskExecutor:
                         break
 
                     except Exception as e:
-                        last_error = e
                         last_error_type = type(e).__name__
                         last_error_message = str(e)
 
@@ -361,7 +358,7 @@ class TaskExecutor:
         error_type = type(error).__name__
 
         # Check non-retryable patterns first
-        for pattern in NON_RETRYABLE_PATTERNS:
+        for pattern in NON_RETRYABLE_ERROR_PATTERNS:
             if re.search(pattern, error_str, re.IGNORECASE):
                 return False
 
@@ -370,7 +367,7 @@ class TaskExecutor:
             return False
 
         # Check retryable patterns
-        for pattern in RETRYABLE_PATTERNS:
+        for pattern in RETRYABLE_ERROR_PATTERNS:
             if re.search(pattern, error_str, re.IGNORECASE):
                 return True
 
@@ -381,7 +378,7 @@ class TaskExecutor:
         # Default: don't retry unknown errors
         return False
 
-    async def cancel_task(self, task_id: int) -> bool:
+    async def cancel_running_task(self, task_id: int) -> bool:
         """Cancel a running task.
 
         Args:
@@ -402,6 +399,14 @@ class TaskExecutor:
             pass
 
         return True
+
+    def get_running_tasks(self) -> list[int]:
+        """Get list of currently running task IDs.
+
+        Returns:
+            List of running task IDs
+        """
+        return list(self.running_tasks.keys())
 
     def get_running_task_count(self) -> int:
         """Get the number of currently running tasks.

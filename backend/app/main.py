@@ -21,6 +21,7 @@ from app.api import (
     users,
     roles,
     mcp,
+    scheduled_tasks,
 )
 from app.core.database import engine, Base, async_session, get_db
 import app.models  # Implicitly registers models
@@ -167,6 +168,7 @@ app.include_router(data_mappings.router)
 app.include_router(users.router)
 app.include_router(roles.router)
 app.include_router(mcp.router)
+app.include_router(scheduled_tasks.router)
 
 
 @app.get("/health")

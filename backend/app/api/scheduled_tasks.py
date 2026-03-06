@@ -1,0 +1,290 @@
+"""
+Scheduled Tasks API Routes
+
+This module provides REST API endpoints for managing scheduled tasks
+that support cron-based scheduling for data synchronization and rule execution.
+"""
+
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.schemas.scheduled_task import (
+    ScheduledTaskCreate,
+    ScheduledTaskUpdate,
+    ScheduledTaskResponse,
+    ScheduledTaskListResponse,
+    TaskExecutionResponse,
+    TaskExecutionListResponse,
+    ManualTriggerResponse,
+    CronValidationResponse,
+    CronValidationRequest,
+)
+from app.models.scheduled_task import ScheduledTask
+from app.repositories.scheduled_task_repository import (
+    ScheduledTaskRepository,
+    TaskExecutionRepository,
+)
+
+router = APIRouter(prefix="/api/scheduled-tasks", tags=["scheduled-tasks"])
+
+
+@router.post("/", response_model=ScheduledTaskResponse, status_code=status.HTTP_201_CREATED)
+async def create_scheduled_task(
+    task_data: ScheduledTaskCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new scheduled task."""
+    repo = ScheduledTaskRepository(db)
+
+    # Check if task already exists for the same type and target
+    existing = await repo.get_by_target(task_data.task_type, task_data.target_id)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Task already exists for {task_data.task_type}:{task_data.target_id}",
+        )
+
+    # Create the task
+    task = ScheduledTask(**task_data.model_dump())
+    created = await repo.create(task)
+
+    return created
+
+
+@router.get("/", response_model=ScheduledTaskListResponse)
+async def list_scheduled_tasks(
+    task_type: Optional[str] = Query(None, description="Filter by task type"),
+    is_enabled: Optional[bool] = Query(None, description="Filter by enabled status"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all scheduled tasks with optional filters."""
+    repo = ScheduledTaskRepository(db)
+    tasks = await repo.list_tasks(
+        task_type=task_type, is_enabled=is_enabled, limit=limit, offset=offset
+    )
+
+    # Get total count
+    all_tasks = await repo.list_tasks(
+        task_type=task_type, is_enabled=is_enabled, limit=10000, offset=0
+    )
+
+    return ScheduledTaskListResponse(items=tasks, total=len(all_tasks))
+
+
+@router.get("/{task_id}", response_model=ScheduledTaskResponse)
+async def get_scheduled_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a scheduled task by ID."""
+    repo = ScheduledTaskRepository(db)
+    task = await repo.get_by_id(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+    return task
+
+
+@router.put("/{task_id}", response_model=ScheduledTaskResponse)
+async def update_scheduled_task(
+    task_id: int,
+    updates: ScheduledTaskUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a scheduled task."""
+    # Build update data with only non-None values
+    update_data = {k: v for k, v in updates.model_dump().items() if v is not None}
+
+    if not update_data:
+        # No updates provided
+        repo = ScheduledTaskRepository(db)
+        task = await repo.get_by_id(task_id)
+        if not task:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task {task_id} not found",
+            )
+        return task
+
+    repo = ScheduledTaskRepository(db)
+    task = await repo.update(task_id, update_data)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+
+    return task
+
+
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_scheduled_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a scheduled task."""
+    repo = ScheduledTaskRepository(db)
+    success = await repo.delete(task_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+
+    return None
+
+
+@router.post("/{task_id}/pause", response_model=dict)
+async def pause_scheduled_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Pause a scheduled task."""
+    repo = ScheduledTaskRepository(db)
+    task = await repo.get_by_id(task_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+
+    # Update to disabled
+    await repo.update(task_id, {"is_enabled": False})
+
+    return {"status": "paused", "task_id": task_id}
+
+
+@router.post("/{task_id}/resume", response_model=dict)
+async def resume_scheduled_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Resume a paused scheduled task."""
+    repo = ScheduledTaskRepository(db)
+    task = await repo.get_by_id(task_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+
+    # Update to enabled
+    await repo.update(task_id, {"is_enabled": True})
+
+    return {"status": "resumed", "task_id": task_id}
+
+
+@router.post("/{task_id}/trigger", response_model=ManualTriggerResponse)
+async def trigger_scheduled_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually trigger a task execution.
+
+    Note: This endpoint requires the scheduler service to be initialized.
+    For now, it returns a mock response.
+    """
+    repo = ScheduledTaskRepository(db)
+    task = await repo.get_by_id(task_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+
+    # TODO: Implement actual trigger via scheduler service
+    # For now, return a mock response indicating the feature requires scheduler
+    return ManualTriggerResponse(
+        execution_id=0,  # Mock ID
+        task_id=task_id,
+        status="pending",
+        message="Manual trigger requires scheduler service integration",
+    )
+
+
+@router.get("/{task_id}/status", response_model=dict)
+async def get_scheduled_task_status(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the current status of a scheduled task."""
+    repo = ScheduledTaskRepository(db)
+    task = await repo.get_by_id(task_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+
+    return {
+        "task_id": task_id,
+        "task_name": task.task_name,
+        "is_enabled": task.is_enabled,
+        "cron_expression": task.cron_expression,
+        "status": "enabled" if task.is_enabled else "disabled",
+    }
+
+
+@router.get("/{task_id}/executions", response_model=TaskExecutionListResponse)
+async def get_task_executions(
+    task_id: int,
+    limit: int = Query(50, ge=1, le=1000, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get execution history for a specific task."""
+    repo = ScheduledTaskRepository(db)
+    task = await repo.get_by_id(task_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+
+    exec_repo = TaskExecutionRepository(db)
+    executions = await exec_repo.list_by_task(task_id, limit=limit, offset=offset)
+
+    # Get total count
+    all_executions = await exec_repo.list_by_task(task_id, limit=10000, offset=0)
+
+    return TaskExecutionListResponse(items=executions, total=len(all_executions))
+
+
+@router.post("/validate-cron", response_model=CronValidationResponse)
+async def validate_cron_expression(request: CronValidationRequest):
+    """Validate a cron expression."""
+    try:
+        parts = request.cron_expression.strip().split()
+        is_valid = 5 <= len(parts) <= 7
+
+        if is_valid:
+            return CronValidationResponse(
+                is_valid=True,
+                message="Cron expression is valid",
+                next_run_times=None,
+            )
+        else:
+            return CronValidationResponse(
+                is_valid=False,
+                message=f"Cron expression must have 5-7 parts, got {len(parts)}",
+                next_run_times=None,
+            )
+    except Exception as e:
+        return CronValidationResponse(
+            is_valid=False,
+            message=f"Error validating cron expression: {str(e)}",
+            next_run_times=None,
+        )

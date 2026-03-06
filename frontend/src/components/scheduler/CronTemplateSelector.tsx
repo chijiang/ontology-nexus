@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { CronTemplate, CronTemplateSelectorProps, IntervalUnit, Frequency } from "./CronTemplateSelector.types";
+import type { CronTemplate, CronTemplateSelectorProps, IntervalUnit, Frequency, IntervalTemplate, SpecificTemplate } from "./CronTemplateSelector.types";
 
 export function CronTemplateSelector({
   value,

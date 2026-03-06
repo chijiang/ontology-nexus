@@ -166,8 +166,13 @@ class SyncService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def sync_data_product(self, product_id: int) -> Dict[str, Any]:
-        """同步整个数据产品"""
+    async def sync_data_product(
+        self,
+        product_id: int,
+        sync_relationships: bool = True,
+        sync_log_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """同步单个数据产品"""
         # 1. 加载数据产品和所有映射
         result = await self.db.execute(
             select(DataProduct)
@@ -182,17 +187,25 @@ class SyncService:
         if not product:
             raise ValueError(f"Data product {product_id} not found")
 
-        # 2. 初始化同步日志
-        sync_log = SyncLog(
-            data_product_id=product.id,
-            sync_type="manual",
-            direction="pull",
-            status="started",
-            started_at=datetime.now(timezone.utc).replace(tzinfo=None),
-        )
-        self.db.add(sync_log)
-        await self.db.commit()
-        await self.db.refresh(sync_log)
+        # 2. 初始化或加载同步日志
+        if sync_log_id is not None:
+            sync_log_result = await self.db.execute(
+                select(SyncLog).where(SyncLog.id == sync_log_id)
+            )
+            sync_log = sync_log_result.scalar_one_or_none()
+            if not sync_log:
+                raise ValueError(f"Sync Log {sync_log_id} not found")
+        else:
+            sync_log = SyncLog(
+                data_product_id=product.id,
+                sync_type="manual",
+                direction="pull",
+                status="started",
+                started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            )
+            self.db.add(sync_log)
+            await self.db.commit()
+            await self.db.refresh(sync_log)
 
         total_processed = 0
         total_created = 0
@@ -368,15 +381,17 @@ class SyncService:
                                         )
 
                                     ent_result = await self.db.execute(
-                                        select(GraphEntity).where(
+                                        select(GraphEntity)
+                                        .where(
                                             and_(
                                                 GraphEntity.entity_type
                                                 == mapping.ontology_class_name,
                                                 *lookup_cond,
                                             )
                                         )
+                                        .limit(1)
                                     )
-                                    entity = ent_result.scalar_one_or_none()
+                                    entity = ent_result.scalars().first()
 
                                     if entity:
                                         # Merge existing properties with new ones
@@ -432,10 +447,11 @@ class SyncService:
                             f"Mapping {mapping.ontology_class_name} error: {str(e)}"
                         )
 
-                # 4. 同步关系
-                logger.info("Starting relationship synchronization...")
-                rel_stats = await self._sync_relationships(client, product)
-                total_created += rel_stats.get("created", 0)
+                # 4. 同步关系 (可选)
+                if sync_relationships:
+                    logger.info("Starting relationship synchronization...")
+                    rel_stats = await self._sync_relationships(client, product)
+                    total_created += rel_stats.get("created", 0)
 
             # 5. 完成日志
             sync_log.status = "completed"
@@ -469,7 +485,10 @@ class SyncService:
         self, client: DynamicGrpcClient, product: DataProduct
     ) -> Dict[str, int]:
         """根据外键同步实体间的关系"""
-        stats = {"created": 0, "failed": 0}
+        stats = {"created": 0, "failed": 0, "source_missing": 0, "target_missing": 0}
+        id_cache: Dict[Tuple[str, str], int] = (
+            {}
+        )  # (entity_type, source_id) -> graph_id
 
         # 加载所有涉及到该数据产品的关系映射 (无论该产品是源还是目标)
         mappings_ids = [m.id for m in product.entity_mappings]
@@ -573,31 +592,51 @@ class SyncService:
                             if fk_val is None or source_raw_id is None:
                                 continue
 
-                            # 查找源节点 ID
-                            # 查找最稳妥的方式是根据 source_id 列。
-
-                            source_ent_res = await self.db.execute(
-                                select(GraphEntity.id).where(
-                                    and_(
-                                        GraphEntity.entity_type
-                                        == source_mapping.ontology_class_name,
-                                        GraphEntity.source_id == str(source_raw_id),
-                                    )
-                                )
+                            # 查找源节点 ID (优先从缓存读取)
+                            source_cache_key = (
+                                source_mapping.ontology_class_name,
+                                str(source_raw_id),
                             )
-                            source_id = source_ent_res.scalars().first()
-
-                            # 查找目标节点 ID
-                            target_ent_res = await self.db.execute(
-                                select(GraphEntity.id).where(
-                                    and_(
-                                        GraphEntity.entity_type
-                                        == target_mapping.ontology_class_name,
-                                        GraphEntity.source_id == str(fk_val),
+                            if source_cache_key in id_cache:
+                                source_id = id_cache[source_cache_key]
+                            else:
+                                source_ent_res = await self.db.execute(
+                                    select(GraphEntity.id)
+                                    .where(
+                                        and_(
+                                            GraphEntity.entity_type
+                                            == source_mapping.ontology_class_name,
+                                            GraphEntity.source_id == str(source_raw_id),
+                                        )
                                     )
+                                    .limit(1)
                                 )
+                                source_id = source_ent_res.scalars().first()
+                                if source_id:
+                                    id_cache[source_cache_key] = source_id
+
+                            # 查找目标节点 ID (优先从缓存读取)
+                            target_cache_key = (
+                                target_mapping.ontology_class_name,
+                                str(fk_val),
                             )
-                            target_id = target_ent_res.scalars().first()
+                            if target_cache_key in id_cache:
+                                target_id = id_cache[target_cache_key]
+                            else:
+                                target_ent_res = await self.db.execute(
+                                    select(GraphEntity.id)
+                                    .where(
+                                        and_(
+                                            GraphEntity.entity_type
+                                            == target_mapping.ontology_class_name,
+                                            GraphEntity.source_id == str(fk_val),
+                                        )
+                                    )
+                                    .limit(1)
+                                )
+                                target_id = target_ent_res.scalars().first()
+                                if target_id:
+                                    id_cache[target_cache_key] = target_id
 
                             if source_id and target_id:
                                 # 插入或更新关系
@@ -611,7 +650,7 @@ class SyncService:
                                         )
                                     )
                                 )
-                                if not rel_check.scalar_one_or_none():
+                                if not rel_check.scalars().first():
                                     new_rel = GraphRelationship(
                                         source_id=source_id,
                                         target_id=target_id,
@@ -620,21 +659,30 @@ class SyncService:
                                     self.db.add(new_rel)
                                     stats["created"] += 1
                             else:
-                                # Debug logging for missing entities
+                                # Optimized logging: only log the first 5 missing entities per relationship type
                                 if not source_id:
-                                    logger.warning(
-                                        f"Source entity not found for relationship {rm.ontology_relationship}: "
-                                        f"class={source_mapping.ontology_class_name}, "
-                                        f"id_field={source_mapping.id_field_mapping}, "
-                                        f"raw_id={source_raw_id}"
-                                    )
+                                    stats["source_missing"] += 1
+                                    if stats["source_missing"] <= 5:
+                                        logger.warning(
+                                            f"[{rm.ontology_relationship}] Source entity not found: "
+                                            f"class={source_mapping.ontology_class_name}, raw_id={source_raw_id}"
+                                        )
+                                    elif stats["source_missing"] == 6:
+                                        logger.warning(
+                                            f"[{rm.ontology_relationship}] Further source missing warnings suppressed..."
+                                        )
+
                                 if not target_id:
-                                    logger.warning(
-                                        f"Target entity not found for relationship {rm.ontology_relationship}: "
-                                        f"class={target_mapping.ontology_class_name}, "
-                                        f"target_id_field={rm.target_id_field}, "
-                                        f"fk_val={fk_val}"
-                                    )
+                                    stats["target_missing"] += 1
+                                    if stats["target_missing"] <= 5:
+                                        logger.warning(
+                                            f"[{rm.ontology_relationship}] Target entity not found: "
+                                            f"class={target_mapping.ontology_class_name}, fk_val={fk_val}"
+                                        )
+                                    elif stats["target_missing"] == 6:
+                                        logger.warning(
+                                            f"[{rm.ontology_relationship}] Further target missing warnings suppressed..."
+                                        )
 
                         await self.db.commit()
                         current_page += 1
@@ -645,6 +693,12 @@ class SyncService:
                         )
                         stats["failed"] += 1
                         break  # Break on error to avoid infinite loops
+
+                if stats["source_missing"] > 5 or stats["target_missing"] > 5:
+                    logger.info(
+                        f"Relationship {rm.ontology_relationship} sync summary: "
+                        f"Created: {stats['created']}, Missing Source: {stats['source_missing']}, Missing Target: {stats['target_missing']}"
+                    )
             finally:
                 if not is_own_client:
                     await src_client.close()
@@ -661,3 +715,135 @@ class SyncService:
 
         result = await self.db.execute(query)
         return result.scalars().all()
+
+    async def sync_all_data_products(self) -> Dict[str, Any]:
+        """全局两阶段同步所有激活的数据产品。先拉取所有实体，再拉取所有关系。"""
+        logger.info("Starting global two-phase sync for all active data products")
+
+        # 获取所有激活的数据产品
+        result = await self.db.execute(
+            select(DataProduct)
+            .options(
+                selectinload(DataProduct.entity_mappings).selectinload(
+                    EntityMapping.property_mappings
+                )
+            )
+            .where(DataProduct.is_active == True)
+        )
+        products = result.scalars().all()
+
+        if not products:
+            logger.info("No active data products found for global sync.")
+            return {
+                "status": "completed",
+                "message": "No active data products to sync.",
+            }
+
+        # 记录每个产品的日志 ID
+        product_log_map = {}
+        for product in products:
+            sync_log = SyncLog(
+                data_product_id=product.id,
+                sync_type="manual",
+                direction="pull",
+                status="started",
+                started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            )
+            self.db.add(sync_log)
+            # 暂时存储引用以便后续更新
+            product_log_map[product.id] = {
+                "log": sync_log,
+                "processed": 0,
+                "created": 0,
+                "updated": 0,
+                "failed": 0,
+                "errors": [],
+            }
+
+        await self.db.commit()
+
+        # ====== Phase 1: Sink Entities ======
+        logger.info("Global Sync Phase 1: Syncing all entities")
+        for product in products:
+            try:
+                # 重用已有的单品同步逻辑，但闭源其自身的关系构建
+                sync_result = await self.sync_data_product(
+                    product.id, sync_relationships=False
+                )
+
+                # 获取已经更新过的日志
+                latest_log_result = await self.db.execute(
+                    select(SyncLog)
+                    .where(
+                        and_(
+                            SyncLog.data_product_id == product.id,
+                            SyncLog.status.in_(["completed", "failed"]),
+                        )
+                    )
+                    .order_by(SyncLog.started_at.desc())
+                    .limit(1)
+                )
+                latest_log = latest_log_result.scalar_one_or_none()
+                if latest_log:
+                    # Update our local tracker for phase 2 aggregation
+                    product_log_map[product.id].update(
+                        {
+                            "processed": latest_log.records_processed or 0,
+                            "created": latest_log.records_created or 0,
+                            "updated": latest_log.records_updated or 0,
+                            "failed": latest_log.records_failed or 0,
+                            "log": latest_log,
+                        }
+                    )
+
+            except Exception as e:
+                logger.error(f"Failed to sync entities for product {product.id}: {e}")
+                product_log_map[product.id]["failed"] += 1
+                product_log_map[product.id]["errors"].append(str(e))
+
+        # ====== Phase 2: Build Relationships ======
+        logger.info("Global Sync Phase 2: Syncing all relationships")
+        for product in products:
+            try:
+                # Re-fetch product with correct mappings loaded specifically for _sync_relationships
+                prod_result = await self.db.execute(
+                    select(DataProduct)
+                    .options(
+                        selectinload(DataProduct.entity_mappings).selectinload(
+                            EntityMapping.target_relationship_mappings
+                        )
+                    )
+                    .where(DataProduct.id == product.id)
+                )
+                full_product = prod_result.scalar_one_or_none()
+
+                if full_product:
+                    async with DynamicGrpcClient(
+                        full_product.grpc_host, full_product.grpc_port
+                    ) as client:
+                        rel_stats = await self._sync_relationships(client, full_product)
+
+                        target_log_entry = product_log_map[product.id]
+                        cur_log = target_log_entry["log"]
+
+                        target_log_entry["created"] += rel_stats.get("created", 0)
+                        target_log_entry["failed"] += rel_stats.get("failed", 0)
+
+                        # Update the log back
+                        cur_log.records_created = target_log_entry["created"]
+                        cur_log.records_failed = target_log_entry["failed"]
+                        if target_log_entry["errors"]:
+                            cur_log.error_message = "\\n".join(
+                                target_log_entry["errors"][:10]
+                            )
+
+                        self.db.add(cur_log)
+                        await self.db.commit()
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to sync relationships for product {product.id}: {e}"
+                )
+
+        logger.info("Global two-phase sync complete.")
+        return {"status": "completed"}

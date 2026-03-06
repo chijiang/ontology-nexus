@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package work_ticket;
+
+import "common.proto";
+
+message Product {
+  int32 id = 1;
+  string brand_ops = 2;
+  string product_group_ops = 3;
+  string product_series = 4;
+  string machine_type_4_digital = 5;
+}
+
+message GetProductRequest {
+  int32 id = 1;
+}
+
+message ListProductsRequest {
+  string query = 1;
+  PaginationRequest pagination = 2;
+}
+
+message ListProductsResponse {
+  repeated Product items = 1;
+  PaginationResponse pagination = 2;
+}
+
+service ProductService {
+  rpc GetProduct(GetProductRequest) returns (Product) {}
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse) {}
+}

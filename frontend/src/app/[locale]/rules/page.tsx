@@ -662,6 +662,26 @@ ACTION Entity.submit {
         }
     }, [action, open, token])
 
+    // Sync parameter/name/entityType changes back into the DSL ACTION signature line
+    useEffect(() => {
+        if (!dslContent) return
+        const paramsStr = parameters.length > 0
+            ? `(${parameters.map(p => `${p.name}: ${p.type}${p.optional ? '?' : ''}`).join(', ')})`
+            : ''
+        const currentEntityType = entityType.trim() || 'Entity'
+        const currentName = name.trim() || 'action'
+        const newSignature = `ACTION ${currentEntityType}.${currentName}${paramsStr}`
+
+        // Replace existing ACTION signature line
+        setDslContent(prev => {
+            const replaced = prev.replace(
+                /^ACTION\s+[\w.]+\s*(?:\([^)]*\))?\s*\{/m,
+                `${newSignature} {`
+            )
+            return replaced
+        })
+    }, [parameters, name, entityType])
+
     const handleSave = async () => {
         setError('')
         setSaving(true)
@@ -673,6 +693,7 @@ ACTION Entity.submit {
                 await actionsApi.update(action.name, {
                     dsl_content: dslContent,
                     is_active: isActive,
+                    description: description.trim() || undefined,
                 })
                 toast.success(t('actionUpdated'))
             } else {
@@ -693,6 +714,7 @@ ACTION Entity.submit {
                     entity_type: entityType.trim(),
                     dsl_content: dslContent,
                     is_active: isActive,
+                    description: description.trim() || undefined,
                 })
                 toast.success(t('actionCreated'))
             }
@@ -808,6 +830,7 @@ ACTION Entity.submit {
                                                 <option value="number">number</option>
                                                 <option value="boolean">boolean</option>
                                                 <option value="datetime">datetime</option>
+                                                <option value="array">array</option>
                                                 <option value="any">any</option>
                                             </select>
                                         </div>

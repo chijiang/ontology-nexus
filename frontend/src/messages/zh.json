@@ -70,7 +70,8 @@
     "loginSuccess": "登录成功",
     "registerSuccess": "注册成功，请登录",
     "noAccount": "还没有账号？",
-    "hasAccount": "已有账号？"
+    "hasAccount": "已有账号？",
+    "noPermission": "访问被拒绝：未为该用户配置权限。"
   },
   "nav": {
     "qa": "智能体助手",
@@ -227,7 +228,14 @@
     "deleteFailed": "删除失败",
     "deleteFailedDesc": "删除出错",
     "noProducts": "暂无数据产品",
-    "noProductsDesc": "注册第一个 gRPC 数据产品以开始数据映射"
+    "noProductsDesc": "注册第一个 gRPC 数据产品以开始数据映射",
+    "syncAll": "全部同步",
+    "syncingAll": "同步中...",
+    "syncAllStarted": "全局同步已启动",
+    "syncAllStartedDesc": "正在同步所有数据产品，这可能需要一些时间。",
+    "syncAllSuccess": "全局同步成功",
+    "syncAllFailed": "全局同步失败",
+    "syncAllFailedDesc": "同步所有数据产品时发生错误"
   },
   "rules": {
     "title": "业务逻辑管理器",
@@ -337,13 +345,24 @@
     "apiKey": "API Key",
     "apiKeyPlaceholder": "请输入 API Key",
     "baseUrl": "Base URL (如 https://api.openai.com/v1)",
-    "model": "Model (如 gpt-4)",
+    "model": "Model (如 qwen)",
     "save": "保存",
     "testConnection": "测试连接",
     "llmConnectionSuccess": "LLM 连接成功",
     "connectionFailed": "连接失败",
     "llmConfigSaved": "LLM 配置已保存",
-    "saveFailed": "保存失败"
+    "saveFailed": "保存失败",
+    "mcp": "MCP 服务",
+    "mcpManagement": "MCP 服务管理",
+    "registerMcp": "注册 MCP 服务",
+    "mcpName": "服务名称",
+    "mcpUrl": "SSE URL (如 http://localhost:8000/sse)",
+    "status": "状态",
+    "actions": "操作",
+    "registerMcpSuccess": "MCP 服务注册成功",
+    "updateMcpSuccess": "MCP 服务更新成功",
+    "deleteMcpSuccess": "MCP 服务已删除",
+    "deleteMcpConfirm": "确定要删除此 MCP 服务吗？"
   },
   "mappings": {
     "title": "数据映射 - {product}",

@@ -20,6 +20,7 @@ from app.api import (
     data_mappings,
     users,
     roles,
+    mcp,
 )
 from app.core.database import engine, Base, async_session, get_db
 import app.models  # Implicitly registers models
@@ -82,7 +83,11 @@ async def lifespan(app: FastAPI):
             try:
                 rule_registry.load_from_dsl(rule_details["dsl_content"])
             except Exception as e:
-                logger.warning("Failed to load rule '%s' from file storage: %s", rule_data["name"], e)
+                logger.warning(
+                    "Failed to load rule '%s' from file storage: %s",
+                    rule_data["name"],
+                    e,
+                )
 
     # Load rules from database
     async with async_session() as session:
@@ -161,6 +166,7 @@ app.include_router(data_products.router)
 app.include_router(data_mappings.router)
 app.include_router(users.router)
 app.include_router(roles.router)
+app.include_router(mcp.router)
 
 
 @app.get("/health")
@@ -169,7 +175,10 @@ async def health(db: AsyncSession = Depends(get_db)):
         await db.execute(text("SELECT 1"))
         return {"status": "ok"}
     except Exception:
-        return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": "database unreachable"})
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "detail": "database unreachable"},
+        )
 
 
 if __name__ == "__main__":

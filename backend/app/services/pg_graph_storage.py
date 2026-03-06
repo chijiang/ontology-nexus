@@ -42,12 +42,50 @@ _SAFE_KEY_RE = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
 
 def _validate_property_filter_keys(property_filter: Dict[str, Any]) -> None:
     """Validate property filter keys to prevent SQL injection."""
-    for key in property_filter:
-        if not _SAFE_KEY_RE.match(key):
+    for key, value in property_filter.items():
+        if not (key.startswith("$") or _SAFE_KEY_RE.match(key)):
             raise ValueError(
                 f"Invalid property filter key: '{key}'. "
-                "Keys must contain only alphanumeric characters, underscores, hyphens, or dots."
+                "Keys must contain only alphanumeric characters, underscores, hyphens, dots or start with '$'."
             )
+        if isinstance(value, dict):
+            _validate_property_filter_keys(value)
+
+
+def _apply_property_filters(query, entity_alias, filters: Dict[str, Any]):
+    """Apply dictionary filters to a SQLAlchemy query using JSONB operations."""
+    from sqlalchemy import cast, Numeric
+
+    for k, v in filters.items():
+        if k == "_name" or k == "name":
+            # Search by display name
+            query = query.where(entity_alias._display_name == str(v))
+        else:
+            # Handle operator filters like {"OSAT": {"$gt": "8"}}
+            if isinstance(v, dict):
+                for op, val in v.items():
+                    # Cast the property to text for comparisons
+                    prop_text = entity_alias.properties[k].astext
+
+                    if op == "$gt":
+                        query = query.where(cast(prop_text, Numeric) > float(val))
+                    elif op == "$gte":
+                        query = query.where(cast(prop_text, Numeric) >= float(val))
+                    elif op == "$lt":
+                        query = query.where(cast(prop_text, Numeric) < float(val))
+                    elif op == "$lte":
+                        query = query.where(cast(prop_text, Numeric) <= float(val))
+                    elif op == "$ne":
+                        query = query.where(prop_text != str(val))
+                    elif op == "$like":
+                        query = query.where(prop_text.ilike(str(val)))
+                    elif op == "$in":
+                        if isinstance(val, list):
+                            query = query.where(prop_text.in_([str(i) for i in val]))
+            else:
+                # Exact match by default for JSONB properties
+                query = query.where(entity_alias.properties[k].astext == str(v))
+    return query
 
 
 class PGGraphStorage:
@@ -604,14 +642,18 @@ class PGGraphStorage:
     # ==================== Instance 查询 ====================
 
     async def search_instances(
-        self, search_term: str, class_name: Optional[str] = None, limit: int = 10
+        self,
+        keyword: str,
+        entity_type: Optional[str] = None,
+        limit: int = 10,
+        accessible_entity_types: Optional[List[str]] = None,
     ) -> List[Dict]:
         """根据名称，ID或别名搜索实例节点"""
-        from sqlalchemy import or_, cast, String
+        from sqlalchemy import cast, String
 
         # Escape SQL LIKE wildcards in user input
         escaped_term = (
-            search_term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         )
 
         # 搜索名称、ID 或别名
@@ -628,11 +670,14 @@ class PGGraphStorage:
             GraphEntity.is_instance == True,
         )
 
-        if class_name:
-            query = query.where(GraphEntity.entity_type == class_name)
+        if entity_type:
+            query = query.where(GraphEntity.entity_type == entity_type)
+
+        if accessible_entity_types is not None and accessible_entity_types:
+            query = query.where(GraphEntity.entity_type.in_(accessible_entity_types))
 
         query = query.limit(limit)
-        result = await self.db.execute(query, {"term": f"%{search_term}%"})
+        result = await self.db.execute(query, {"term": f"%{keyword}%"})
         entities = result.scalars().all()
 
         results = [
@@ -739,18 +784,20 @@ class PGGraphStorage:
 
         if not start_entity and entity_name is not None:
             # Try by display name or entity id
-            from sqlalchemy import or_, cast, String
+            from sqlalchemy import cast, String
 
             result = await self.db.execute(
-                select(GraphEntity).where(
+                select(GraphEntity)
+                .where(
                     or_(
                         GraphEntity._display_name == entity_name,
                         cast(GraphEntity.id, String) == entity_name,
                     ),
                     GraphEntity.is_instance == True,
                 )
+                .limit(1)
             )
-            start_entity = result.scalar_one_or_none()
+            start_entity = result.scalars().first()
 
         if not start_entity:
             return []
@@ -830,14 +877,14 @@ class PGGraphStorage:
                                 "id": rel.id,
                                 "type": rel.relationship_type,
                                 "source": (
-                                    instance_name_resolved
+                                    str(start_node)
                                     if direction == "outgoing"
-                                    else entity._display_name
+                                    else str(entity.id)
                                 ),
                                 "target": (
-                                    entity._display_name
+                                    str(entity.id)
                                     if direction == "outgoing"
-                                    else instance_name_resolved
+                                    else str(start_node)
                                 ),
                             }
                         ],
@@ -893,14 +940,14 @@ class PGGraphStorage:
                                     "id": rel.id,
                                     "type": rel.relationship_type,
                                     "source": (
-                                        instance_name_resolved
+                                        str(start_node)
                                         if rel.source_id == start_node
-                                        else entity._display_name
+                                        else str(entity.id)
                                     ),
                                     "target": (
-                                        entity._display_name
+                                        str(entity.id)
                                         if rel.source_id == start_node
-                                        else instance_name_resolved
+                                        else str(start_node)
                                     ),
                                 }
                             ],
@@ -982,18 +1029,20 @@ class PGGraphStorage:
 
         if not start_entity and entity_name is not None:
             # Try by display name or source_id
-            from sqlalchemy import or_, cast, String
+            from sqlalchemy import cast, String
 
             result = await self.db.execute(
-                select(GraphEntity).where(
+                select(GraphEntity)
+                .where(
                     or_(
                         GraphEntity._display_name == entity_name,
                         cast(GraphEntity.id, String) == entity_name,
                     ),
                     GraphEntity.is_instance == True,
                 )
+                .limit(1)
             )
-            start_entity = result.scalar_one_or_none()
+            start_entity = result.scalars().first()
 
         if not start_entity:
             return []
@@ -1043,7 +1092,7 @@ class PGGraphStorage:
                 1 as depth,
                 ARRAY[e.id] as path_ids,
                 NULL::varchar as rel_type,
-                NULL::varchar as source_name
+                NULL::bigint as source_id
             FROM graph_entities e
             WHERE e.id = :start_id AND e.is_instance = true
 
@@ -1058,7 +1107,7 @@ class PGGraphStorage:
                 ns.depth + 1 as depth,
                 ns.path_ids || CASE WHEN r.source_id = ns.id THEN r.target_id ELSE r.source_id END as path_ids,
                 r.relationship_type as rel_type,
-                ns.name as source_name
+                ns.id as source_id
             FROM neighbor_search ns
             JOIN graph_relationships r ON {direction_clause}
             JOIN graph_entities s ON r.source_id = s.id
@@ -1067,7 +1116,7 @@ class PGGraphStorage:
             AND NOT (CASE WHEN r.source_id = ns.id THEN r.target_id ELSE r.source_id END = ANY(ns.path_ids))
             {f"AND (CASE WHEN r.source_id = ns.id THEN t.entity_type ELSE s.entity_type END) = ANY(:accessible_entity_types)" if accessible_entity_types else ""}
         )
-        SELECT id, name, entity_type, properties, rel_type, source_name, depth
+        SELECT id, name, entity_type, properties, rel_type, source_id, depth
         FROM neighbor_search
         ORDER BY depth ASC
         LIMIT 500
@@ -1090,7 +1139,7 @@ class PGGraphStorage:
         seen_filtered_ids = set()
 
         for row in rows:
-            node_id, name, etype, props, rel_type, source_name, depth = row
+            node_id, name, etype, props, rel_type, source_id, depth = row
 
             # 添加到全量节点（用于可视化）
             if node_id not in all_nodes:
@@ -1104,9 +1153,13 @@ class PGGraphStorage:
                 }
 
             # 添加边（用于可视化）
-            if rel_type and source_name:
+            if rel_type and source_id:
                 all_edges.append(
-                    {"source": source_name, "target": name, "label": rel_type}
+                    {
+                        "source": str(source_id),
+                        "target": str(node_id),
+                        "label": rel_type,
+                    }
                 )
 
             # 检查是否满足过滤器条件并行成结果
@@ -1133,8 +1186,8 @@ class PGGraphStorage:
                                 [
                                     {
                                         "type": rel_type,
-                                        "source": source_name,
-                                        "target": name,
+                                        "source": str(source_id),
+                                        "target": str(node_id),
                                     }
                                 ]
                                 if rel_type
@@ -1329,16 +1382,23 @@ class PGGraphStorage:
         return {"nodes": nodes, "relationships": relationships}
 
     async def get_instances_by_class(
-        self, class_name: str, filters: Optional[Dict[str, Any]] = None, limit: int = 20
+        self,
+        entity_type: str,
+        property_filter: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        accessible_entity_types: Optional[List[str]] = None,
     ) -> List[Dict]:
         """获取某个类的所有实例"""
         query = select(GraphEntity).where(
-            GraphEntity.entity_type == class_name, GraphEntity.is_instance == True
+            GraphEntity.entity_type == entity_type, GraphEntity.is_instance == True
         )
 
+        if accessible_entity_types is not None and accessible_entity_types:
+            query = query.where(GraphEntity.entity_type.in_(accessible_entity_types))
+
         # 应用过滤条件（JSONB 属性查询）
-        if filters:
-            for key, value in filters.items():
+        if property_filter:
+            for key, value in property_filter.items():
                 # 使用 JSONB 操作符查询属性
                 query = query.where(GraphEntity.properties[key].astext == str(value))
 
@@ -1368,7 +1428,7 @@ class PGGraphStorage:
                 {
                     "id": r["name"],
                     "label": r["name"],
-                    "type": class_name,
+                    "type": entity_type,
                     "properties": r["properties"],
                 }
             )
@@ -1388,8 +1448,9 @@ class PGGraphStorage:
         if entity_type:
             query = query.where(GraphEntity.entity_type == entity_type)
 
+        query = query.limit(1)
         result = await self.db.execute(query)
-        entity = result.scalar_one_or_none()
+        entity = result.scalars().first()
 
         if not entity:
             return None
@@ -1405,6 +1466,183 @@ class PGGraphStorage:
             },
             "aliases": (entity.properties or {}).get("__aliases__", []),
         }
+
+    async def execute_complex_aggregation(
+        self,
+        target_class: str,
+        aggregation: str = "count",
+        aggregate_property: Optional[str] = None,
+        target_filters: Optional[Dict[str, Any]] = None,
+        related_requirements: Optional[List[Dict[str, Any]]] = None,
+        accessible_entity_types: Optional[List[str]] = None,
+    ) -> Dict:
+        """
+        Execute a complex query with filters on target properties and relationship reachability,
+        returning an aggregation (count, sum, avg, max, min).
+
+        related_requirements example:
+        [
+            {
+                "related_class": "Product",
+                "relationship_type": "PURCHASED",
+                "direction": "outgoing", # target -> related
+                "filters": {"brand": "ThinkPad"}
+            }
+        ]
+        """
+        from sqlalchemy.orm import aliased
+
+        if aggregation not in ["count", "sum", "avg", "max", "min"]:
+            return {"error": f"Unsupported aggregation type: {aggregation}"}
+
+        TargetModel = aliased(GraphEntity, name="target")
+        query = select(TargetModel).where(
+            TargetModel.entity_type == target_class, TargetModel.is_instance == True
+        )
+
+        if accessible_entity_types is not None and accessible_entity_types:
+            query = query.where(TargetModel.entity_type.in_(accessible_entity_types))
+
+        if target_filters:
+            _validate_property_filter_keys(target_filters)
+            query = _apply_property_filters(query, TargetModel, target_filters)
+
+        if related_requirements:
+            for i, req in enumerate(related_requirements):
+                rel_class = req.get("related_class")
+                rel_type = req.get("relationship_type")
+                direction = req.get("direction", "outgoing")
+                filters = req.get("filters", {})
+
+                RelModel = aliased(GraphRelationship, name=f"rel_{i}")
+                RelatedEntityModel = aliased(GraphEntity, name=f"related_{i}")
+
+                if filters:
+                    _validate_property_filter_keys(filters)
+
+                if direction == "outgoing":
+                    # target --[rel_type]--> related
+                    query = query.join(
+                        RelModel,
+                        and_(
+                            RelModel.source_id == TargetModel.id,
+                            (
+                                RelModel.relationship_type == rel_type
+                                if rel_type
+                                else True
+                            ),
+                        ),
+                    ).join(
+                        RelatedEntityModel,
+                        and_(
+                            RelatedEntityModel.id == RelModel.target_id,
+                            (
+                                RelatedEntityModel.entity_type == rel_class
+                                if rel_class
+                                else True
+                            ),
+                            RelatedEntityModel.is_instance == True,
+                        ),
+                    )
+                elif direction == "incoming":
+                    # related --[rel_type]--> target
+                    query = query.join(
+                        RelModel,
+                        and_(
+                            RelModel.target_id == TargetModel.id,
+                            (
+                                RelModel.relationship_type == rel_type
+                                if rel_type
+                                else True
+                            ),
+                        ),
+                    ).join(
+                        RelatedEntityModel,
+                        and_(
+                            RelatedEntityModel.id == RelModel.source_id,
+                            (
+                                RelatedEntityModel.entity_type == rel_class
+                                if rel_class
+                                else True
+                            ),
+                            RelatedEntityModel.is_instance == True,
+                        ),
+                    )
+                else:  # both
+                    query = query.join(
+                        RelModel,
+                        or_(
+                            RelModel.source_id == TargetModel.id,
+                            RelModel.target_id == TargetModel.id,
+                        ),
+                    ).join(
+                        RelatedEntityModel,
+                        and_(
+                            or_(
+                                RelatedEntityModel.id == RelModel.target_id,
+                                RelatedEntityModel.id == RelModel.source_id,
+                            ),
+                            RelatedEntityModel.id != TargetModel.id,
+                            (
+                                RelatedEntityModel.entity_type == rel_class
+                                if rel_class
+                                else True
+                            ),
+                            RelatedEntityModel.is_instance == True,
+                        ),
+                    )
+
+                if accessible_entity_types is not None and accessible_entity_types:
+                    query = query.where(
+                        RelatedEntityModel.entity_type.in_(accessible_entity_types)
+                    )
+
+                if filters:
+                    query = _apply_property_filters(query, RelatedEntityModel, filters)
+
+        # Build the aggregation expression
+        if aggregation == "count":
+            # Count distinct targets found to avoid duplicating count if multiple related items map to same target
+            agg_expr = func.count(func.distinct(TargetModel.id))
+        else:
+            if not aggregate_property:
+                return {
+                    "error": f"Aggregation {aggregation} requires aggregate_property to be specified"
+                }
+
+            # Cast JSON string to float/numeric for aggregation
+            from sqlalchemy import cast, Numeric
+
+            val_col = cast(TargetModel.properties[aggregate_property].astext, Numeric)
+
+            if aggregation == "sum":
+                agg_expr = func.sum(val_col)
+            elif aggregation == "avg":
+                agg_expr = func.avg(val_col)
+            elif aggregation == "max":
+                agg_expr = func.max(val_col)
+            elif aggregation == "min":
+                agg_expr = func.min(val_col)
+
+        agg_query = query.with_only_columns(agg_expr)
+
+        try:
+            result = await self.db.execute(agg_query)
+            value = result.scalar()
+
+            return {
+                "target_class": target_class,
+                "aggregation": aggregation,
+                "aggregate_property": aggregate_property,
+                "value": (
+                    float(value)
+                    if value is not None
+                    else 0.0 if aggregation in ["sum", "count"] else None
+                ),
+            }
+        except Exception as e:
+            logger.error(f"Error executing complex aggregation: {str(e)}")
+            return {"error": str(e)}
 
     # ==================== 统计查询 ====================
 

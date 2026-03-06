@@ -257,7 +257,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                 const color = getColorForLabel(n.nodeLabel)
                 elements.push({
                     data: {
-                        id: n.id,
+                        id: n.id.toString(),
                         label: n.name,
                         nodeLabel: n.nodeLabel,
                         labels: n.labels,
@@ -375,12 +375,12 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
 
             // 添加搜索到的节点
             instances.forEach((instance: any) => {
-                const nodeName = instance.name
-                if (!addedNodes.has(nodeName)) {
+                const nodeId = instance.id.toString()
+                if (!addedNodes.has(nodeId)) {
                     elements.push({
                         data: {
-                            id: nodeName,
-                            label: nodeName,
+                            id: nodeId,
+                            label: instance.name,
                             nodeLabel: searchParams.className,
                             labels: instance.labels,
                             color: nodeColor,
@@ -388,14 +388,14 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                             properties: instance.properties,
                         },
                     })
-                    addedNodes.add(nodeName)
+                    addedNodes.add(nodeId)
                 }
             })
 
             // 加载这些节点的邻居关系
             for (const instance of instances.slice(0, 20)) {
                 try {
-                    const neighborsRes = await graphApi.getNeighbors(instance.name, 1)
+                    const neighborsRes = await graphApi.getNeighbors(instance.id.toString(), 1)
                     const neighbors = neighborsRes.data || []
 
                     neighbors.forEach((n: any) => {
@@ -403,10 +403,12 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                         const nColor = getColorForLabel(labelName)
                         const nBorderColor = shadeColor(nColor, -20)
 
-                        if (!addedNodes.has(n.name)) {
+                        const nodeId = n.id.toString()
+
+                        if (!addedNodes.has(nodeId)) {
                             elements.push({
                                 data: {
-                                    id: n.name,
+                                    id: nodeId,
                                     label: n.name,
                                     nodeLabel: labelName,
                                     labels: n.labels,
@@ -415,7 +417,7 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                                     properties: n.properties,
                                 },
                             })
-                            addedNodes.add(n.name)
+                            addedNodes.add(nodeId)
                         }
 
                         // 添加边
@@ -488,9 +490,9 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
         }
     }
 
-    const expandNode = async (nodeName: string) => {
+    const expandNode = async (nodeId: string) => {
         try {
-            const res = await graphApi.getNeighbors(nodeName, 1)
+            const res = await graphApi.getNeighbors(nodeId, 1)
             const neighbors = res.data
 
             const newElements: ElementDefinition[] = []
@@ -503,11 +505,12 @@ export function InstanceGraphViewer({ searchParams, onNodeSelect, refreshTrigger
                 const borderColor = shadeColor(nodeColor, -20)
 
                 // Add node if not exists (check both cytoscape and current batch)
-                if (!cyRef.current?.getElementById(n.name).length && !addedNodeIds.has(n.name)) {
-                    addedNodeIds.add(n.name)
+                const nId = n.id.toString()
+                if (!cyRef.current?.getElementById(nId).length && !addedNodeIds.has(nId)) {
+                    addedNodeIds.add(nId)
                     newElements.push({
                         data: {
-                            id: n.name,
+                            id: nId,
                             label: n.name,
                             nodeLabel: labelName,
                             labels: n.labels,

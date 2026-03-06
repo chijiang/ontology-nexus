@@ -13,6 +13,7 @@ from app.services.agent.state import AgentState, StreamEvent, UserIntent
 from app.services.agent.graph import create_agent_graph
 from app.services.agent_tools.query_tools import QueryToolRegistry
 from app.services.agent_tools.action_tools import ActionToolRegistry
+from app.services.agent_tools.mcp_tools import MCPToolRegistry
 from app.services.agent.prompts import RECURSION_REVIEW_PROMPT
 from langgraph.errors import GraphRecursionError
 
@@ -83,7 +84,7 @@ class EnhancedAgentService:
 
         return SessionContextManager()
 
-    def _get_graph(self):
+    async def _get_graph(self):
         """Get or create the LangGraph."""
         if self._graph is None:
             # Create query tools registry
@@ -93,16 +94,21 @@ class EnhancedAgentService:
             # Create action tools if action_executor and action_registry are available
             action_tools = []
             if self.action_executor and self.action_registry:
-                action_registry = ActionToolRegistry(
+                action_registry_tools = ActionToolRegistry(
                     self._get_session, self.action_executor, self.action_registry
                 )
-                action_tools = action_registry.tools
+                action_tools = action_registry_tools.tools
+
+            # Create MCP tools
+            mcp_registry = MCPToolRegistry(self._get_session)
+            await mcp_registry.initialize()
+            mcp_tools = mcp_registry.tools
 
             # Create the graph without memory (conversation history is managed in database)
             self._graph = create_agent_graph(
                 llm=self.llm,
                 query_tools=query_tools,
-                action_tools=action_tools,
+                action_tools=action_tools + mcp_tools,
                 with_memory=False,  # Disable checkpointer since we manage history in database
             )
 
@@ -134,6 +140,8 @@ class EnhancedAgentService:
 
         # Queue for graph events
         graph_events_queue = asyncio.Queue()
+        # Track accumulated messages during graph execution for review
+        accumulated_messages = []
 
         def on_graph_event(event: Any):
             if isinstance(event, GraphViewEvent):
@@ -153,7 +161,7 @@ class EnhancedAgentService:
 
         try:
             # Get the graph
-            graph = self._get_graph()
+            graph = await self._get_graph()
             action_count = (
                 len(self.action_registry._actions) if self.action_registry else 0
             )
@@ -170,6 +178,7 @@ class EnhancedAgentService:
 
             # Add current query
             messages.append(HumanMessage(content=query))
+            accumulated_messages = list(messages)
 
             # Create initial state
             initial_state: AgentState = {
@@ -283,22 +292,33 @@ class EnhancedAgentService:
                             "content": "\n\n",
                         }
 
-            # If we completed successfully, but messages were updated, we might want to capture those
-            # in the final state if we were tracing them.
-            # In LangGraph with tools, the messages are usually accumulated in the state.
+                # 5. Track graph state updates (captures accumulated messages for review)
+                elif kind == "on_chain_end" and event.get("metadata", {}).get(
+                    "langgraph_node"
+                ):
+                    output = event.get("data", {}).get("output", {})
+                    if isinstance(output, dict) and "messages" in output:
+                        accumulated_messages = list(output["messages"])
 
         except GraphRecursionError:
             logger.warning("Recursion limit reached. Triggering agent self-review.")
             yield {
                 "type": "thinking",
-                "content": "\n\n> **System notice**: Execution step limit reached. Analyzing progress for review...\n",
+                "content": "\n\n> **System notice**: Execution step limit reached. Analyzing progress...\n",
             }
-
-            # messages should contain the conversation history so far
-            review_content = await self._generate_recursion_review(messages)
+            try:
+                # Use accumulated_messages (includes tool calls) for a better review
+                review_msgs = accumulated_messages if accumulated_messages else messages
+                review_content = await asyncio.wait_for(
+                    self._generate_recursion_review(review_msgs), timeout=30.0
+                )
+            except asyncio.TimeoutError:
+                review_content = "Review timed out. Please check the thinking process above for details on my last steps."
+            except Exception as e:
+                review_content = f"Could not generate review: {e}"
             yield {
                 "type": "content",
-                "content": f"\n\n### Task Review (Execution Limit Reached)\n\n{review_content}",
+                "content": f"\n\n### Summary (Execution Limit Reached)\n\n{review_content}",
             }
         except Exception as e:
             logger.error(f"Error in astream_chat: {e}", exc_info=True)
@@ -311,9 +331,8 @@ class EnhancedAgentService:
                 self.event_emitter.unsubscribe(on_graph_event)
             except Exception as e:
                 logger.debug("Failed to unsubscribe event handler: %s", e)
-
-        # Final done event
-        yield {"type": "done"}
+            # Always emit done so the frontend stream terminates
+            yield {"type": "done"}
 
     async def ainvoke(self, query: str) -> AgentState:
         """Invoke the agent and return the final state.
@@ -328,7 +347,7 @@ class EnhancedAgentService:
         """
         from langchain_core.messages import HumanMessage
 
-        graph = self._get_graph()
+        graph = await self._get_graph()
         initial_state: AgentState = {
             "messages": [HumanMessage(content=query)],
         }
@@ -399,7 +418,9 @@ class EnhancedAgentService:
 
         async with async_session() as db:
             storage = PGGraphStorage(db)
-            instances = await storage.search_instances(entity_id, entity_type, limit=1)
+            instances = await storage.search_instances(
+                keyword=entity_id, entity_type=entity_type, limit=1
+            )
 
             if not instances:
                 return {

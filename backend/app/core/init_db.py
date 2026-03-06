@@ -4,8 +4,9 @@ import logging
 from sqlalchemy import select
 from app.core.database import async_session, engine, Base
 from app.core.security import hash_password, generate_random_password
+
 # Import all models to register them with Base
-from app.models import User, LLMConfig
+from app.models import User, LLMConfig, MCPConfig
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ async def init_db():
                 password_hash=hash_password(password),
                 email="admin@example.com",
                 approval_status="approved",
-                is_admin=True
+                is_admin=True,
             )
             session.add(admin)
             await session.commit()

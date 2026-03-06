@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package work_ticket;
+
+import "common.proto";
+
+message Location {
+  int32 id = 1;
+  string geo_ops = 2;
+  string px_region = 3;
+  string px_sub_region = 4;
+  string sub_region_1 = 5;
+  string country_name_ops = 6;
+}
+
+message GetLocationRequest {
+  int32 id = 1;
+}
+
+message ListLocationsRequest {
+  string query = 1;
+  PaginationRequest pagination = 2;
+}
+
+message ListLocationsResponse {
+  repeated Location items = 1;
+  PaginationResponse pagination = 2;
+}
+
+service LocationService {
+  rpc GetLocation(GetLocationRequest) returns (Location) {}
+  rpc ListLocations(ListLocationsRequest) returns (ListLocationsResponse) {}
+}

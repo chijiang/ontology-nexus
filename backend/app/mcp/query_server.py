@@ -34,7 +34,9 @@ async def search_instances(
         limit: Number of results to return (default: 10)
     """
     async with get_storage() as storage:
-        return await storage.search_instances(search_term, class_name, limit)
+        return await storage.search_instances(
+            keyword=search_term, entity_type=class_name, limit=limit
+        )
 
 
 @mcp.tool()
@@ -48,7 +50,7 @@ async def get_instances_by_class(
         limit: Number of results to return (default: 20)
     """
     async with get_storage() as storage:
-        return await storage.get_instances_by_class(class_name, limit=limit)
+        return await storage.get_instances_by_class(entity_type=class_name, limit=limit)
 
 
 @mcp.tool()
@@ -133,3 +135,38 @@ async def get_ontology_relationships() -> list[dict[str, Any]]:
     """Get all relationships defined in the ontology."""
     async with get_storage() as storage:
         return await storage.get_ontology_relationships()
+
+
+@mcp.tool()
+async def structured_aggregation_query(
+    target_class: str,
+    aggregation: str = "count",
+    aggregate_property: str | None = None,
+    target_filters: dict[str, Any] | None = None,
+    related_requirements: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Execute complex aggregations (count, sum, avg, max, min) on graph entities.
+
+    Supports filtering by the target entity's own properties AND by requiring connections
+    to related entities with specific properties.
+
+    Args:
+        target_class: The primary entity class to aggregate over
+        aggregation: Aggregation function: count, sum, avg, max, min
+        aggregate_property: Property to aggregate on (required for sum, avg, max, min)
+        target_filters: Filters on the target entity class itself
+        related_requirements: List of related entity requirements, each with:
+            related_class, relationship_type, direction (outgoing/incoming/both), filters
+
+    Example:
+        Count ServiceResponse where Product.product_group_ops=THINK:
+        target_class="ServiceResponse", related_requirements=[{"related_class": "Product", "relationship_type": "PURCHASED", "direction": "outgoing", "filters": {"product_group_ops": "THINK"}}]
+    """
+    async with get_storage() as storage:
+        return await storage.execute_complex_aggregation(
+            target_class=target_class,
+            aggregation=aggregation,
+            aggregate_property=aggregate_property,
+            target_filters=target_filters,
+            related_requirements=related_requirements,
+        )

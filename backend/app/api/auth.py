@@ -60,15 +60,14 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         password_hash=hash_password(req.password),
         email=req.email,
         approval_status="pending",
-        is_password_changed=False
+        is_password_changed=False,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
     return RegisterPendingResponse(
-        message="Registration pending approval",
-        user_id=user.id
+        message="Registration pending approval", user_id=user.id
     )
 
 
@@ -82,16 +81,10 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     # 检查审批状态
     if user.approval_status == "pending":
-        raise HTTPException(
-            status_code=403,
-            detail="Registration pending approval"
-        )
+        raise HTTPException(status_code=403, detail="Registration pending approval")
     elif user.approval_status == "rejected":
         reason = user.approval_note or "No reason provided"
-        raise HTTPException(
-            status_code=403,
-            detail=f"Registration rejected: {reason}"
-        )
+        raise HTTPException(status_code=403, detail=f"Registration rejected: {reason}")
 
     # 检查账户状态
     if not user.is_active:
@@ -105,7 +98,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def change_password(
     req: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """修改当前用户密码"""
     # 验证旧密码

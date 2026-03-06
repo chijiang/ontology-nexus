@@ -70,7 +70,8 @@
     "loginSuccess": "Login successful",
     "registerSuccess": "Registration successful, please login",
     "noAccount": "Don't have an account?",
-    "hasAccount": "Already have an account?"
+    "hasAccount": "Already have an account?",
+    "noPermission": "Access denied: No permissions configured for this user."
   },
   "nav": {
     "qa": "Intelligent Agent Assistant",
@@ -227,7 +228,14 @@
     "deleteFailed": "Deletion failed",
     "deleteFailedDesc": "Deletion error",
     "noProducts": "No data products",
-    "noProductsDesc": "Register the first gRPC data product to start data mapping"
+    "noProductsDesc": "Register the first gRPC data product to start data mapping",
+    "syncAll": "Sync All",
+    "syncingAll": "Syncing All...",
+    "syncAllStarted": "Global sync started",
+    "syncAllStartedDesc": "Syncing all data products. This may take a while.",
+    "syncAllSuccess": "Global sync completed successfully",
+    "syncAllFailed": "Global sync failed",
+    "syncAllFailedDesc": "Failed to sync all data products"
   },
   "rules": {
     "title": "Business Logic Manager",
@@ -343,7 +351,18 @@
     "llmConnectionSuccess": "LLM connection successful",
     "connectionFailed": "Connection failed",
     "llmConfigSaved": "LLM configuration saved",
-    "saveFailed": "Save failed"
+    "saveFailed": "Save failed",
+    "mcp": "MCP Services",
+    "mcpManagement": "MCP Service Management",
+    "registerMcp": "Register MCP Service",
+    "mcpName": "Service Name",
+    "mcpUrl": "SSE URL (e.g. http://localhost:8000/sse)",
+    "status": "Status",
+    "actions": "Actions",
+    "registerMcpSuccess": "MCP service registered successfully",
+    "updateMcpSuccess": "MCP service updated successfully",
+    "deleteMcpSuccess": "MCP service deleted successfully",
+    "deleteMcpConfirm": "Are you sure you want to delete this MCP service?"
   },
   "mappings": {
     "title": "Data Mappings - {product}",

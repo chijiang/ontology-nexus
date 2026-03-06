@@ -1,47 +1,51 @@
 """Fixtures for API tests."""
 
 import pytest
-from fastapi.testclient import TestClient
+from httpx import AsyncClient, ASGITransport
 from app.main import app
+from app.api.deps import get_current_user
+from app.models.user import User
 
 
 @pytest.fixture
 def client():
     """Create a test client for the FastAPI app."""
+    from fastapi.testclient import TestClient
+
     return TestClient(app)
 
 
 @pytest.fixture
-def auth_headers(client):
-    """Get authenticated headers for testing."""
-    # Create a test user and get token
-    response = client.post(
-        "/api/auth/register",
-        json={
-            "username": "testuser",
-            "email": "test@example.com",
-            "password": "testpass123"
-        }
+async def async_client():
+    """Create an async test client for the FastAPI app."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as ac:
+        yield ac
+
+
+@pytest.fixture
+def mock_user_instance():
+    """Create a mock user instance."""
+    return User(
+        id=1,
+        username="testuser",
+        email="test@example.com",
+        is_admin=True,
+        approval_status="approved",
     )
 
-    if response.status_code == 200:
-        token = response.json()["access_token"]
-        return {"Authorization": f"Bearer {token}"}
 
-    # User might already exist, try login
-    response = client.post(
-        "/api/auth/login",
-        data={
-            "username": "testuser",
-            "password": "testpass123"
-        }
-    )
+@pytest.fixture
+def auth_headers(mock_user_instance):
+    """Bypass actual auth and return mock headers."""
 
-    if response.status_code == 200:
-        token = response.json()["access_token"]
-        return {"Authorization": f"Bearer {token}"}
+    def mock_get_current_user():
+        return mock_user_instance
 
-    return {}
+    app.dependency_overrides[get_current_user] = mock_get_current_user
+    yield {"Authorization": "Bearer mock-token"}
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.fixture

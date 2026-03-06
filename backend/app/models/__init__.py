@@ -25,6 +25,7 @@ from app.models.role import (
     RoleActionPermission,
     RoleEntityPermission,
 )
+from app.models.mcp_config import MCPConfig
 
 __all__ = [
     "User",
@@ -49,4 +50,5 @@ __all__ = [
     "RolePagePermission",
     "RoleActionPermission",
     "RoleEntityPermission",
+    "MCPConfig",
 ]

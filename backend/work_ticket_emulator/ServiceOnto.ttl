@@ -1,0 +1,102 @@
+@prefix base: <http://example.org/ontology#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+base:COMMUNICATED_BY a owl:ObjectProperty ;
+    rdfs:domain base:ServiceResponse ;
+    rdfs:range base:Survey .
+
+base:interview_end a owl:DatatypeProperty ;
+    rdfs:domain base:ServiceResponse ;
+    rdfs:range xsd:string .
+
+base:interview_end_month_ops a owl:DatatypeProperty ;
+    rdfs:domain base:ServiceResponse ;
+    rdfs:range xsd:string .
+
+base:OCCURRED_IN a owl:ObjectProperty ;
+    rdfs:domain base:ServiceResponse ;
+    rdfs:range base:Location .
+
+base:OSAT a owl:DatatypeProperty ;
+    rdfs:domain base:ServiceResponse ;
+    rdfs:range xsd:integer .
+
+base:PURCHASED a owl:ObjectProperty ;
+    rdfs:domain base:ServiceResponse ;
+    rdfs:range base:Product .
+
+base:PX_Region a owl:DatatypeProperty ;
+    rdfs:domain base:Location ;
+    rdfs:range xsd:string .
+
+base:PX_Sub_Region a owl:DatatypeProperty ;
+    rdfs:domain base:Location ;
+    rdfs:range xsd:string .
+
+base:SERVED_BY a owl:ObjectProperty ;
+    rdfs:domain base:ServiceResponse ;
+    rdfs:range base:SOInformation .
+
+base:Survey_Medium a owl:DatatypeProperty ;
+    rdfs:domain base:Survey ;
+    rdfs:range xsd:string .
+
+base:brand_ops a owl:DatatypeProperty ;
+    rdfs:domain base:Product ;
+    rdfs:range xsd:string .
+
+base:country a owl:DatatypeProperty ;
+    rdfs:domain base:Location ;
+    rdfs:range xsd:string .
+
+base:geo_ops a owl:DatatypeProperty ;
+    rdfs:domain base:Location ;
+    rdfs:range xsd:string .
+
+base:language a owl:DatatypeProperty ;
+    rdfs:domain base:Survey ;
+    rdfs:range xsd:string .
+
+base:product_group_ops a owl:DatatypeProperty ;
+    rdfs:domain base:Product ;
+    rdfs:range xsd:string .
+
+base:program a owl:DatatypeProperty ;
+    rdfs:domain base:SOInformation ;
+    rdfs:range xsd:string .
+
+base:responseid a owl:DatatypeProperty ;
+    rdfs:domain base:Location,
+        base:Product,
+        base:SOInformation,
+        base:ServiceResponse,
+        base:Survey ;
+    rdfs:range xsd:string .
+
+base:trans_servdelivery a owl:DatatypeProperty ;
+    rdfs:domain base:SOInformation ;
+    rdfs:range xsd:string .
+
+
+base:Product a owl:Class ;
+    rdfs:label "Product",
+        "产品" .
+
+base:SOInformation a owl:Class ;
+    rdfs:label "SOInformation",
+        "服务信息" .
+
+base:Survey a owl:Class ;
+    rdfs:label "Survey",
+        "问卷调查信息" .
+
+base:Location a owl:Class ;
+    rdfs:label "Location",
+        "位置" .
+
+base:ServiceResponse a owl:Class ;
+    rdfs:label "ServiceResponse",
+        "问卷调查反馈" .
+

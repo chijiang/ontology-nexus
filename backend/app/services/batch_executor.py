@@ -302,7 +302,9 @@ class StreamingBatchExecutor:
 
         async with self.get_session_func() as session:
             storage = PGGraphStorage(session)
-            results = await storage.search_instances(entity_id, entity_type, limit=1)
+            results = await storage.search_instances(
+                keyword=entity_id, entity_type=entity_type, limit=1
+            )
             if results:
                 return results[0].get("properties", {})
         return {}

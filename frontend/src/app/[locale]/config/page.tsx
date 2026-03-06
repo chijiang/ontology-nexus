@@ -13,6 +13,7 @@ import { configApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth'
 import { toast } from 'sonner'
 import { Eye, EyeOff } from 'lucide-react'
+import { MCPConfigManager } from '@/components/mcp-config'
 
 export default function ConfigPage() {
   const router = useRouter()
@@ -85,8 +86,9 @@ export default function ConfigPage() {
         <h1 className="text-2xl font-bold mb-6">{t('config.title')}</h1>
 
         <Tabs defaultValue="llm">
-          <TabsList className="grid w-full grid-cols-1">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="llm">{t('config.llm')}</TabsTrigger>
+            <TabsTrigger value="mcp">{t('config.mcp')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="llm">
@@ -132,6 +134,9 @@ export default function ConfigPage() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+          <TabsContent value="mcp">
+            <MCPConfigManager />
           </TabsContent>
         </Tabs>
       </div>

@@ -83,6 +83,25 @@ export default function DataProductsPage() {
     const [schemaContent, setSchemaContent] = useState('')
     const [savingSchema, setSavingSchema] = useState(false)
 
+    const [syncingAll, setSyncingAll] = useState(false)
+
+    const handleSyncAll = async () => {
+        try {
+            setSyncingAll(true)
+            toast.info(t('dataProducts.syncAllStarted'), {
+                description: t('dataProducts.syncAllStartedDesc'),
+            })
+            await dataProductsApi.triggerSyncAll()
+            toast.success(t('dataProducts.syncAllSuccess'))
+        } catch (error: any) {
+            toast.error(t('dataProducts.syncAllFailed'), {
+                description: error.response?.data?.detail || t('dataProducts.syncAllFailedDesc'),
+            })
+        } finally {
+            setSyncingAll(false)
+        }
+    }
+
     const handleOpenSchema = (product: any) => {
         setSelectedProductForSchema(product)
         setSchemaContent(product.proto_content || '')
@@ -246,118 +265,129 @@ export default function DataProductsPage() {
                             </p>
                         </div>
 
-                        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button>
-                                    <Plus className="w-4 h-4 mr-2" />
-                                    {t('dataProducts.register')}
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-[500px]">
-                                <DialogHeader>
-                                    <DialogTitle>{t('dataProducts.registerNew')}</DialogTitle>
-                                    <DialogDescription>
-                                        {t('dataProducts.registerDesc')}
-                                    </DialogDescription>
-                                </DialogHeader>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={handleSyncAll}
+                                disabled={syncingAll || loading}
+                            >
+                                <RefreshCw className={`w-4 h-4 mr-2 ${syncingAll ? 'animate-spin' : ''}`} />
+                                {syncingAll ? t('dataProducts.syncingAll') : t('dataProducts.syncAll')}
+                            </Button>
 
-                                <div className="grid gap-4 py-4">
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="name">{t('dataProducts.productName')} *</Label>
-                                        <Input
-                                            id="name"
-                                            placeholder={t('dataProducts.productNamePlaceholder')}
-                                            value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        />
-                                    </div>
+                            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button>
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        {t('dataProducts.register')}
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-[500px]">
+                                    <DialogHeader>
+                                        <DialogTitle>{t('dataProducts.registerNew')}</DialogTitle>
+                                        <DialogDescription>
+                                            {t('dataProducts.registerDesc')}
+                                        </DialogDescription>
+                                    </DialogHeader>
 
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="description">{t('dataProducts.desc')}</Label>
-                                        <Textarea
-                                            id="description"
-                                            placeholder={t('dataProducts.descPlaceholder')}
-                                            value={formData.description}
-                                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-4 py-4">
                                         <div className="grid gap-2">
-                                            <Label htmlFor="host">{t('dataProducts.host')} *</Label>
+                                            <Label htmlFor="name">{t('dataProducts.productName')} *</Label>
                                             <Input
-                                                id="host"
-                                                placeholder={t('dataProducts.hostPlaceholder')}
-                                                value={formData.grpc_host}
-                                                onChange={(e) => setFormData({ ...formData, grpc_host: e.target.value })}
+                                                id="name"
+                                                placeholder={t('dataProducts.productNamePlaceholder')}
+                                                value={formData.name}
+                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                             />
                                         </div>
+
                                         <div className="grid gap-2">
-                                            <Label htmlFor="port">{t('dataProducts.port')} *</Label>
+                                            <Label htmlFor="description">{t('dataProducts.desc')}</Label>
+                                            <Textarea
+                                                id="description"
+                                                placeholder={t('dataProducts.descPlaceholder')}
+                                                value={formData.description}
+                                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid gap-2">
+                                                <Label htmlFor="host">{t('dataProducts.host')} *</Label>
+                                                <Input
+                                                    id="host"
+                                                    placeholder={t('dataProducts.hostPlaceholder')}
+                                                    value={formData.grpc_host}
+                                                    onChange={(e) => setFormData({ ...formData, grpc_host: e.target.value })}
+                                                />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label htmlFor="port">{t('dataProducts.port')} *</Label>
+                                                <Input
+                                                    id="port"
+                                                    type="number"
+                                                    placeholder={t('dataProducts.portPlaceholder')}
+                                                    value={formData.grpc_port}
+                                                    onChange={(e) => setFormData({ ...formData, grpc_port: parseInt(e.target.value) || 50051 })}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="service">{t('dataProducts.serviceName')} *</Label>
                                             <Input
-                                                id="port"
-                                                type="number"
-                                                placeholder={t('dataProducts.portPlaceholder')}
-                                                value={formData.grpc_port}
-                                                onChange={(e) => setFormData({ ...formData, grpc_port: parseInt(e.target.value) || 50051 })}
+                                                id="service"
+                                                placeholder={t('dataProducts.serviceNamePlaceholder')}
+                                                value={formData.service_name}
+                                                onChange={(e) => setFormData({ ...formData, service_name: e.target.value })}
                                             />
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="service">{t('dataProducts.serviceName')} *</Label>
-                                        <Input
-                                            id="service"
-                                            placeholder={t('dataProducts.serviceNamePlaceholder')}
-                                            value={formData.service_name}
-                                            onChange={(e) => setFormData({ ...formData, service_name: e.target.value })}
+                                    <DialogFooter>
+                                        <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                                            {t('common.cancel')}
+                                        </Button>
+                                        <Button onClick={handleCreate} disabled={creating} className="bg-primary hover:opacity-90">
+                                            {creating ? t('common.loading') : t('common.create')}
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+
+                            {/* Schema Edit Dialog */}
+                            <Dialog open={schemaDialogOpen} onOpenChange={setSchemaDialogOpen}>
+                                <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+                                    <DialogHeader>
+                                        <DialogTitle>{t('dataProducts.schemaTitle', { name: selectedProductForSchema?.name || '' })}</DialogTitle>
+                                        <DialogDescription>
+                                            {t('dataProducts.schemaDesc')}
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="flex-1 min-h-0 mt-4">
+                                        <textarea
+                                            className="w-full h-full p-4 font-mono text-sm bg-slate-950 text-slate-100 rounded-lg border-none focus:ring-1 focus:ring-primary resize-none"
+                                            placeholder="// Paste your .proto file content here..."
+                                            value={schemaContent}
+                                            onChange={(e) => setSchemaContent(e.target.value)}
                                         />
                                     </div>
-                                </div>
-
-                                <DialogFooter>
-                                    <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-                                        {t('common.cancel')}
-                                    </Button>
-                                    <Button onClick={handleCreate} disabled={creating} className="bg-primary hover:opacity-90">
-                                        {creating ? t('common.loading') : t('common.create')}
-                                    </Button>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
-
-                        {/* Schema Edit Dialog */}
-                        <Dialog open={schemaDialogOpen} onOpenChange={setSchemaDialogOpen}>
-                            <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-                                <DialogHeader>
-                                    <DialogTitle>{t('dataProducts.schemaTitle', { name: selectedProductForSchema?.name || '' })}</DialogTitle>
-                                    <DialogDescription>
-                                        {t('dataProducts.schemaDesc')}
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <div className="flex-1 min-h-0 mt-4">
-                                    <textarea
-                                        className="w-full h-full p-4 font-mono text-sm bg-slate-950 text-slate-100 rounded-lg border-none focus:ring-1 focus:ring-primary resize-none"
-                                        placeholder="// Paste your .proto file content here..."
-                                        value={schemaContent}
-                                        onChange={(e) => setSchemaContent(e.target.value)}
-                                    />
-                                </div>
-                                <DialogFooter className="mt-4">
-                                    <Button variant="outline" onClick={() => setSchemaDialogOpen(false)}>
-                                        {t('common.cancel')}
-                                    </Button>
-                                    <Button onClick={handleSaveSchema} disabled={savingSchema} className="bg-primary hover:opacity-90">
-                                        {savingSchema ? (
-                                            <>
-                                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                                {t('dataProducts.saving')}
-                                            </>
-                                        ) : t('dataProducts.saveSchema')}
-                                    </Button>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
+                                    <DialogFooter className="mt-4">
+                                        <Button variant="outline" onClick={() => setSchemaDialogOpen(false)}>
+                                            {t('common.cancel')}
+                                        </Button>
+                                        <Button onClick={handleSaveSchema} disabled={savingSchema} className="bg-primary hover:opacity-90">
+                                            {savingSchema ? (
+                                                <>
+                                                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                                    {t('dataProducts.saving')}
+                                                </>
+                                            ) : t('dataProducts.saveSchema')}
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                        </div>
                     </div>
 
                     {/* Product List */}

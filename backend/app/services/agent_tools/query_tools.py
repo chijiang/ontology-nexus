@@ -55,6 +55,31 @@ class FindPathInput(BaseModel):
     max_depth: int = Field(5, description="Maximum depth, default 5")
 
 
+class StructuredAggregationInput(BaseModel):
+    """Input for structured_aggregation_query tool."""
+
+    target_class: str = Field(
+        description="The primary entity class to aggregate over, e.g. ServiceResponse"
+    )
+    aggregation: str = Field(
+        "count", description="Aggregation function: count, sum, avg, max, min"
+    )
+    aggregate_property: str | None = Field(
+        None, description="Property to aggregate on (required for sum, avg, max, min)"
+    )
+    target_filters_json: str | None = Field(
+        None,
+        description='JSON string of filters on the target entity, e.g. {"OSAT": "10"}',
+    )
+    related_requirements_json: str | None = Field(
+        None,
+        description=(
+            "JSON string of a list of related entity requirements. "
+            'Example: [{"related_class": "Product", "relationship_type": "PURCHASED", "direction": "outgoing", "filters": {"product_group_ops": "THINK"}}]'
+        ),
+    )
+
+
 class DescribeClassInput(BaseModel):
     """Input for describe_class tool."""
 
@@ -98,7 +123,9 @@ def create_query_tools(
         """Search for entity instances in the knowledge graph."""
 
         async def _execute(tools) -> str:
-            results = await tools.search_instances(search_term, class_name, limit)
+            results = await tools.search_instances(
+                keyword=search_term, entity_type=class_name, limit=limit
+            )
             if not results:
                 return f"No matches found for '{search_term}'"
             output = [f"Found {len(results)} matches for '{search_term}':\n"]
@@ -123,7 +150,9 @@ def create_query_tools(
         """Get all instances of a specified type."""
 
         async def _execute(tools) -> str:
-            results = await tools.get_instances_by_class(class_name, None, limit)
+            results = await tools.get_instances_by_class(
+                entity_type=class_name, property_filter=None, limit=limit
+            )
             if not results:
                 return f"No instances found for type '{class_name}'."
             output = [f"Found {len(results)} instances of type '{class_name}':\n"]
@@ -316,6 +345,57 @@ def create_query_tools(
 
         return await _execute_with_session(get_session_func, _execute, event_emitter)
 
+    async def structured_aggregation_query(
+        target_class: str,
+        aggregation: str = "count",
+        aggregate_property: str | None = None,
+        target_filters_json: str | None = None,
+        related_requirements_json: str | None = None,
+    ) -> str:
+        """Execute a complex aggregation query on the knowledge graph."""
+        import json as _json
+
+        def _safe_parse_json(raw: str | None) -> Any:
+            """Robustly parse a JSON string, handling common LLM mistakes."""
+            if raw is None:
+                return None
+            if isinstance(raw, (dict, list)):
+                return raw  # already parsed
+            try:
+                return _json.loads(raw)
+            except (_json.JSONDecodeError, TypeError):
+                return None
+
+        target_filters = _safe_parse_json(target_filters_json)
+        related_requirements = _safe_parse_json(related_requirements_json)
+
+        async def _execute(tools) -> str:
+            result = await tools.execute_complex_aggregation(
+                target_class=target_class,
+                aggregation=aggregation,
+                aggregate_property=aggregate_property,
+                target_filters=(
+                    target_filters if isinstance(target_filters, dict) else None
+                ),
+                related_requirements=(
+                    related_requirements
+                    if isinstance(related_requirements, list)
+                    else None
+                ),
+            )
+
+            if "error" in result:
+                return f"Error executing aggregation: {result['error']}"
+
+            return (
+                f"Aggregation result for {aggregation}"
+                f"{f'({aggregate_property})' if aggregate_property else ''} "
+                f"on {target_class}:\n"
+                f"Value: {result.get('value')}"
+            )
+
+        return await _execute_with_session(get_session_func, _execute, event_emitter)
+
     return [
         StructuredTool.from_function(
             coroutine=search_instances,
@@ -364,6 +444,38 @@ def create_query_tools(
             name="get_node_statistics",
             description="Get node statistics to understand data distribution.",
             args_schema=GetNodeStatisticsInput,
+        ),
+        StructuredTool.from_function(
+            coroutine=structured_aggregation_query,
+            name="structured_aggregation_query",
+            description=(
+                "Execute complex aggregation queries (count/sum/avg/max/min) on knowledge graph entities. "
+                "Supports filtering by the target entity's own properties AND by requiring connections to related entities with specific properties.\n\n"
+                "BEST PRACTICE: ALWAYS call `describe_class(target_class)` first to check which properties are direct attributes of the target entity. "
+                "Properties belonging to DIFFERENT entities (e.g. country for a ServiceResponse) MUST be placed in `related_requirements_json`, not `target_filters_json`.\n\n"
+                "IMPORTANT PROPERTY NAMES for ServiceResponse domain:\n"
+                "  ServiceResponse properties: OSAT (integer), interview_end_month_ops (string, format: '2025-07'), interview_end (string)\n"
+                "  Location properties: country (string, e.g. 'INDIA'), geo_ops (e.g. 'AP'), PX_Region, PX_Sub_Region\n"
+                "  Product properties: product_group_ops, brand_ops\n"
+                "  SOInformation properties: program, trans_servdelivery\n\n"
+                "Property filters (target_filters_json and related entity filters) support:\n"
+                '  - Exact match: {"key": "value"}\n'
+                '  - Operators: {"key": {"$gt": 8, "$lt": 20}} (also supports $gte, $lte, $ne)\n'
+                '  - Pattern match: {"key": {"$like": "%pattern%"}}\n'
+                '  - Membership: {"key": {"$in": ["val1", "val2"]}}\n'
+                '  - Date range: use $gte/$lte on interview_end_month_ops, e.g. {"interview_end_month_ops": {"$gte": "2025-07", "$lte": "2025-12"}}\n\n'
+                "EXAMPLE 1: Count ServiceResponse where OSAT >= 8 and Location country is INDIA:\n"
+                '  target_class="ServiceResponse", '
+                '  target_filters_json=\'{"OSAT": {"$gte": 8}}\', '
+                '  related_requirements_json=\'[{"related_class": "Location", "relationship_type": "OCCURRED_IN", "filters": {"country": "INDIA"}}]\'\n'
+                "EXAMPLE 2: Count ServiceResponse for INDIA in H2 2025 (July-December):\n"
+                '  target_class="ServiceResponse", '
+                '  target_filters_json=\'{"OSAT": {"$gte": 8}, "interview_end_month_ops": {"$gte": "2025-07", "$lte": "2025-12"}}\', '
+                '  related_requirements_json=\'[{"related_class": "Location", "relationship_type": "OCCURRED_IN", "filters": {"country": "INDIA"}}]\'\n'
+                "EXAMPLE 3: Count ServiceResponse where product_group_ops=THINK:\n"
+                '  target_class="ServiceResponse", related_requirements_json=\'[{"related_class": "Product", "relationship_type": "PURCHASED", "filters": {"product_group_ops": "THINK"}}]\''
+            ),
+            args_schema=StructuredAggregationInput,
         ),
     ]
 

@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package work_ticket;
+
+import "common.proto";
+
+message WorkTicket {
+  string responseid = 1;
+  int32 osat = 2;
+  string why_osat_en_mask = 3;
+  int32 first_time_resolution = 4;
+  int32 ease_use = 5;
+  
+  int32 survey_id = 6;
+  string interview_end = 7;
+  string interview_end_month_ops = 8;
+  int32 location_id = 9;
+  int32 product_id = 10;
+  int32 so_information_id = 11;
+  string kpi_id = 12;
+}
+
+message GetWorkTicketRequest {
+  string responseid = 1;
+}
+
+message ListWorkTicketsRequest {
+  string query = 1; // Can be simple text search
+  PaginationRequest pagination = 2;
+}
+
+message ListWorkTicketsResponse {
+  repeated WorkTicket items = 1;
+  PaginationResponse pagination = 2;
+}
+
+enum GeoOps {
+  GEO_OPS_UNSPECIFIED = 0;
+  AP = 1;
+  NA = 2;
+  EMEA = 3;
+}
+
+enum PxRegion {
+  PX_REGION_UNSPECIFIED = 0;
+  WE = 1;
+}
+
+enum CountryNameOps {
+  COUNTRY_NAME_OPS_UNSPECIFIED = 0;
+  INDIA = 1;
+  CANADA = 2;
+  FRANCE = 3;
+}
+
+enum Program {
+  PROGRAM_UNSPECIFIED = 0;
+  Standard_Commercial = 1;
+  Premier_Support = 2;
+}
+
+enum TransServdelivery {
+  TRANS_SERVDELIVERY_UNSPECIFIED = 0;
+  ONS = 1;
+  CRU = 2;
+  CIN = 3;
+}
+
+message KPI {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message ListKPIsRequest {
+  PaginationRequest pagination = 1;
+}
+
+message ListKPIsResponse {
+  repeated KPI items = 1;
+  PaginationResponse pagination = 2;
+}
+
+message T3bPipelineRequest {
+  repeated GeoOps geo_ops = 1;
+  repeated PxRegion px_region = 2;
+  repeated CountryNameOps country_name_ops = 3;
+  repeated Program program = 4;
+  repeated TransServdelivery trans_servdelivery = 5;
+  optional int32 start_year = 6;
+  optional int32 start_month = 7;
+  optional int32 end_year = 8;
+  optional int32 end_month = 9;
+}
+
+message T3bPipelineResponse {
+  map<string, string> t3b_by_month = 1;
+  double overall_r2 = 2;
+  map<string, double> dim_importance = 3;
+}
+
+service WorkTicketService {
+  rpc GetWorkTicket(GetWorkTicketRequest) returns (WorkTicket) {}
+  rpc ListWorkTickets(ListWorkTicketsRequest) returns (ListWorkTicketsResponse) {}
+  rpc CalculateT3bPipeline(T3bPipelineRequest) returns (T3bPipelineResponse) {}
+  rpc ListKPIs(ListKPIsRequest) returns (ListKPIsResponse) {}
+}

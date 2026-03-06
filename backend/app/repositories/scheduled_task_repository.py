@@ -84,7 +84,7 @@ class ScheduledTaskRepository:
         if filters:
             query = query.where(and_(*filters))
 
-        query = query.order_by(ScheduledTask.priority.desc()).limit(limit).offset(offset)
+        query = query.order_by(ScheduledTask.created_at.desc()).limit(limit).offset(offset)
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
@@ -98,7 +98,7 @@ class ScheduledTaskRepository:
         result = await self.session.execute(
             select(ScheduledTask)
             .where(ScheduledTask.is_enabled == True)
-            .order_by(ScheduledTask.priority.desc())
+            .order_by(ScheduledTask.priority.desc(), ScheduledTask.created_at.asc())
         )
         return list(result.scalars().all())
 
@@ -114,17 +114,14 @@ class ScheduledTaskRepository:
         Returns:
             Updated ScheduledTask or None if not found
         """
-        task = await self.get_by_id(task_id)
-        if task is None:
-            return None
-
-        for key, value in updates.items():
-            if hasattr(task, key):
-                setattr(task, key, value)
-
+        result = await self.session.execute(
+            update(ScheduledTask)
+            .where(ScheduledTask.id == task_id)
+            .values(**updates)
+            .returning(ScheduledTask)
+        )
         await self.session.commit()
-        await self.session.refresh(task)
-        return task
+        return result.scalar_one_or_none()
 
     async def delete(self, task_id: int) -> bool:
         """Delete a scheduled task.
@@ -271,17 +268,14 @@ class TaskExecutionRepository:
         Returns:
             Updated TaskExecution or None if not found
         """
-        execution = await self.get_by_id(execution_id)
-        if execution is None:
-            return None
-
-        for key, value in updates.items():
-            if hasattr(execution, key):
-                setattr(execution, key, value)
-
+        result = await self.session.execute(
+            update(TaskExecution)
+            .where(TaskExecution.id == execution_id)
+            .values(**updates)
+            .returning(TaskExecution)
+        )
         await self.session.commit()
-        await self.session.refresh(execution)
-        return execution
+        return result.scalar_one_or_none()
 
     async def get_running_executions(
         self, task_id: Optional[int] = None

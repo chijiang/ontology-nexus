@@ -49,8 +49,11 @@ export function Chat({ onGraphData, conversationId, initialMessages, onConversat
 
   // Initialize messages from props
   useEffect(() => {
+    // If conversation ID changed, always reset
+    const isNewSession = conversationId !== currentConversationId
+
     // If current ID matches and we have messages, skip reset during streaming
-    if (conversationId !== null && conversationId === currentConversationId && messages.length > 0) {
+    if (!isNewSession && messages.length > 0) {
       return
     }
 

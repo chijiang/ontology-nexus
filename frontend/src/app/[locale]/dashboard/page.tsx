@@ -41,6 +41,7 @@ export default function DashboardPage() {
     const requestId = ++loadRequestIdRef.current
     setActiveConversationId(id)
     setGraphData(null)
+    setInitialMessages([]) // Clear messages immediately to avoid stale content showing
 
     if (id) {
       try {

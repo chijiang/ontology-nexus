@@ -1,8 +1,8 @@
 """REST API endpoints for rule management."""
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from typing import Any, Optional, List
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,12 @@ from app.models.user import User
 from app.core.database import get_db
 from app.repositories.rule_repository import RuleRepository
 from app.services.rule_storage import RuleStorage
+from app.models.scheduled_task import ScheduledTask
+from app.schemas.scheduled_task import ScheduledTaskResponse, TaskExecutionResponse
+from app.repositories.scheduled_task_repository import (
+    ScheduledTaskRepository,
+    TaskExecutionRepository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -380,7 +386,9 @@ async def update_rule(
                             registry.register(item)
                             break
                 except Exception as e:
-                    logger.warning("Failed to re-register rule '%s': %s", db_rule.name, e)
+                    logger.warning(
+                        "Failed to re-register rule '%s': %s", db_rule.name, e
+                    )
 
         return {
             "message": "Rule updated successfully",
@@ -596,3 +604,130 @@ async def reload_rules(
         "errors": errors,
         "message": f"Reloaded {loaded} rules from database",
     }
+
+
+# ============================================================================
+# Convenience Scheduling Endpoints
+# ============================================================================
+
+
+@router.get("/{name}/schedule", response_model=Optional[ScheduledTaskResponse])
+async def get_rule_schedule(
+    name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """获取规则的执行计划"""
+    rule_repo = RuleRepository(db)
+    rule = await rule_repo.get_by_name(name)
+    if not rule:
+        raise HTTPException(status_code=404, detail=f"Rule '{name}' not found")
+
+    task_repo = ScheduledTaskRepository(db)
+    return await task_repo.get_by_target("rule", rule.id)
+
+
+@router.put("/{name}/schedule", response_model=ScheduledTaskResponse)
+async def set_rule_schedule(
+    name: str,
+    request_data: dict,  # CronTemplate from frontend
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """设置或更新规则的执行计划"""
+    rule_repo = RuleRepository(db)
+    rule = await rule_repo.get_by_name(name)
+    if not rule:
+        raise HTTPException(status_code=404, detail=f"Rule '{name}' not found")
+
+    task_repo = ScheduledTaskRepository(db)
+    existing = await task_repo.get_by_target("rule", rule.id)
+
+    # Convert frontend CronTemplate to ScheduledTask fields
+    cron_expr = request_data.get("advanced")
+    if request_data.get("type") == "interval":
+        val = request_data.get("interval_value", 1)
+        unit = request_data.get("interval_unit", "hour")
+        if unit == "minute":
+            cron_expr = f"*/{val} * * * *"
+        elif unit == "hour":
+            cron_expr = f"0 */{val} * * *"
+        elif unit == "day":
+            cron_expr = f"0 0 */{val} * *"
+    elif request_data.get("type") == "specific":
+        freq = request_data.get("frequency", "daily")
+        time_parts = request_data.get("time", "00:00").split(":")
+        minute, hour = time_parts[1], time_parts[0]
+        if freq == "daily":
+            cron_expr = f"{minute} {hour} * * *"
+        elif freq == "weekly":
+            dow = request_data.get("day_of_week", 0)
+            cron_expr = f"{minute} {hour} * * {dow}"
+        elif freq == "monthly":
+            dom = request_data.get("day_of_month", 1)
+            cron_expr = f"{minute} {hour} {dom} * *"
+
+    if not cron_expr:
+        raise HTTPException(status_code=400, detail="Invalid cron configuration")
+
+    task_data = {
+        "task_type": "rule",
+        "task_name": f"Execution Task for Rule {name}",
+        "target_id": rule.id,
+        "cron_expression": cron_expr,
+        "is_enabled": True,
+    }
+
+    if existing:
+        updated = await task_repo.update(existing.id, task_data)
+        scheduler_service = request.app.state.scheduler_service
+        await scheduler_service.reschedule_task(updated)
+        return updated
+    else:
+        new_task = ScheduledTask(**task_data)
+        created = await task_repo.create(new_task)
+        scheduler_service = request.app.state.scheduler_service
+        await scheduler_service.schedule_task(created)
+        return created
+
+
+@router.delete("/{name}/schedule", status_code=204)
+async def delete_rule_schedule(
+    name: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """删除规则的执行计划"""
+    rule_repo = RuleRepository(db)
+    rule = await rule_repo.get_by_name(name)
+    if not rule:
+        raise HTTPException(status_code=404, detail=f"Rule '{name}' not found")
+
+    task_repo = ScheduledTaskRepository(db)
+    task = await task_repo.get_by_target("rule", rule.id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Rule schedule not found")
+
+    await task_repo.delete(task.id)
+    scheduler_service = request.app.state.scheduler_service
+    await scheduler_service.unschedule_task(task.id)
+
+
+@router.get("/{name}/execution-history", response_model=List[TaskExecutionResponse])
+async def get_rule_execution_history(
+    name: str,
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取规则的执行历史（从调度执行记录中获取）"""
+    rule_repo = RuleRepository(db)
+    rule = await rule_repo.get_by_name(name)
+    if not rule:
+        raise HTTPException(status_code=404, detail=f"Rule '{name}' not found")
+
+    task_repo = ScheduledTaskRepository(db)
+    task = await task_repo.get_by_target("rule", rule.id)
+    if not task:
+        return []
+
+    exec_repo = TaskExecutionRepository(db)
+    return await exec_repo.list_by_task(task.id, limit=limit)

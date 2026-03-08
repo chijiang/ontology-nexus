@@ -79,6 +79,9 @@ class ASTTransformer(Transformer):
     def SCAN(self, token: Token) -> str:
         return "SCAN"
 
+    def TIMER(self, token: Token) -> str:
+        return "TIMER"
+
     # Comparison operator token handlers
     def EQ(self, token: Token) -> str:
         return "=="
@@ -242,14 +245,18 @@ class ASTTransformer(Transformer):
         return int(items[0])
 
     def trigger(self, items):
-        # items: [trigger_type, trigger_target]
+        # items: [trigger_type, trigger_target?]
         trigger_type = items[0]
-        target = items[1]
+        target = items[1] if len(items) > 1 else None
 
-        # Split target into entity_type and property
-        parts = target.split(".")
-        entity_type = parts[0]
-        property = parts[1] if len(parts) > 1 else None
+        if target:
+            # Split target into entity_type and property
+            parts = str(target).split(".")
+            entity_type = parts[0]
+            property = parts[1] if len(parts) > 1 else None
+        else:
+            entity_type = "System" if trigger_type == "TIMER" else "Entity"
+            property = None
 
         return Trigger(
             type=TriggerType(trigger_type), entity_type=entity_type, property=property

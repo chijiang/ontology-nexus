@@ -30,6 +30,11 @@
 - **RBAC Access Control**:
   - **Role-Based Permissions**: Fine-grained control over pages, actions, and entity types per role.
   - **User Approval Workflow**: Registration with admin approval and account activation.
+- **Global Scheduler**:
+  - **Automated Data Synchronization**: Schedule periodic data sync from external gRPC services.
+  - **Scheduled Rule Evaluation**: Execute business rules on cron-based schedules.
+  - **Watchdog Protection**: Concurrent task limits, timeout control, and intelligent retry mechanisms.
+  - **Flexible Scheduling**: Support for interval-based, time-based, and custom cron expressions.
 
 ### Tech Stack
 
@@ -107,6 +112,68 @@ pnpm install
 pnpm dev
 ```
 
+## Scheduler
+
+Automatic task execution for data synchronization and rule evaluation.
+
+### Setup
+
+The scheduler is automatically initialized on application startup. Configure via environment variables:
+
+```bash
+# .env
+SCHEDULER_MAX_CONCURRENT=10  # Max concurrent task executions
+SCHEDULER_DEFAULT_TIMEOUT=300  # Default task timeout (seconds)
+```
+
+### Creating Scheduled Tasks
+
+#### Data Product Sync Schedule
+
+```bash
+# Enable hourly sync for data product ID 1
+curl -X PUT http://localhost:8000/api/data-products/1/sync-schedule \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "interval",
+    "interval_value": 1,
+    "interval_unit": "hour"
+  }'
+```
+
+#### Rule Evaluation Schedule
+
+```bash
+# Enable daily rule evaluation at 9 AM
+curl -X PUT http://localhost:8000/api/rules/42/schedule \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "specific",
+    "frequency": "daily",
+    "time": "09:00"
+  }'
+```
+
+### Managing Tasks
+
+- **List tasks**: `GET /api/scheduled-tasks/`
+- **Get status**: `GET /api/scheduled-tasks/{id}/status`
+- **Manual trigger**: `POST /api/scheduled-tasks/{id}/trigger`
+- **Pause/Resume**: `POST /api/scheduled-tasks/{id}/pause` or `/resume`
+- **View history**: `GET /api/scheduled-tasks/{id}/executions`
+
+### Cron Expression Format
+
+Uses standard 5-part cron format: `minute hour day month dow`
+
+Examples:
+- `0 * * * *` - Every hour
+- `0 2 * * *` - Daily at 2 AM
+- `0 0 * * 0` - Weekly on Sunday at midnight
+- `*/5 * * * *` - Every 5 minutes
+
 ### Security
 
 - JWT authentication with token expiration
@@ -146,6 +213,11 @@ pnpm dev
 - **RBAC 访问控制**:
   - **基于角色的权限**: 对页面、动作和实体类型进行细粒度的角色控制。
   - **用户审批流程**: 注册需管理员审批和账户激活。
+- **全局定时器**:
+  - **自动数据同步**: 定期从外部 gRPC 服务同步数据。
+  - **定时规则评估**: 按基于 cron 的时间表执行业务规则。
+  - **看门狗保护**: 并发任务限制、超时控制和智能重试机制。
+  - **灵活调度**: 支持基于间隔、基于时间和自定义 cron 表达式。
 
 ### 技术栈
 
@@ -222,6 +294,68 @@ cd frontend
 pnpm install
 pnpm dev
 ```
+
+## 定时器
+
+自动执行数据同步和规则评估。
+
+### 配置
+
+定时器在应用启动时自动初始化。可通过环境变量配置：
+
+```bash
+# .env
+SCHEDULER_MAX_CONCURRENT=10  # 最大并发任务执行数
+SCHEDULER_DEFAULT_TIMEOUT=300  # 默认任务超时（秒）
+```
+
+### 创建定时任务
+
+#### 数据产品同步计划
+
+```bash
+# 为数据产品 ID 1 启用每小时同步
+curl -X PUT http://localhost:8000/api/data-products/1/sync-schedule \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "interval",
+    "interval_value": 1,
+    "interval_unit": "hour"
+  }'
+```
+
+#### 规则评估计划
+
+```bash
+# 启用每天上午 9 点的规则评估
+curl -X PUT http://localhost:8000/api/rules/42/schedule \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "specific",
+    "frequency": "daily",
+    "time": "09:00"
+  }'
+```
+
+### 管理任务
+
+- **列出任务**: `GET /api/scheduled-tasks/`
+- **获取状态**: `GET /api/scheduled-tasks/{id}/status`
+- **手动触发**: `POST /api/scheduled-tasks/{id}/trigger`
+- **暂停/恢复**: `POST /api/scheduled-tasks/{id}/pause` 或 `/resume`
+- **查看历史**: `GET /api/scheduled-tasks/{id}/executions`
+
+### Cron 表达式格式
+
+使用标准的 5 部分 cron 格式：`分钟 小时 日期 月份 星期`
+
+示例：
+- `0 * * * *` - 每小时
+- `0 2 * * *` - 每天凌晨 2 点
+- `0 0 * * 0` - 每周日凌晨 0 点
+- `*/5 * * * *` - 每 5 分钟
 
 ### 安全特性
 

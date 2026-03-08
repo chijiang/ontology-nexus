@@ -40,6 +40,7 @@ class RuleEngine:
         registry: RuleRegistry,
         db_session: "AsyncSession | None" = None,
         session_provider: Any = None,
+        action_executor: Any = None,
     ):
         """Initialize the rule engine.
 
@@ -53,6 +54,7 @@ class RuleEngine:
         self.registry = registry
         self.db_session = db_session
         self.session_provider = session_provider
+        self.action_executor = action_executor
         self.translator = PGQTranslator()
 
     @asynccontextmanager
@@ -138,6 +140,102 @@ class RuleEngine:
                     logger.info(f"Rule {rule.name} executed: {result}")
 
         return results
+
+    async def execute_rule_by_id(
+        self, rule_id: int, session: "AsyncSession"
+    ) -> dict[str, Any]:
+        """Execute a rule by its database ID.
+
+        This is typically called by the scheduler for timed rules.
+        """
+        from app.models.rule import Rule
+        from sqlalchemy import select
+        from app.rule_engine.parser import RuleParser
+
+        # 1. Fetch rule from DB
+        result = await session.execute(select(Rule).where(Rule.id == rule_id))
+        db_rule = result.scalar_one_or_none()
+
+        if not db_rule:
+            return {"error": f"Rule {rule_id} not found", "success": False}
+
+        if not db_rule.is_active:
+            return {"error": f"Rule {rule_id} is inactive", "success": False}
+
+        # 2. Parse into RuleDef
+        parser = RuleParser()
+        try:
+            parsed = parser.parse(db_rule.dsl_content)
+            rule_def = next(
+                (r for r in parsed if hasattr(r, "name") and r.name == db_rule.name),
+                None,
+            )
+            if not rule_def:
+                # Try first rule if name doesn't match perfectly
+                rule_def = next((r for r in parsed if hasattr(r, "body")), None)
+        except Exception as e:
+            return {
+                "error": f"Failed to parse DSL for rule {db_rule.name}: {e}",
+                "success": False,
+            }
+
+        if not rule_def:
+            return {
+                "error": f"No valid rule definition found in DSL for {db_rule.name}",
+                "success": False,
+            }
+
+        # 3. Create a mock event for a scheduled trigger
+        from app.rule_engine.models import UpdateEvent
+
+        event = UpdateEvent(
+            entity_type=(
+                rule_def.body.entity_type
+                if hasattr(rule_def.body, "entity_type")
+                else "System"
+            ),
+            entity_id="system",  # Scheduled rules might not have a specific trigger entity
+            property="scheduler",
+            old_value=None,
+            new_value="triggered",
+            actor_name="scheduler",
+            actor_type="SYSTEM",
+        )
+
+        # 4. Execute the rule body
+        # For scheduled rules, we might want to iterate over ALL entities that match the FOR clause
+        # The _execute_rule_async expects an event to bind 'this'.
+        # If it's a scheduled rule, 'this' might not be applicable unless we change the logic.
+        # But our FOR clause handles searching.
+
+        bindings = {}
+        result = await self._execute_for_clause_async(
+            rule_def.body, event, session, bindings
+        )
+
+        # Record execution log
+        try:
+            from app.repositories.rule_repository import ExecutionLogRepository
+
+            repo = ExecutionLogRepository(session)
+            await repo.create(
+                type="RULE_SCHEDULED",
+                name=db_rule.name,
+                entity_id=None,
+                actor_name="scheduler",
+                actor_type="SYSTEM",
+                success=True,
+                detail=result,
+            )
+        except Exception as log_err:
+            logger.error(f"Failed to record scheduled execution log: {log_err}")
+
+        return {
+            "rule": db_rule.name,
+            "success": True,
+            "entities_affected": result.get("entities_affected", 0),
+            "statements_executed": result.get("statements_executed", 0),
+        }
 
     def _match_rules(self, event: UpdateEvent) -> list[RuleDef]:
         """Match rules to an event.
@@ -522,7 +620,40 @@ class RuleEngine:
             action_def = self.action_registry.lookup(entity_type, action_name)
             if action_def:
                 logger.info(f"Found action definition: {action_def.action_name}")
-                # TODO: Execute the action
+
+                # Use current action_executor if available, otherwise create one
+                executor = self.action_executor
+                if not executor:
+                    from app.rule_engine.action_executor import ActionExecutor
+
+                    executor = ActionExecutor(self.action_registry)
+
+                # Create evaluation context for the action
+                # Note: We use an empty entity dict for now, or we could pass current properties
+                from app.rule_engine.context import EvaluationContext
+
+                context = EvaluationContext(
+                    entity={
+                        "id": entity_id
+                    },  # Minimum required for persistence in action executor
+                    session=session,
+                    variables={},
+                )
+
+                # Execute action
+                result = await executor.execute(
+                    entity_type=entity_type,
+                    action_name=action_name,
+                    context=context,
+                    actor_name="rule_engine",
+                    actor_type="SYSTEM",
+                )
+
+                if not result.success:
+                    logger.error(f"Action {action_name} failed: {result.error}")
+                    return False
+
+                logger.info(f"Action {action_name} executed successfully")
             else:
                 logger.warning(
                     f"Action {action_name} not found for entity type {entity_type}"

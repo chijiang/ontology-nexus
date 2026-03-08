@@ -231,221 +231,9 @@ class SyncService:
                 mappings = (await self.db.execute(stmt)).scalars().all()
 
                 for mapping in mappings:
-                    if (
-                        not mapping.sync_enabled
-                        or mapping.sync_direction.value != "pull"
-                    ):
-                        continue
-
-                    if not mapping.list_method:
-                        logger.warning(
-                            f"No list_method defined for mapping {mapping.id}"
-                        )
-                        continue
-
-                    try:
-                        total_pages = 1
-                        current_page = 1
-                        page_size = 100
-
-                        while current_page <= total_pages:
-                            # a. 调用 gRPC 列表方法 (带分页)
-                            request_payload = {
-                                "pagination": {
-                                    "page": current_page,
-                                    "page_size": page_size,
-                                }
-                            }
-
-                            try:
-                                response = await client.call_method(
-                                    product.service_name,
-                                    mapping.list_method,
-                                    request_payload,
-                                )
-                            except Exception as e:
-                                logger.error(
-                                    f"Failed to fetch page {current_page} for mapping {mapping.id}: {e}"
-                                )
-                                break
-
-                            items = []
-                            if isinstance(response, dict):
-                                if "items" in response and isinstance(
-                                    response["items"], list
-                                ):
-                                    items = response["items"]
-                                else:
-                                    for val in response.values():
-                                        if isinstance(val, list):
-                                            items = val
-                                            break
-
-                                if "pagination" in response and isinstance(
-                                    response["pagination"], dict
-                                ):
-                                    total_pages = response["pagination"].get(
-                                        "total_pages", total_pages
-                                    )
-
-                            elif isinstance(response, list):
-                                items = response
-                                # Non-paginated response, stop after first page
-                                total_pages = 0
-
-                            if not items:
-                                logger.info(
-                                    f"No items retrieved for mapping {mapping.id} on page {current_page}"
-                                )
-                                break
-
-                            # b. 处理每个条目
-                            for item in items:
-                                total_processed += 1
-                                try:
-                                    # i. 提取元数据
-                                    raw_id = item.get(mapping.id_field_mapping)
-
-                                    node_name = item.get(mapping.name_field_mapping)
-                                    if not node_name:
-                                        node_name = (
-                                            f"{mapping.ontology_class_name}_{raw_id}"
-                                        )
-
-                                    # ii. 转换属性
-                                    # 仅保留 Name 字段（用于后续查找和关联）以及显式映射的字段
-                                    # 注意：id 字段现在存在物理列 source_id 中，不再默认放入 properties
-                                    properties = {}
-
-                                    raw_name = item.get(mapping.name_field_mapping)
-                                    if raw_name is not None:
-                                        properties[mapping.name_field_mapping] = (
-                                            raw_name
-                                        )
-
-                                    # 保留作为关系目标的外键字段
-                                    # 如果其他实体通过此字段关联到当前实体，我们需要保存该字段值
-                                    for rel in mapping.target_relationship_mappings:
-                                        # 避免覆盖已有的映射
-                                        # 同时也避免重复添加主键字段（因为它已经存在 source_id 中）
-                                        if (
-                                            rel.target_id_field not in properties
-                                            and rel.target_id_field
-                                            != mapping.id_field_mapping
-                                            and rel.target_id_field != "id"
-                                        ):
-                                            val = item.get(rel.target_id_field)
-                                            if val is not None:
-                                                properties[rel.target_id_field] = val
-
-                                    for p_map in mapping.property_mappings:
-                                        val = item.get(p_map.grpc_field)
-                                        if p_map.transform_expression:
-                                            try:
-                                                safe_dict = {
-                                                    "value": val,
-                                                    "item": item,
-                                                    "parseNum": parse_num,
-                                                    "toString": to_string,
-                                                    "toDate": to_date,
-                                                    "str": str,
-                                                    "float": float,
-                                                    "int": int,
-                                                    "bool": bool,
-                                                    "datetime": datetime,
-                                                    "None": None,
-                                                    "True": True,
-                                                    "False": False,
-                                                }
-                                                val = safe_eval(
-                                                    p_map.transform_expression,
-                                                    safe_dict,
-                                                )
-                                            except Exception as e:
-                                                logger.error(
-                                                    f"Transform error for {p_map.ontology_property}: {e}"
-                                                )
-
-                                        properties[p_map.ontology_property] = val
-
-                                    # iii. UPSERT GraphEntity
-                                    # 优先使用 source_id 进行查找，如果没定义 ID 映射则退而求其次使用 _display_name (mapped to name col)
-                                    lookup_cond = []
-                                    if raw_id is not None:
-                                        lookup_cond.append(
-                                            GraphEntity.source_id == str(raw_id)
-                                        )
-                                    else:
-                                        lookup_cond.append(
-                                            GraphEntity._display_name == str(node_name)
-                                        )
-
-                                    ent_result = await self.db.execute(
-                                        select(GraphEntity)
-                                        .where(
-                                            and_(
-                                                GraphEntity.entity_type
-                                                == mapping.ontology_class_name,
-                                                *lookup_cond,
-                                            )
-                                        )
-                                        .limit(1)
-                                    )
-                                    entity = ent_result.scalars().first()
-
-                                    if entity:
-                                        # Merge existing properties with new ones
-                                        # New properties from source take precedence over existing ones
-                                        # Unbound properties (manually added) are preserved
-                                        existing_props = (
-                                            dict(entity.properties)
-                                            if entity.properties
-                                            else {}
-                                        )
-                                        existing_props.update(properties)
-                                        # Remove redundant id if it was renamed to source_id column
-                                        if (
-                                            "id" in existing_props
-                                            and "id" not in properties
-                                        ):
-                                            del existing_props["id"]
-                                        entity.properties = existing_props
-
-                                        # Also update display name if it changed
-                                        entity._display_name = str(node_name)
-
-                                        total_updated += 1
-                                    else:
-                                        new_entity = GraphEntity(
-                                            _display_name=str(node_name),
-                                            entity_type=mapping.ontology_class_name,
-                                            source_id=(
-                                                str(raw_id)
-                                                if raw_id is not None
-                                                else None
-                                            ),
-                                            is_instance=True,
-                                            properties=properties,
-                                        )
-                                        self.db.add(new_entity)
-                                        total_created += 1
-
-                                except Exception as e:
-                                    logger.error(f"Error processing item: {e}")
-                                    total_failed += 1
-                                    error_msgs.append(f"Item error: {str(e)}")
-
-                            # 提交每个分页的处理结果
-                            await self.db.commit()
-
-                            # 移动到下一页
-                            current_page += 1
-
-                    except Exception as e:
-                        logger.error(f"Error syncing mapping {mapping.id}: {e}")
-                        error_msgs.append(
-                            f"Mapping {mapping.ontology_class_name} error: {str(e)}"
-                        )
+                    await self._sync_mapping_internal(
+                        mapping, client, product, sync_log
+                    )
 
                 # 4. 同步关系 (可选)
                 if sync_relationships:
@@ -473,13 +261,254 @@ class SyncService:
             await self.db.commit()
             raise
 
+            return {
+                "status": sync_log.status,
+                "processed": total_processed,
+                "created": total_created,
+                "updated": total_updated,
+                "failed": total_failed,
+            }
+
+    async def sync_entity_mapping(
+        self, mapping_id: int, sync_log_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """同步单个实体映射"""
+        # 1. 加载实体映射和关联的数据产品
+        stmt = (
+            select(EntityMapping)
+            .options(
+                selectinload(EntityMapping.property_mappings),
+                selectinload(EntityMapping.target_relationship_mappings),
+                selectinload(EntityMapping.data_product),
+            )
+            .where(EntityMapping.id == mapping_id)
+        )
+        mapping = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not mapping:
+            raise ValueError(f"Entity mapping {mapping_id} not found")
+
+        product = mapping.data_product
+
+        # 2. 初始化或加载同步日志
+        if sync_log_id is not None:
+            sync_log_result = await self.db.execute(
+                select(SyncLog).where(SyncLog.id == sync_log_id)
+            )
+            sync_log = sync_log_result.scalar_one_or_none()
+            if not sync_log:
+                raise ValueError(f"Sync Log {sync_log_id} not found")
+        else:
+            sync_log = SyncLog(
+                data_product_id=product.id,
+                entity_mapping_id=mapping.id,
+                sync_type="manual",
+                direction="pull",
+                status="started",
+                started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            )
+            self.db.add(sync_log)
+            await self.db.commit()
+            await self.db.refresh(sync_log)
+
+        try:
+            async with DynamicGrpcClient(
+                product.grpc_host, product.grpc_port
+            ) as client:
+                await self._sync_mapping_internal(mapping, client, product, sync_log)
+
+            sync_log.status = "completed"
+            sync_log.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            await self.db.commit()
+
+        except Exception as e:
+            logger.exception(f"Sync error for mapping {mapping_id}")
+            sync_log.status = "failed"
+            sync_log.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            sync_log.error_message = str(e)
+            await self.db.commit()
+            raise
+
         return {
             "status": sync_log.status,
-            "processed": total_processed,
-            "created": total_created,
-            "updated": total_updated,
-            "failed": total_failed,
+            "processed": sync_log.records_processed,
+            "created": sync_log.records_created,
+            "updated": sync_log.records_updated,
+            "failed": sync_log.records_failed,
         }
+
+    async def _sync_mapping_internal(
+        self,
+        mapping: EntityMapping,
+        client: DynamicGrpcClient,
+        product: DataProduct,
+        sync_log: SyncLog,
+    ) -> None:
+        """内部通用同步逻辑：同步单个 Mapping 的数据"""
+        if not mapping.sync_enabled or mapping.sync_direction.value != "pull":
+            return
+
+        if not mapping.list_method:
+            logger.warning(f"No list_method defined for mapping {mapping.id}")
+            return
+
+        try:
+            total_pages = 1
+            current_page = 1
+            page_size = 100
+
+            while current_page <= total_pages:
+                # a. 调用 gRPC 列表方法 (带分页)
+                request_payload = {
+                    "pagination": {
+                        "page": current_page,
+                        "page_size": page_size,
+                    }
+                }
+
+                try:
+                    logger.info(
+                        f"Calling gRPC method {mapping.list_method} for page {current_page}..."
+                    )
+                    response = await client.call_method(
+                        product.service_name,
+                        mapping.list_method,
+                        request_payload,
+                    )
+                    logger.info(f"Received response for page {current_page}")
+                except Exception as e:
+                    logger.error(
+                        f"Failed to fetch page {current_page} for mapping {mapping.id}: {e}"
+                    )
+                    break
+
+                items = []
+                if isinstance(response, dict):
+                    if "items" in response and isinstance(response["items"], list):
+                        items = response["items"]
+                    else:
+                        for val in response.values():
+                            if isinstance(val, list):
+                                items = val
+                                break
+
+                    if "pagination" in response and isinstance(
+                        response["pagination"], dict
+                    ):
+                        total_pages = response["pagination"].get(
+                            "total_pages", total_pages
+                        )
+
+                elif isinstance(response, list):
+                    items = response
+                    total_pages = 0
+
+                if not items:
+                    break
+
+                # b. 处理每个条目
+                for item in items:
+                    sync_log.records_processed += 1
+                    try:
+                        raw_id = item.get(mapping.id_field_mapping)
+                        node_name = item.get(mapping.name_field_mapping)
+                        if not node_name:
+                            node_name = f"{mapping.ontology_class_name}_{raw_id}"
+
+                        properties = {}
+                        raw_name = item.get(mapping.name_field_mapping)
+                        if raw_name is not None:
+                            properties[mapping.name_field_mapping] = raw_name
+
+                        for rel in mapping.target_relationship_mappings:
+                            if (
+                                rel.target_id_field not in properties
+                                and rel.target_id_field != mapping.id_field_mapping
+                                and rel.target_id_field != "id"
+                            ):
+                                val = item.get(rel.target_id_field)
+                                if val is not None:
+                                    properties[rel.target_id_field] = val
+
+                        for p_map in mapping.property_mappings:
+                            val = item.get(p_map.grpc_field)
+                            if p_map.transform_expression:
+                                try:
+                                    safe_dict = {
+                                        "value": val,
+                                        "item": item,
+                                        "parseNum": parse_num,
+                                        "toString": to_string,
+                                        "toDate": to_date,
+                                        "str": str,
+                                        "float": float,
+                                        "int": int,
+                                        "bool": bool,
+                                        "datetime": datetime,
+                                        "None": None,
+                                        "True": True,
+                                        "False": False,
+                                    }
+                                    val = safe_eval(
+                                        p_map.transform_expression,
+                                        safe_dict,
+                                    )
+                                except Exception as e:
+                                    logger.error(
+                                        f"Transform error for {p_map.ontology_property}: {e}"
+                                    )
+                            properties[p_map.ontology_property] = val
+
+                        # c. UPSERT GraphEntity
+                        lookup_cond = []
+                        if raw_id is not None:
+                            lookup_cond.append(GraphEntity.source_id == str(raw_id))
+                        else:
+                            lookup_cond.append(
+                                GraphEntity._display_name == str(node_name)
+                            )
+
+                        ent_result = await self.db.execute(
+                            select(GraphEntity).where(
+                                and_(
+                                    GraphEntity.entity_type
+                                    == mapping.ontology_class_name,
+                                    *lookup_cond,
+                                )
+                            )
+                        )
+                        entity = ent_result.scalars().first()
+
+                        if entity:
+                            existing_props = (
+                                dict(entity.properties) if entity.properties else {}
+                            )
+                            existing_props.update(properties)
+                            if "id" in existing_props and "id" not in properties:
+                                del existing_props["id"]
+                            entity.properties = existing_props
+                            entity._display_name = str(node_name)
+                            sync_log.records_updated += 1
+                        else:
+                            new_entity = GraphEntity(
+                                _display_name=str(node_name),
+                                entity_type=mapping.ontology_class_name,
+                                source_id=str(raw_id) if raw_id is not None else None,
+                                is_instance=True,
+                                properties=properties,
+                            )
+                            self.db.add(new_entity)
+                            sync_log.records_created += 1
+
+                    except Exception as e:
+                        logger.error(f"Error processing item: {e}")
+                        sync_log.records_failed += 1
+
+                await self.db.commit()
+                current_page += 1
+
+        except Exception as e:
+            logger.error(f"Error syncing mapping {mapping.id}: {e}")
+            raise
 
     async def _sync_relationships(
         self, client: DynamicGrpcClient, product: DataProduct

@@ -209,7 +209,11 @@ class DynamicGrpcClient:
         }
 
     async def call_method(
-        self, service_name: str, method_name: str, request_data: Dict[str, Any]
+        self,
+        service_name: str,
+        method_name: str,
+        request_data: Dict[str, Any],
+        timeout: Optional[int] = 300,
     ) -> Dict[str, Any]:
         """动态调用 gRPC 方法"""
         service_desc = await self._load_service_reflection(service_name)
@@ -240,7 +244,7 @@ class DynamicGrpcClient:
                 request_serializer=lambda x: x,
                 response_deserializer=lambda x: x,
             )
-            response_bytes = await unary_call(request_bytes)
+            response_bytes = await unary_call(request_bytes, timeout=timeout)
 
             response_msg = OutputMessageClass()
             response_msg.ParseFromString(response_bytes)

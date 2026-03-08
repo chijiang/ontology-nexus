@@ -235,7 +235,10 @@
     "syncAllStartedDesc": "正在同步所有数据产品，这可能需要一些时间。",
     "syncAllSuccess": "全局同步成功",
     "syncAllFailed": "全局同步失败",
-    "syncAllFailedDesc": "同步所有数据产品时发生错误"
+    "syncAllFailedDesc": "同步所有数据产品时发生错误",
+    "syncSchedule": "同步计划",
+    "syncScheduleTitle": "同步计划 - {name}",
+    "syncScheduleDesc": "配置此数据产品的自动同步计划。"
   },
   "rules": {
     "title": "业务逻辑管理器",
@@ -336,7 +339,18 @@
     "logStatus": "状态",
     "logDetails": "详情",
     "loadLogsFailed": "加载执行日志失败",
-    "noLogs": "暂无执行日志"
+    "noLogs": "暂无执行日志",
+    "ruleSchedule": "执行计划",
+    "ruleScheduleTitle": "规则执行计划 - {name}",
+    "ruleScheduleDesc": "配置此规则的自动执行计划。",
+    "triggerOnTimer": "ON TIMER()",
+    "triggerOnTimerDesc": "定时触发器 (Cron/间隔)",
+    "scheduleType": "计划类型",
+    "cronExpression": "Cron 表达式",
+    "cronPlaceholder": "* * * * *",
+    "invalidCron": "无效的 Cron 表达式",
+    "saveScheduleSuccess": "计划保存成功",
+    "saveScheduleFailed": "计划保存失败"
   },
   "config": {
     "title": "配置管理",
@@ -704,6 +718,116 @@
       "addAlias": "添加别名",
       "yes": "是",
       "no": "否"
+    }
+  },
+  "scheduler": {
+    "tabs": {
+      "interval": "间隔",
+      "specific": "特定",
+      "advanced": "高级"
+    },
+    "interval": {
+      "every": "每隔",
+      "unit": "单位",
+      "second": "秒",
+      "minute": "分",
+      "hour": "时",
+      "day": "天",
+      "summary": "每 {value} {unit} 运行一次"
+    },
+    "specific": {
+      "frequency": "频率",
+      "hourly": "每小时",
+      "daily": "每天",
+      "weekly": "每周",
+      "monthly": "每月",
+      "atTime": "在时间",
+      "dayOfWeek": "星期几",
+      "dayOfMonth": "几号",
+      "summaryHourly": "每小时运行（在第 0 分）",
+      "summaryDaily": "每天 {time} 运行",
+      "summaryWeekly": "每周 {day} {time} 运行",
+      "summaryMonthly": "每月 {day} 号 {time} 运行"
+    },
+    "advanced": {
+      "cronExpression": "Cron 表达式",
+      "placeholder": "0 * * * *",
+      "help": "标准 5 位 Cron 格式：分 时 日 月 星期"
+    },
+    "days": {
+      "0": "星期日",
+      "1": "星期一",
+      "2": "星期二",
+      "3": "星期三",
+      "4": "星期四",
+      "5": "星期五",
+      "6": "星期六"
+    },
+    "panel": {
+      "title": "同步计划",
+      "description": "为 \"{name}\" 配置自动同步计划",
+      "triggerNow": "立即触发",
+      "triggering": "触发中...",
+      "statusEnabled": "已启用",
+      "statusDisabled": "已禁用",
+      "syncStatus": "同步状态",
+      "mappingEnabled": "启用映射",
+      "hasSchedule": "已配置定时",
+      "noSchedule": "仅手动同步",
+      "update": "更新",
+      "enableSync": "开启同步",
+      "delete": "删除",
+      "deleteConfirm": "确定要删除同步计划吗？",
+      "historyTitle": "同步历史",
+      "noHistory": "暂无同步历史",
+      "table": {
+        "status": "状态",
+        "started": "开始时间",
+        "duration": "耗时"
+      },
+      "messages": {
+        "saveSuccess": "同步计划保存成功",
+        "saveFailed": "同步计划保存失败",
+        "deleteSuccess": "同步计划已删除",
+        "deleteFailed": "同步计划删除失败",
+        "triggerSuccess": "同步已成功触发",
+        "triggerFailed": "同步触发失败"
+      }
+    },
+    "rulePanel": {
+      "title": "规则触发配置",
+      "description": "配置 \"{name}\" 的触发方式",
+      "modeLabel": "触发模式",
+      "modes": {
+        "event": "基于事件",
+        "eventDesc": "当特定事件发生时触发",
+        "scheduled": "定时触发",
+        "scheduledDesc": "按定义的计划触发"
+      },
+      "configTitle": "计划配置",
+      "createSchedule": "创建计划",
+      "updateSchedule": "更新计划",
+      "removeSchedule": "移除计划",
+      "removeConfirm": "确定要移除定时触发吗？该规则将仅基于事件触发。",
+      "infoEvent": "该规则将在系统发生特定事件时触发。请在规则定义中配置事件条件。",
+      "removeExisting": "移除现有计划",
+      "historyTitle": "执行历史",
+      "historyDesc": "最近的规则执行记录",
+      "noHistory": "暂无执行历史",
+      "table": {
+        "status": "状态",
+        "started": "开始时间",
+        "duration": "时长",
+        "triggeredBy": "触发者"
+      },
+      "messages": {
+        "modeUpdated": "规则触发模式已更新为 \"{mode}\"",
+        "updateFailed": "更新规则触发计划失败",
+        "removeSuccess": "已移除定时触发",
+        "removeFailed": "移除计划失败",
+        "triggerSuccess": "规则执行已成功触发",
+        "triggerFailed": "触规则执行失败"
+      }
     }
   },
   "toasts": {

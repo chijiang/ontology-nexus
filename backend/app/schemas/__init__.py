@@ -72,6 +72,32 @@ from app.schemas.config import (
     TestConnectionResponse,
 )
 
+from app.schemas.scheduled_task import (
+    # Enums
+    TaskTypeEnum,
+    TaskStatusEnum,
+    TriggeredByEnum,
+    CronTemplateTypeEnum,
+    # Scheduled Task Schemas
+    ScheduledTaskCreate,
+    ScheduledTaskUpdate,
+    ScheduledTaskResponse,
+    ScheduledTaskListResponse,
+    # Task Execution Schemas
+    TaskExecutionCreate,
+    TaskExecutionResponse,
+    TaskExecutionListResponse,
+    # Cron Template Schemas
+    CronTemplate,
+    CronTemplateListResponse,
+    # Manual Trigger Schema
+    ManualTriggerRequest,
+    ManualTriggerResponse,
+    # Validation/Status Schemas
+    CronValidationRequest,
+    CronValidationResponse,
+)
+
 __all__ = [
     # Enums from role.py
     'ApprovalStatus',
@@ -133,4 +159,28 @@ __all__ = [
     'LLMConfigRequest',
     'LLMConfigResponse',
     'TestConnectionResponse',
+
+    # Enums from scheduled_task.py
+    'TaskTypeEnum',
+    'TaskStatusEnum',
+    'TriggeredByEnum',
+    'CronTemplateTypeEnum',
+    # Scheduled Task Schemas
+    'ScheduledTaskCreate',
+    'ScheduledTaskUpdate',
+    'ScheduledTaskResponse',
+    'ScheduledTaskListResponse',
+    # Task Execution Schemas
+    'TaskExecutionCreate',
+    'TaskExecutionResponse',
+    'TaskExecutionListResponse',
+    # Cron Template Schemas
+    'CronTemplate',
+    'CronTemplateListResponse',
+    # Manual Trigger Schema
+    'ManualTriggerRequest',
+    'ManualTriggerResponse',
+    # Validation/Status Schemas
+    'CronValidationRequest',
+    'CronValidationResponse',
 ]

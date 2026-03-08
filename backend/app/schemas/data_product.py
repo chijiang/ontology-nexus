@@ -171,8 +171,9 @@ class EntityMappingResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # 附带属性映射数量
+    # 附带信息
     property_mapping_count: Optional[int] = 0
+    has_schedule: bool = False
 
     class Config:
         from_attributes = True

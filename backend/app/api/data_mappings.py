@@ -23,6 +23,7 @@ from app.models.data_product import (
     RelationshipMapping,
     SyncDirection,
 )
+from app.models.scheduled_task import ScheduledTask
 from app.schemas.data_product import (
     EntityMappingCreate,
     EntityMappingUpdate,
@@ -140,6 +141,18 @@ async def list_entity_mappings(
     result = await db.execute(query)
     mappings = result.scalars().all()
 
+    # Get all scheduled task target_ids for type='sync' to check existence
+    mapping_ids = [m.id for m in mappings]
+    has_schedule_map = {}
+    if mapping_ids:
+        schedule_result = await db.execute(
+            select(ScheduledTask.target_id)
+            .where(ScheduledTask.task_type == "sync")
+            .where(ScheduledTask.target_id.in_(mapping_ids))
+        )
+        scheduled_ids = set(schedule_result.scalars().all())
+        has_schedule_map = {mid: (mid in scheduled_ids) for mid in mapping_ids}
+
     return [
         EntityMappingResponse(
             id=m.id,
@@ -158,6 +171,7 @@ async def list_entity_mappings(
             created_at=m.created_at,
             updated_at=m.updated_at,
             property_mapping_count=len(m.property_mappings),
+            has_schedule=has_schedule_map.get(m.id, False),
         )
         for m in mappings
     ]
@@ -183,6 +197,15 @@ async def get_entity_mapping(
             detail=f"实体映射 ID={mapping_id} 不存在",
         )
 
+    # Check for schedule
+    schedule_result = await db.execute(
+        select(ScheduledTask.id)
+        .where(ScheduledTask.task_type == "sync")
+        .where(ScheduledTask.target_id == mapping_id)
+        .limit(1)
+    )
+    has_schedule = schedule_result.scalar_one_or_none() is not None
+
     return EntityMappingResponse(
         id=mapping.id,
         data_product_id=mapping.data_product_id,
@@ -202,6 +225,7 @@ async def get_entity_mapping(
         created_at=mapping.created_at,
         updated_at=mapping.updated_at,
         property_mapping_count=len(mapping.property_mappings),
+        has_schedule=has_schedule,
     )
 
 
@@ -240,6 +264,15 @@ async def update_entity_mapping(
     await db.commit()
     await db.refresh(mapping)
 
+    # Check for schedule
+    schedule_result = await db.execute(
+        select(ScheduledTask.id)
+        .where(ScheduledTask.task_type == "sync")
+        .where(ScheduledTask.target_id == mapping_id)
+        .limit(1)
+    )
+    has_schedule = schedule_result.scalar_one_or_none() is not None
+
     return EntityMappingResponse(
         id=mapping.id,
         data_product_id=mapping.data_product_id,
@@ -259,6 +292,7 @@ async def update_entity_mapping(
         created_at=mapping.created_at,
         updated_at=mapping.updated_at,
         property_mapping_count=len(mapping.property_mappings),
+        has_schedule=has_schedule,
     )
 
 

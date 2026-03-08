@@ -39,6 +39,14 @@ import { toast } from 'sonner'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { useTranslations } from 'next-intl'
+import { GenericSyncSchedulePanel } from './data-product/GenericSyncSchedulePanel'
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover"
+import { Clock } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 
 import { Selection, OntologyNode } from '@/types/ontology'
 
@@ -75,6 +83,7 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
         grpc_field: '',
         transformation: 'None'
     })
+    const [activeScheduleMappingId, setActiveScheduleMappingId] = useState<number | null>(null)
 
     const TRANSFORMATION_OPTIONS = [
         { label: `${t('mappings.transformNone')} (None)`, value: 'None' },
@@ -150,6 +159,20 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
             setProducts(res.data.items)
         } catch (err) {
             console.error('Failed to load products:', err)
+        }
+    }
+
+    const handleToggleSyncEnabled = async (mappingId: number, currentEnabled: boolean) => {
+        try {
+            await dataMappingsApi.updateEntityMapping(mappingId, {
+                sync_enabled: !currentEnabled
+            })
+            setEntityMappings(prev => prev.map(m =>
+                m.id === mappingId ? { ...m, sync_enabled: !currentEnabled } : m
+            ))
+            toast.success(!currentEnabled ? t('scheduler.panel.statusEnabled') : t('scheduler.panel.statusDisabled'))
+        } catch (error) {
+            toast.error(t('components.binding.unknownError'))
         }
     }
 
@@ -515,10 +538,43 @@ export function BindingDetailPanel({ selection, onUpdate, onClose }: BindingDeta
                                                     <Settings2 className="h-3 w-3" />
                                                     {t('components.binding.method')}: {m.list_method || t('common.notConfigured')}
                                                 </span>
-                                                <span className="flex items-center gap-1">
-                                                    <CheckCircle2 className={`h-3 w-3 ${m.sync_enabled ? 'text-green-500' : 'text-slate-300'}`} />
-                                                    {t('components.binding.sync')}: {m.sync_enabled ? t('components.binding.syncOn') : t('components.binding.syncOff')}
-                                                </span>
+                                                <div className="flex items-center gap-1.5 bg-slate-50/50 px-1.5 py-0.5 rounded border border-slate-100 hover:border-slate-200 transition-colors">
+                                                    <span className="text-[9px] text-slate-500 font-medium">{t('scheduler.panel.syncStatus')}:</span>
+                                                    <Switch
+                                                        checked={m.sync_enabled}
+                                                        onCheckedChange={() => handleToggleSyncEnabled(m.id, m.sync_enabled)}
+                                                        className="scale-[0.55] h-4 w-7 data-[state=checked]:bg-green-500 -ml-1"
+                                                    />
+                                                    <span className={m.sync_enabled ? 'text-green-600 font-medium' : 'text-slate-400'}>
+                                                        {m.sync_enabled ? t('scheduler.panel.statusEnabled') : t('scheduler.panel.statusDisabled')}
+                                                    </span>
+                                                </div>
+
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className={`h-5 w-5 hover:text-primary transition-colors ${m.has_schedule ? 'text-indigo-500 bg-indigo-50/50' : 'text-slate-400'}`}
+                                                            title={m.has_schedule ? t('scheduler.panel.hasSchedule') : t('scheduler.panel.noSchedule')}
+                                                        >
+                                                            <div className="relative">
+                                                                <Clock className="h-3 w-3" />
+                                                                {m.has_schedule && (
+                                                                    <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 bg-indigo-500 rounded-full border border-white" />
+                                                                )}
+                                                            </div>
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-80 p-4" align="end">
+                                                        <GenericSyncSchedulePanel
+                                                            targetId={m.id}
+                                                            targetName={m.grpc_message_type}
+                                                            targetType="mapping"
+                                                            showCard={false}
+                                                        />
+                                                    </PopoverContent>
+                                                </Popover>
                                             </div>
 
                                             {/* Property Mapping Section within each Entity Mapping */}

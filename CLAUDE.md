@@ -106,6 +106,34 @@ docker-compose up --build        # Start all services
 - Delete operations must call `registry.unregister()` to keep in-memory state in sync
 - `safe_eval()` used for property transform expressions (no `eval()`)
 
+### Scheduler Service
+
+The global scheduler provides automatic task execution for data synchronization and rule evaluation.
+
+**Architecture:**
+- APScheduler AsyncIOScheduler with SQLAlchemy job store for persistence
+- TaskExecutor handles actual execution with watchdog mechanisms
+- Tasks and executions stored in database for audit trail
+
+**Task Types:**
+- `sync`: Data product synchronization (pull data from external gRPC services)
+- `rule`: Scheduled rule evaluation (execute business rules on schedule)
+
+**Watchdog Mechanism:**
+- Concurrent task limiting: Semaphore with max_concurrent limit (default: 10)
+- Timeout control: asyncio.wait_for with task-specific timeout (default: 300s)
+- Smart retry: Network/temporary errors retry, validation errors don't
+- Error patterns in `RETRYABLE_ERROR_PATTERNS` and `NON_RETRYABLE_ERROR_PATTERNS`
+
+**API Endpoints:**
+- `/api/scheduled-tasks/` - Manage scheduled tasks
+- `/api/data-products/{id}/sync-schedule` - Data product sync schedules
+- `/api/rules/{id}/schedule` - Rule evaluation schedules
+
+**Configuration:**
+- `SCHEDULER_MAX_CONCURRENT` - Max concurrent tasks (default: 10)
+- `SCHEDULER_DEFAULT_TIMEOUT` - Default timeout in seconds (default: 300)
+
 ### Docker
 - Backend and frontend run as non-root users (`appuser`)
 - Health checks configured for all services

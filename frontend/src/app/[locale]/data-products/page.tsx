@@ -83,25 +83,6 @@ export default function DataProductsPage() {
     const [schemaContent, setSchemaContent] = useState('')
     const [savingSchema, setSavingSchema] = useState(false)
 
-    const [syncingAll, setSyncingAll] = useState(false)
-
-    const handleSyncAll = async () => {
-        try {
-            setSyncingAll(true)
-            toast.info(t('dataProducts.syncAllStarted'), {
-                description: t('dataProducts.syncAllStartedDesc'),
-            })
-            await dataProductsApi.triggerSyncAll()
-            toast.success(t('dataProducts.syncAllSuccess'))
-        } catch (error: any) {
-            toast.error(t('dataProducts.syncAllFailed'), {
-                description: error.response?.data?.detail || t('dataProducts.syncAllFailedDesc'),
-            })
-        } finally {
-            setSyncingAll(false)
-        }
-    }
-
     const handleOpenSchema = (product: any) => {
         setSelectedProductForSchema(product)
         setSchemaContent(product.proto_content || '')
@@ -134,6 +115,7 @@ export default function DataProductsPage() {
         service_name: '',
     })
     const [creating, setCreating] = useState(false)
+
 
     const loadProducts = async () => {
         try {
@@ -266,14 +248,6 @@ export default function DataProductsPage() {
                         </div>
 
                         <div className="flex gap-2">
-                            <Button
-                                variant="outline"
-                                onClick={handleSyncAll}
-                                disabled={syncingAll || loading}
-                            >
-                                <RefreshCw className={`w-4 h-4 mr-2 ${syncingAll ? 'animate-spin' : ''}`} />
-                                {syncingAll ? t('dataProducts.syncingAll') : t('dataProducts.syncAll')}
-                            </Button>
 
                             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                                 <DialogTrigger asChild>

@@ -45,18 +45,24 @@ import {
     Settings,
     Minus,
     History,
+    Calendar,
 } from 'lucide-react'
 import BusinessEditor, { Schema, parseActionSignature } from '@/components/business-editor'
+import { RuleSchedulePanel } from '@/components/rule/RuleSchedulePanel'
+import { CronTemplateSelector, type CronTemplate } from '@/components/scheduler'
+import { scheduledTasksApi } from '@/lib/api/scheduled-tasks'
 
 // Rule card component
 function RuleCard({
     rule,
     onEdit,
     onDelete,
+    onSchedule,
 }: {
     rule: RuleInfo
     onEdit: () => void
     onDelete: () => void
+    onSchedule: () => void
 }) {
     const t = useTranslations('rules')
     const tCommon = useTranslations('common')
@@ -91,6 +97,15 @@ function RuleCard({
                         <Button
                             variant="ghost"
                             size="sm"
+                            onClick={onSchedule}
+                            className="h-8 w-8 p-0 text-slate-500 hover:text-primary"
+                            title={t('ruleSchedule')}
+                        >
+                            <Calendar className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={onDelete}
                             className="h-8 w-8 p-0 text-slate-500 hover:text-red-600"
                             title={tCommon('delete')}
@@ -102,13 +117,16 @@ function RuleCard({
             </CardHeader>
             <CardContent className="pt-0">
                 <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${rule.trigger.type === 'TIMER' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
                         ON {rule.trigger.type}
                     </span>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                        {rule.trigger.entity}
-                        {rule.trigger.property && `.${rule.trigger.property}`}
-                    </span>
+                    {rule.trigger.type !== 'TIMER' && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                            {rule.trigger.entity}
+                            {rule.trigger.property && `.${rule.trigger.property}`}
+                        </span>
+                    )}
                     {rule.is_active ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             <CheckCircle className="h-3 w-3 mr-1" />
@@ -278,6 +296,12 @@ function RuleEditorDialog({
         property: ''
     })
     const [isCustomProperty, setIsCustomProperty] = useState(false)
+    const [cronTemplate, setCronTemplate] = useState<CronTemplate>({
+        type: 'interval',
+        interval_value: 1,
+        interval_unit: 'hour'
+    })
+    const [hasSchedule, setHasSchedule] = useState(false)
     const token = useAuthStore((state) => state.token)
 
     useEffect(() => {
@@ -294,11 +318,34 @@ function RuleEditorDialog({
             } else {
                 setIsCustomProperty(false)
             }
+
+            // Fetch schedule if any
+            rulesApi.getSchedule(rule.name).then(res => {
+                if (res.data) {
+                    setHasSchedule(true)
+                    // Try to parse cron expression into template if possible
+                    // For now we just use advanced with the existing expr or default
+                    setCronTemplate({
+                        type: 'advanced',
+                        advanced: res.data.cron_expression
+                    })
+                } else {
+                    setHasSchedule(false)
+                }
+            }).catch(() => {
+                setHasSchedule(false)
+            })
         } else {
             setName('')
             setPriority(100)
             setIsActive(true)
             setIsCustomProperty(false)
+            setHasSchedule(false)
+            setCronTemplate({
+                type: 'interval',
+                interval_value: 1,
+                interval_unit: 'hour'
+            })
             setTrigger({
                 type: 'UPDATE',
                 entity: 'Entity',
@@ -351,6 +398,16 @@ RULE NewRule PRIORITY 100 {
                 })
                 toast.success(t('ruleCreated'))
             }
+
+            // Save schedule if trigger is TIMER
+            if (trigger.type === 'TIMER') {
+                await rulesApi.setSchedule(name.trim() || (rule?.name || ''), cronTemplate)
+            } else if (hasSchedule && rule) {
+                // If it was changed from TIMER to something else, we might want to delete it
+                // but usually it's safer to just let it be or ask
+                // For now, let's just keep it simple
+            }
+
             onSave()
             onClose()
         } catch (err: any) {
@@ -489,6 +546,7 @@ RULE NewRule PRIORITY 100 {
                                                 <option value="UPDATE">UPDATE</option>
                                                 <option value="CREATE">CREATE</option>
                                                 <option value="DELETE">DELETE</option>
+                                                <option value="TIMER">TIMER</option>
                                             </select>
                                         </div>
                                         <div className="space-y-1.5">
@@ -496,7 +554,8 @@ RULE NewRule PRIORITY 100 {
                                             <select
                                                 value={trigger.entity}
                                                 onChange={(e) => setTrigger({ ...trigger, entity: e.target.value, property: '' })}
-                                                className="w-full bg-white border border-amber-200 text-slate-700 text-xs rounded px-2 py-1.5 outline-none"
+                                                disabled={trigger.type === 'TIMER'}
+                                                className="w-full bg-white border border-amber-200 text-slate-700 text-xs rounded px-2 py-1.5 outline-none disabled:bg-amber-50/50"
                                             >
                                                 <option value="">{t('selectEntity')}</option>
                                                 {schema.nodes.map(n => <option key={n.name} value={n.name}>{n.name}</option>)}
@@ -529,7 +588,8 @@ RULE NewRule PRIORITY 100 {
                                                     <Input
                                                         value={trigger.property || ''}
                                                         onChange={(e) => setTrigger({ ...trigger, property: e.target.value })}
-                                                        className="h-7 text-xs py-1 px-2 border-amber-200 focus:ring-amber-500 focus:ring-1 outline-none"
+                                                        disabled={trigger.type !== 'UPDATE'}
+                                                        className="h-7 text-xs py-1 px-2 border-amber-200 focus:ring-amber-500 focus:ring-1 outline-none disabled:bg-amber-50/50"
                                                         placeholder={t('inputProperty')}
                                                         autoFocus
                                                     />
@@ -537,6 +597,7 @@ RULE NewRule PRIORITY 100 {
                                                         variant="ghost"
                                                         size="sm"
                                                         className="h-7 px-1.5 text-amber-600 hover:bg-amber-100 text-[10px]"
+                                                        disabled={trigger.type !== 'UPDATE'}
                                                         onClick={() => {
                                                             setIsCustomProperty(false)
                                                             setTrigger({ ...trigger, property: '' })
@@ -548,6 +609,18 @@ RULE NewRule PRIORITY 100 {
                                             )}
                                         </div>
                                     </div>
+
+                                    {trigger.type === 'TIMER' && (
+                                        <div className="mt-4 pt-4 border-t border-amber-200 space-y-3">
+                                            <h4 className="text-[10px] font-bold text-amber-700 uppercase flex items-center gap-1">
+                                                <Calendar size={12} /> {t('ruleSchedule')}
+                                            </h4>
+                                            <CronTemplateSelector
+                                                value={cronTemplate}
+                                                onChange={setCronTemplate}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <BusinessEditor
@@ -1068,6 +1141,15 @@ export default function RulesPage() {
     const [actionsLoading, setActionsLoading] = useState(false)
     const [actionEditorOpen, setActionEditorOpen] = useState(false)
     const [editingAction, setEditingAction] = useState<ActionDetail | null>(null)
+
+    // Schedule panel state
+    const [scheduleRuleDialogOpen, setScheduleRuleDialogOpen] = useState(false)
+    const [selectedRuleForSchedule, setSelectedRuleForSchedule] = useState<RuleInfo | null>(null)
+
+    const handleOpenRuleSchedule = (rule: RuleInfo) => {
+        setSelectedRuleForSchedule(rule)
+        setScheduleRuleDialogOpen(true)
+    }
     const [deletingAction, setDeletingAction] = useState<ActionInfo | null>(null)
 
     // Logs state
@@ -1284,6 +1366,7 @@ export default function RulesPage() {
                                             rule={rule}
                                             onEdit={() => handleEditRule(rule)}
                                             onDelete={() => setDeletingRule(rule)}
+                                            onSchedule={() => handleOpenRuleSchedule(rule)}
                                         />
                                     ))}
                                 </div>
@@ -1404,6 +1487,24 @@ export default function RulesPage() {
                 </div>
 
                 {/* Rule Editor Dialog */}
+                {/* Rule Schedule Dialog */}
+                <Dialog open={scheduleRuleDialogOpen} onOpenChange={setScheduleRuleDialogOpen}>
+                    <DialogContent className="max-w-3xl">
+                        <DialogHeader>
+                            <DialogTitle>{t('ruleScheduleTitle', { name: selectedRuleForSchedule?.name || '' })}</DialogTitle>
+                            <DialogDescription>
+                                {t('ruleScheduleDesc')}
+                            </DialogDescription>
+                        </DialogHeader>
+                        {selectedRuleForSchedule && (
+                            <RuleSchedulePanel
+                                ruleId={selectedRuleForSchedule.id}
+                                ruleName={selectedRuleForSchedule.name}
+                            />
+                        )}
+                    </DialogContent>
+                </Dialog>
+
                 <RuleEditorDialog
                     open={ruleEditorOpen}
                     onClose={() => setRuleEditorOpen(false)}

@@ -5,11 +5,19 @@
 提供数据产品的注册、配置、连接测试和 Schema 发现功能。
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    BackgroundTasks,
+    Request,
+    Query,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime, timezone
 import logging
 
@@ -36,6 +44,16 @@ from app.schemas.data_product import (
 )
 from app.services.grpc_client import DynamicGrpcClient
 from app.services.sync_service import SyncService
+from app.models.scheduled_task import ScheduledTask, TaskExecution as TaskExecutionModel
+from app.schemas.scheduled_task import (
+    ScheduledTaskResponse,
+    TaskExecutionResponse,
+    ScheduledTaskUpdate,
+)
+from app.repositories.scheduled_task_repository import (
+    ScheduledTaskRepository,
+    TaskExecutionRepository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -490,3 +508,228 @@ async def list_sync_logs(
     """查询同步日志"""
     sync_service = SyncService(db)
     return await sync_service.get_sync_logs(product_id=product_id, limit=limit)
+
+
+# ============================================================================
+# Convenience Scheduling Endpoints
+# ============================================================================
+
+
+@router.get(
+    "/{product_id}/sync-schedule", response_model=Optional[ScheduledTaskResponse]
+)
+async def get_product_sync_schedule(
+    product_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """获取数据产品的同步计划"""
+    repo = ScheduledTaskRepository(db)
+    return await repo.get_by_target("sync", product_id)
+
+
+@router.put("/{product_id}/sync-schedule", response_model=ScheduledTaskResponse)
+async def set_product_sync_schedule(
+    product_id: int,
+    request_data: dict,  # CronTemplate from frontend
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """设置或更新数据产品的同步计划"""
+    repo = ScheduledTaskRepository(db)
+    existing = await repo.get_by_target("sync", product_id)
+
+    # Convert frontend CronTemplate to ScheduledTask fields
+    cron_expr = request_data.get("advanced")
+    if request_data.get("type") == "interval":
+        val = request_data.get("interval_value", 1)
+        unit = request_data.get("interval_unit", "hour")
+        if unit == "minute":
+            cron_expr = f"*/{val} * * * *"
+        elif unit == "hour":
+            cron_expr = f"0 */{val} * * *"
+        elif unit == "day":
+            cron_expr = f"0 0 */{val} * *"
+    elif request_data.get("type") == "specific":
+        freq = request_data.get("frequency", "daily")
+        time_parts = request_data.get("time", "00:00").split(":")
+        minute, hour = time_parts[1], time_parts[0]
+        if freq == "daily":
+            cron_expr = f"{minute} {hour} * * *"
+        elif freq == "weekly":
+            dow = request_data.get("day_of_week", 0)
+            cron_expr = f"{minute} {hour} * * {dow}"
+        elif freq == "monthly":
+            dom = request_data.get("day_of_month", 1)
+            cron_expr = f"{minute} {hour} {dom} * *"
+
+    if not cron_expr:
+        raise HTTPException(status_code=400, detail="Invalid cron configuration")
+
+    task_data = {
+        "task_type": "sync",
+        "task_name": f"Sync Task for Product {product_id}",
+        "target_id": product_id,
+        "cron_expression": cron_expr,
+        "is_enabled": True,
+    }
+
+    if existing:
+        updated = await repo.update(existing.id, task_data)
+        scheduler_service = request.app.state.scheduler_service
+        await scheduler_service.reschedule_task(updated)
+        return updated
+    else:
+        new_task = ScheduledTask(**task_data)
+        created = await repo.create(new_task)
+        scheduler_service = request.app.state.scheduler_service
+        await scheduler_service.schedule_task(created)
+        return created
+
+
+@router.delete("/{product_id}/sync-schedule", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product_sync_schedule(
+    product_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """删除数据产品的同步计划"""
+    repo = ScheduledTaskRepository(db)
+    task = await repo.get_by_target("sync", product_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Sync schedule not found")
+
+    await repo.delete(task.id)
+    scheduler_service = request.app.state.scheduler_service
+    await scheduler_service.unschedule_task(task.id)
+
+
+@router.get("/{product_id}/sync-history", response_model=List[TaskExecutionResponse])
+async def get_product_sync_history(
+    product_id: int,
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取数据产品的同步历史（从调度执行记录中获取）"""
+    task_repo = ScheduledTaskRepository(db)
+    task = await task_repo.get_by_target("sync", product_id)
+    if not task:
+        return []
+
+    exec_repo = TaskExecutionRepository(db)
+    return await exec_repo.list_by_task(task.id, limit=limit)
+
+
+# ============================================================================
+# Granular Mapping Scheduling Endpoints
+# ============================================================================
+
+
+@router.get(
+    "/mappings/{mapping_id}/sync-schedule",
+    response_model=Optional[ScheduledTaskResponse],
+)
+async def get_mapping_sync_schedule(
+    mapping_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """获取实体映射的同步计划"""
+    repo = ScheduledTaskRepository(db)
+    return await repo.get_by_target("sync_mapping", mapping_id)
+
+
+@router.put(
+    "/mappings/{mapping_id}/sync-schedule", response_model=ScheduledTaskResponse
+)
+async def set_mapping_sync_schedule(
+    mapping_id: int,
+    request_data: dict,  # CronTemplate from frontend
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """设置或更新实体映射的同步计划"""
+    repo = ScheduledTaskRepository(db)
+    existing = await repo.get_by_target("sync_mapping", mapping_id)
+
+    # Convert frontend CronTemplate to ScheduledTask fields (reuse logic from product level)
+    cron_expr = request_data.get("advanced")
+    if request_data.get("type") == "interval":
+        val = request_data.get("interval_value", 1)
+        unit = request_data.get("interval_unit", "hour")
+        if unit == "minute":
+            cron_expr = f"*/{val} * * * *"
+        elif unit == "hour":
+            cron_expr = f"0 */{val} * * *"
+        elif unit == "day":
+            cron_expr = f"0 0 */{val} * *"
+    elif request_data.get("type") == "specific":
+        freq = request_data.get("frequency", "daily")
+        time_parts = request_data.get("time", "00:00").split(":")
+        minute, hour = time_parts[1], time_parts[0]
+        if freq == "daily":
+            cron_expr = f"{minute} {hour} * * *"
+        elif freq == "weekly":
+            dow = request_data.get("day_of_week", 0)
+            cron_expr = f"{minute} {hour} * * {dow}"
+        elif freq == "monthly":
+            dom = request_data.get("day_of_month", 1)
+            cron_expr = f"{minute} {hour} {dom} * *"
+
+    if not cron_expr:
+        raise HTTPException(status_code=400, detail="Invalid cron configuration")
+
+    task_data = {
+        "task_type": "sync_mapping",
+        "task_name": f"Sync Task for Mapping {mapping_id}",
+        "target_id": mapping_id,
+        "cron_expression": cron_expr,
+        "is_enabled": True,
+    }
+
+    if existing:
+        updated = await repo.update(existing.id, task_data)
+        scheduler_service = request.app.state.scheduler_service
+        await scheduler_service.reschedule_task(updated)
+        return updated
+    else:
+        new_task = ScheduledTask(**task_data)
+        created = await repo.create(new_task)
+        scheduler_service = request.app.state.scheduler_service
+        await scheduler_service.schedule_task(created)
+        return created
+
+
+@router.delete(
+    "/mappings/{mapping_id}/sync-schedule", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_mapping_sync_schedule(
+    mapping_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """删除实体映射的同步计划"""
+    repo = ScheduledTaskRepository(db)
+    task = await repo.get_by_target("sync_mapping", mapping_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Mapping sync schedule not found")
+
+    await repo.delete(task.id)
+    scheduler_service = request.app.state.scheduler_service
+    await scheduler_service.unschedule_task(task.id)
+
+
+@router.get(
+    "/mappings/{mapping_id}/sync-history", response_model=List[TaskExecutionResponse]
+)
+async def get_mapping_sync_history(
+    mapping_id: int,
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取实体映射的同步历史"""
+    task_repo = ScheduledTaskRepository(db)
+    task = await task_repo.get_by_target("sync_mapping", mapping_id)
+    if not task:
+        return []
+
+    exec_repo = TaskExecutionRepository(db)
+    return await exec_repo.list_by_task(task.id, limit=limit)

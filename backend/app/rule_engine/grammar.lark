@@ -19,9 +19,9 @@ rule_def: "RULE" CNAME priority? "{" trigger for_clause "}"
 
 priority: "PRIORITY" NUMBER
 
-trigger: "ON" trigger_type "(" trigger_target ")"
+trigger: "ON" trigger_type "(" trigger_target? ")"
 
-trigger_type: UPDATE | CREATE | DELETE | LINK | SCAN
+trigger_type: UPDATE | CREATE | DELETE | LINK | SCAN | TIMER
 trigger_target: CNAME ["." CNAME]
 
 UPDATE: "UPDATE"
@@ -29,6 +29,7 @@ CREATE: "CREATE"
 DELETE: "DELETE"
 LINK: "LINK"
 SCAN: "SCAN"
+TIMER: "TIMER"
 
 // Scope and Statements
 for_clause: "FOR" "(" binding ")" "{" statement* "}"

@@ -235,7 +235,10 @@
     "syncAllStartedDesc": "Syncing all data products. This may take a while.",
     "syncAllSuccess": "Global sync completed successfully",
     "syncAllFailed": "Global sync failed",
-    "syncAllFailedDesc": "Failed to sync all data products"
+    "syncAllFailedDesc": "Failed to sync all data products",
+    "syncSchedule": "Schedule",
+    "syncScheduleTitle": "Sync Schedule - {name}",
+    "syncScheduleDesc": "Configure automatic synchronization for this data product."
   },
   "rules": {
     "title": "Business Logic Manager",
@@ -336,7 +339,10 @@
     "logStatus": "Status",
     "logDetails": "Details",
     "loadLogsFailed": "Failed to load execution logs",
-    "noLogs": "No execution logs"
+    "noLogs": "No execution logs",
+    "ruleSchedule": "Schedule",
+    "ruleScheduleTitle": "Rule Execution Schedule - {name}",
+    "ruleScheduleDesc": "Configure when this rule should be automatically evaluated."
   },
   "config": {
     "title": "Configuration Management",
@@ -704,6 +710,117 @@
       "addAlias": "Add Alias",
       "yes": "Yes",
       "no": "No"
+    }
+  },
+  "scheduler": {
+    "tabs": {
+      "interval": "Interval",
+      "specific": "Specific",
+      "advanced": "Advanced"
+    },
+    "interval": {
+      "every": "Every",
+      "unit": "Unit",
+      "second": "Second(s)",
+      "minute": "Minute(s)",
+      "hour": "Hour(s)",
+      "day": "Day(s)",
+      "summary": "Runs every {value} {unit}{plural}"
+    },
+    "specific": {
+      "frequency": "Frequency",
+      "hourly": "Hourly",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "atTime": "At time",
+      "dayOfWeek": "Day of week",
+      "dayOfMonth": "Day of month",
+      "summaryHourly": "Runs every hour at minute 0",
+      "summaryDaily": "Runs daily at {time}",
+      "summaryWeekly": "Runs on {day} at {time}",
+      "summaryMonthly": "Runs on day {day} of each month at {time}"
+    },
+    "advanced": {
+      "cronExpression": "Cron expression",
+      "placeholder": "0 * * * *",
+      "help": "Standard 5-field cron format: minute hour day month day-of-week"
+    },
+    "days": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "panel": {
+      "title": "Sync Schedule",
+      "description": "Configure automatic synchronization for \"{name}\"",
+      "triggerNow": "Trigger Now",
+      "triggering": "Triggering...",
+      "statusEnabled": "Enabled",
+      "statusDisabled": "Disabled",
+      "syncStatus": "Sync status",
+      "mappingEnabled": "Enable Mapping",
+      "hasSchedule": "Scheduled",
+      "noSchedule": "Manual only",
+      "update": "Update",
+      "enableSync": "Enable Sync",
+      "delete": "Delete",
+      "deleteConfirm": "Are you sure you want to delete the sync schedule?",
+      "historyTitle": "Sync History",
+      "noHistory": "No sync history yet",
+      "table": {
+        "status": "Status",
+        "started": "Started",
+        "duration": "Dur"
+      },
+      "messages": {
+        "saveSuccess": "Sync schedule saved successfully",
+        "saveFailed": "Failed to save sync schedule",
+        "deleteSuccess": "Sync schedule deleted",
+        "deleteFailed": "Failed to delete sync schedule",
+        "triggerSuccess": "Sync triggered successfully",
+        "triggerFailed": "Failed to trigger sync"
+      }
+    },
+    "rulePanel": {
+      "title": "Rule Trigger Configuration",
+      "description": "Configure how \"{name}\" should be triggered",
+      "triggerNow": "Trigger Now",
+      "modeLabel": "Trigger Mode",
+      "modes": {
+        "event": "Event-based",
+        "eventDesc": "Trigger when specific events occur",
+        "scheduled": "Scheduled",
+        "scheduledDesc": "Trigger on a defined schedule"
+      },
+      "configTitle": "Schedule Configuration",
+      "createSchedule": "Create Schedule",
+      "updateSchedule": "Update Schedule",
+      "removeSchedule": "Remove Schedule",
+      "removeConfirm": "Are you sure you want to remove the scheduled trigger? The rule will only trigger on events.",
+      "infoEvent": "This rule will be triggered when specific events occur in the system. Configure the event conditions in the rule definition.",
+      "removeExisting": "Remove Existing Schedule",
+      "historyTitle": "Execution History",
+      "historyDesc": "Recent rule executions",
+      "noHistory": "No execution history yet",
+      "table": {
+        "status": "Status",
+        "started": "Started",
+        "duration": "Duration",
+        "triggeredBy": "Triggered By"
+      },
+      "messages": {
+        "modeUpdated": "Rule trigger mode updated to \"{mode}\"",
+        "updateFailed": "Failed to update rule schedule",
+        "removeSuccess": "Scheduled trigger removed",
+        "removeFailed": "Failed to remove schedule",
+        "triggerSuccess": "Rule execution triggered successfully",
+        "triggerFailed": "Failed to trigger rule execution"
+      }
     }
   },
   "toasts": {

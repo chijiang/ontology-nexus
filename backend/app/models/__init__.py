@@ -26,6 +26,7 @@ from app.models.role import (
     RoleEntityPermission,
 )
 from app.models.mcp_config import MCPConfig
+from app.models.scheduled_task import ScheduledTask, TaskExecution
 
 __all__ = [
     "User",
@@ -51,4 +52,6 @@ __all__ = [
     "RoleActionPermission",
     "RoleEntityPermission",
     "MCPConfig",
+    "ScheduledTask",
+    "TaskExecution",
 ]

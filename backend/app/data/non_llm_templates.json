@@ -3,7 +3,8 @@
         "id": "query_object_status",
         "patterns": [
             "订单{id}的状态是怎样的？",
-            "{id}的状态是怎样的？"
+            "{id}的状态是怎样的？",
+            "查询订单{id}的状态"
         ],
         "tool": "search_instances",
         "args": {
@@ -15,7 +16,8 @@
     {
         "id": "query_supplier_open_orders",
         "patterns": [
-            "供应商{name}有多少未关闭的订单？"
+            "供应商{name}有多少未关闭的订单？",
+            "查询供应商{name}的未关闭订单"
         ],
         "tool": "get_instance_neighbors",
         "args": {

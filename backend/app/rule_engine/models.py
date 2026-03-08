@@ -11,6 +11,7 @@ class TriggerType(Enum):
     DELETE = "DELETE"
     LINK = "LINK"
     SCAN = "SCAN"
+    TIMER = "TIMER"
 
 
 @dataclass

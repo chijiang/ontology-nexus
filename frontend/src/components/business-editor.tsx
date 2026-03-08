@@ -927,7 +927,11 @@ export default function BusinessEditor({ mode, initialDsl, onDslChange, schema, 
             let dsl = `RULE ${meta.name || 'UntitledRule'} PRIORITY ${meta.priority || 100} {\n`;
             if (meta.trigger) {
                 const t = meta.trigger;
-                dsl += `    ON ${t.type}(${t.entity}${t.type === 'UPDATE' && t.property ? '.' + t.property : ''})\n\n`;
+                if (t.type === 'TIMER') {
+                    dsl += `    ON TIMER()\n\n`;
+                } else {
+                    dsl += `    ON ${t.type}(${t.entity}${t.type === 'UPDATE' && t.property ? '.' + t.property : ''})\n\n`;
+                }
             }
             dsl += renderLevel(statements);
             dsl += `}`;

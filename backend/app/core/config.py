@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
 
+    # Scheduler Settings
+    SCHEDULER_MAX_CONCURRENT: int = 10
+    SCHEDULER_DEFAULT_TIMEOUT: int = 300
+
     @property
     def effective_database_url(self) -> str:
         """获取有效的数据库 URL

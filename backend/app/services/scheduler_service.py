@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 _global_scheduler_instance: Optional["SchedulerService"] = None
 
 
-def _parse_cron_expression(cron_expr: str, timezone: str = "UTC") -> CronTrigger:
+def parse_cron_expression(cron_expr: str, timezone: str = "UTC") -> CronTrigger:
     """Parse cron expression supporting 5, 6, or 7 parts.
 
     Args:
@@ -250,7 +250,7 @@ class SchedulerService:
         # 6 parts: second minute hour day month weekday
         # 7 parts: second minute hour day month weekday year
         try:
-            trigger = _parse_cron_expression(task.cron_expression, timezone="UTC")
+            trigger = parse_cron_expression(task.cron_expression, timezone="UTC")
         except Exception as e:
             raise ValueError(f"Invalid cron expression '{task.cron_expression}': {e}")
 

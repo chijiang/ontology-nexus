@@ -20,6 +20,34 @@ from app.repositories.scheduled_task_repository import ScheduledTaskRepository
 
 
 @pytest.fixture
+async def admin_headers(async_client: AsyncClient):
+    """Create admin auth headers for testing."""
+    from app.main import app
+    from app.api.deps import get_current_user, require_admin
+    from app.models.user import User
+
+    mock_user = User(
+        id=1,
+        username="testadmin",
+        email="admin@example.com",
+        is_admin=True,
+        approval_status="approved",
+    )
+
+    def mock_get_current_user():
+        return mock_user
+
+    def mock_require_admin():
+        return mock_user
+
+    app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[require_admin] = mock_require_admin
+    yield {"Authorization": "Bearer mock-admin-token"}
+    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(require_admin, None)
+
+
+@pytest.fixture
 async def sample_task(db: AsyncSession):
     """Create a sample scheduled task for testing."""
     repo = ScheduledTaskRepository(db)
@@ -76,7 +104,7 @@ async def multiple_tasks(db: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_create_scheduled_task(async_client: AsyncClient, db: AsyncSession):
+async def test_create_scheduled_task(async_client: AsyncClient, admin_headers, db: AsyncSession):
     """Test creating a new scheduled task."""
     response = await async_client.post(
         "/api/scheduled-tasks/",
@@ -110,7 +138,7 @@ async def test_create_scheduled_task(async_client: AsyncClient, db: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_create_task_with_invalid_cron(async_client: AsyncClient):
+async def test_create_task_with_invalid_cron(async_client: AsyncClient, admin_headers):
     """Test creating a task with invalid cron expression fails."""
     response = await async_client.post(
         "/api/scheduled-tasks/",
@@ -125,9 +153,7 @@ async def test_create_task_with_invalid_cron(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_create_task_duplicate_target(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_create_task_duplicate_target(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test creating duplicate task for same target fails."""
     response = await async_client.post(
         "/api/scheduled-tasks/",
@@ -143,7 +169,7 @@ async def test_create_task_duplicate_target(
 
 
 @pytest.mark.asyncio
-async def test_create_task_rule_type(async_client: AsyncClient, db: AsyncSession):
+async def test_create_task_rule_type(async_client: AsyncClient, admin_headers, db: AsyncSession):
     """Test creating a rule-type scheduled task."""
     response = await async_client.post(
         "/api/scheduled-tasks/",
@@ -166,9 +192,7 @@ async def test_create_task_rule_type(async_client: AsyncClient, db: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_create_task_with_all_fields(
-    async_client: AsyncClient, db: AsyncSession
-):
+async def test_create_task_with_all_fields(async_client: AsyncClient, admin_headers, db: AsyncSession):
     """Test creating a task with all optional fields."""
     response = await async_client.post(
         "/api/scheduled-tasks/",
@@ -198,15 +222,28 @@ async def test_create_task_with_all_fields(
     await repo.delete(data["id"])
 
 
+@pytest.mark.asyncio
+async def test_create_task_without_auth(async_client: AsyncClient):
+    """Test creating a task without authentication fails."""
+    response = await async_client.post(
+        "/api/scheduled-tasks/",
+        json={
+            "task_type": "sync",
+            "task_name": "Unauthorized Task",
+            "target_id": 1,
+            "cron_expression": "0 * * * *",
+        },
+    )
+    assert response.status_code == 401  # Unauthorized
+
+
 # ============================================================================
 # List Scheduled Tasks Tests
 # ============================================================================
 
 
 @pytest.mark.asyncio
-async def test_list_scheduled_tasks(
-    async_client: AsyncClient, multiple_tasks: list[ScheduledTask]
-):
+async def test_list_scheduled_tasks(async_client: AsyncClient, admin_headers, multiple_tasks: list[ScheduledTask]):
     """Test listing all scheduled tasks."""
     response = await async_client.get("/api/scheduled-tasks/")
     assert response.status_code == 200
@@ -217,9 +254,7 @@ async def test_list_scheduled_tasks(
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_with_type_filter(
-    async_client: AsyncClient, multiple_tasks: list[ScheduledTask]
-):
+async def test_list_tasks_with_type_filter(async_client: AsyncClient, admin_headers, multiple_tasks: list[ScheduledTask]):
     """Test filtering tasks by type."""
     response = await async_client.get("/api/scheduled-tasks/?task_type=sync")
     assert response.status_code == 200
@@ -228,9 +263,7 @@ async def test_list_tasks_with_type_filter(
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_with_enabled_filter(
-    async_client: AsyncClient, multiple_tasks: list[ScheduledTask]
-):
+async def test_list_tasks_with_enabled_filter(async_client: AsyncClient, admin_headers, multiple_tasks: list[ScheduledTask]):
     """Test filtering tasks by enabled status."""
     response = await async_client.get("/api/scheduled-tasks/?is_enabled=true")
     assert response.status_code == 200
@@ -239,9 +272,7 @@ async def test_list_tasks_with_enabled_filter(
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_with_pagination(
-    async_client: AsyncClient, multiple_tasks: list[ScheduledTask]
-):
+async def test_list_tasks_with_pagination(async_client: AsyncClient, admin_headers, multiple_tasks: list[ScheduledTask]):
     """Test pagination of tasks list."""
     # Get first page
     response = await async_client.get("/api/scheduled-tasks/?limit=2&offset=0")
@@ -251,12 +282,10 @@ async def test_list_tasks_with_pagination(
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_empty_list(async_client: AsyncClient):
-    """Test listing tasks when none exist (after filtering)."""
-    response = await async_client.get("/api/scheduled-tasks/?task_type=rule")
-    assert response.status_code == 200
-    data = response.json()
-    assert isinstance(data["items"], list)
+async def test_list_tasks_without_auth(async_client: AsyncClient):
+    """Test listing tasks without authentication fails."""
+    response = await async_client.get("/api/scheduled-tasks/")
+    assert response.status_code == 401  # Unauthorized
 
 
 # ============================================================================
@@ -265,9 +294,7 @@ async def test_list_tasks_empty_list(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_get_task_by_id(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_get_task_by_id(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test retrieving a task by ID."""
     response = await async_client.get(f"/api/scheduled-tasks/{sample_task.id}")
     assert response.status_code == 200
@@ -278,11 +305,18 @@ async def test_get_task_by_id(
 
 
 @pytest.mark.asyncio
-async def test_get_task_not_found(async_client: AsyncClient):
+async def test_get_task_not_found(async_client: AsyncClient, admin_headers):
     """Test retrieving non-existent task returns 404."""
     response = await async_client.get("/api/scheduled-tasks/99999")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_get_task_without_auth(async_client: AsyncClient):
+    """Test getting a task without authentication fails."""
+    response = await async_client.get("/api/scheduled-tasks/1")
+    assert response.status_code == 401  # Unauthorized
 
 
 # ============================================================================
@@ -291,9 +325,7 @@ async def test_get_task_not_found(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_update_task_name(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_update_task_name(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test updating task name."""
     new_name = "Updated Task Name"
     response = await async_client.put(
@@ -307,9 +339,7 @@ async def test_update_task_name(
 
 
 @pytest.mark.asyncio
-async def test_update_task_cron_expression(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_update_task_cron_expression(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test updating task cron expression."""
     new_cron = "0 */2 * * *"
     response = await async_client.put(
@@ -322,9 +352,7 @@ async def test_update_task_cron_expression(
 
 
 @pytest.mark.asyncio
-async def test_update_task_multiple_fields(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_update_task_multiple_fields(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test updating multiple task fields."""
     response = await async_client.put(
         f"/api/scheduled-tasks/{sample_task.id}",
@@ -342,9 +370,7 @@ async def test_update_task_multiple_fields(
 
 
 @pytest.mark.asyncio
-async def test_update_task_with_invalid_values(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_update_task_with_invalid_values(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test updating task with invalid values fails."""
     response = await async_client.put(
         f"/api/scheduled-tasks/{sample_task.id}",
@@ -354,7 +380,7 @@ async def test_update_task_with_invalid_values(
 
 
 @pytest.mark.asyncio
-async def test_update_task_not_found(async_client: AsyncClient):
+async def test_update_task_not_found(async_client: AsyncClient, admin_headers):
     """Test updating non-existent task returns 404."""
     response = await async_client.put(
         "/api/scheduled-tasks/99999",
@@ -364,9 +390,7 @@ async def test_update_task_not_found(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_update_task_no_changes(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_update_task_no_changes(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test updating task with no changes returns current task."""
     response = await async_client.put(
         f"/api/scheduled-tasks/{sample_task.id}",
@@ -377,13 +401,23 @@ async def test_update_task_no_changes(
     assert data["id"] == sample_task.id
 
 
+@pytest.mark.asyncio
+async def test_update_task_without_auth(async_client: AsyncClient):
+    """Test updating a task without authentication fails."""
+    response = await async_client.put(
+        "/api/scheduled-tasks/1",
+        json={"task_name": "Hacked Name"},
+    )
+    assert response.status_code == 401  # Unauthorized
+
+
 # ============================================================================
 # Delete Scheduled Task Tests
 # ============================================================================
 
 
 @pytest.mark.asyncio
-async def test_delete_task(async_client: AsyncClient, db: AsyncSession):
+async def test_delete_task(async_client: AsyncClient, admin_headers, db: AsyncSession):
     """Test deleting a task."""
     # First create a task
     repo = ScheduledTaskRepository(db)
@@ -405,10 +439,17 @@ async def test_delete_task(async_client: AsyncClient, db: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_delete_task_not_found(async_client: AsyncClient):
+async def test_delete_task_not_found(async_client: AsyncClient, admin_headers):
     """Test deleting non-existent task returns 404."""
     response = await async_client.delete("/api/scheduled-tasks/99999")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_task_without_auth(async_client: AsyncClient):
+    """Test deleting a task without authentication fails."""
+    response = await async_client.delete("/api/scheduled-tasks/1")
+    assert response.status_code == 401  # Unauthorized
 
 
 # ============================================================================
@@ -417,9 +458,7 @@ async def test_delete_task_not_found(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_pause_task(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_pause_task(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test pausing a task."""
     response = await async_client.post(f"/api/scheduled-tasks/{sample_task.id}/pause")
     assert response.status_code == 200
@@ -433,9 +472,7 @@ async def test_pause_task(
 
 
 @pytest.mark.asyncio
-async def test_resume_task(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_resume_task(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test resuming a paused task."""
     # First pause
     await async_client.post(f"/api/scheduled-tasks/{sample_task.id}/pause")
@@ -455,17 +492,24 @@ async def test_resume_task(
 
 
 @pytest.mark.asyncio
-async def test_pause_task_not_found(async_client: AsyncClient):
+async def test_pause_task_not_found(async_client: AsyncClient, admin_headers):
     """Test pausing non-existent task returns 404."""
     response = await async_client.post("/api/scheduled-tasks/99999/pause")
     assert response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_resume_task_not_found(async_client: AsyncClient):
+async def test_resume_task_not_found(async_client: AsyncClient, admin_headers):
     """Test resuming non-existent task returns 404."""
     response = await async_client.post("/api/scheduled-tasks/99999/resume")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_pause_task_without_auth(async_client: AsyncClient):
+    """Test pausing a task without authentication fails."""
+    response = await async_client.post("/api/scheduled-tasks/1/pause")
+    assert response.status_code == 401  # Unauthorized
 
 
 # ============================================================================
@@ -474,9 +518,7 @@ async def test_resume_task_not_found(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_trigger_task(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_trigger_task(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test manually triggering a task."""
     response = await async_client.post(
         f"/api/scheduled-tasks/{sample_task.id}/trigger"
@@ -489,10 +531,17 @@ async def test_trigger_task(
 
 
 @pytest.mark.asyncio
-async def test_trigger_task_not_found(async_client: AsyncClient):
+async def test_trigger_task_not_found(async_client: AsyncClient, admin_headers):
     """Test triggering non-existent task returns 404."""
     response = await async_client.post("/api/scheduled-tasks/99999/trigger")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_trigger_task_without_auth(async_client: AsyncClient):
+    """Test triggering a task without authentication fails."""
+    response = await async_client.post("/api/scheduled-tasks/1/trigger")
+    assert response.status_code == 401  # Unauthorized
 
 
 # ============================================================================
@@ -501,9 +550,7 @@ async def test_trigger_task_not_found(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_get_task_status(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_get_task_status(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test getting task status."""
     response = await async_client.get(f"/api/scheduled-tasks/{sample_task.id}/status")
     assert response.status_code == 200
@@ -515,10 +562,17 @@ async def test_get_task_status(
 
 
 @pytest.mark.asyncio
-async def test_get_task_status_not_found(async_client: AsyncClient):
+async def test_get_task_status_not_found(async_client: AsyncClient, admin_headers):
     """Test getting status of non-existent task returns 404."""
     response = await async_client.get("/api/scheduled-tasks/99999/status")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_task_status_without_auth(async_client: AsyncClient):
+    """Test getting task status without authentication fails."""
+    response = await async_client.get("/api/scheduled-tasks/1/status")
+    assert response.status_code == 401  # Unauthorized
 
 
 # ============================================================================
@@ -527,9 +581,7 @@ async def test_get_task_status_not_found(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_get_task_executions(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_get_task_executions(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test getting task execution history."""
     response = await async_client.get(
         f"/api/scheduled-tasks/{sample_task.id}/executions"
@@ -542,9 +594,7 @@ async def test_get_task_executions(
 
 
 @pytest.mark.asyncio
-async def test_get_task_executions_with_pagination(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_get_task_executions_with_pagination(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test pagination of task executions."""
     response = await async_client.get(
         f"/api/scheduled-tasks/{sample_task.id}/executions?limit=10&offset=0"
@@ -555,10 +605,17 @@ async def test_get_task_executions_with_pagination(
 
 
 @pytest.mark.asyncio
-async def test_get_task_executions_not_found(async_client: AsyncClient):
+async def test_get_task_executions_not_found(async_client: AsyncClient, admin_headers):
     """Test getting executions for non-existent task returns 404."""
     response = await async_client.get("/api/scheduled-tasks/99999/executions")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_task_executions_without_auth(async_client: AsyncClient):
+    """Test getting task executions without authentication fails."""
+    response = await async_client.get("/api/scheduled-tasks/1/executions")
+    assert response.status_code == 401  # Unauthorized
 
 
 # ============================================================================
@@ -616,15 +673,38 @@ async def test_validate_cron_extended(async_client: AsyncClient):
     assert data["is_valid"] is True
 
 
+@pytest.mark.asyncio
+async def test_validate_cron_with_year(async_client: AsyncClient):
+    """Test validating 7-part cron expression with year."""
+    response = await async_client.post(
+        "/api/scheduled-tasks/validate-cron",
+        json={"cron_expression": "0 0 0 1 1 * 2026"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_valid"] is True
+
+
+@pytest.mark.asyncio
+async def test_validate_cron_invalid_field(async_client: AsyncClient):
+    """Test validating cron with invalid field value."""
+    response = await async_client.post(
+        "/api/scheduled-tasks/validate-cron",
+        json={"cron_expression": "99 * * * *"},  # Invalid minute (99)
+    )
+    assert response.status_code == 200
+    data = response.json()
+    # CronTrigger should reject invalid field values
+    assert data["is_valid"] is False
+
+
 # ============================================================================
 # Edge Cases and Error Handling
 # ============================================================================
 
 
 @pytest.mark.asyncio
-async def test_create_task_with_minimum_fields(
-    async_client: AsyncClient, db: AsyncSession
-):
+async def test_create_task_with_minimum_fields(async_client: AsyncClient, admin_headers, db: AsyncSession):
     """Test creating a task with only required fields."""
     response = await async_client.post(
         "/api/scheduled-tasks/",
@@ -647,7 +727,7 @@ async def test_create_task_with_minimum_fields(
 
 
 @pytest.mark.asyncio
-async def test_create_task_invalid_type(async_client: AsyncClient):
+async def test_create_task_invalid_type(async_client: AsyncClient, admin_headers):
     """Test creating a task with invalid task type."""
     response = await async_client.post(
         "/api/scheduled-tasks/",
@@ -662,9 +742,7 @@ async def test_create_task_invalid_type(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_update_task_with_none_values(
-    async_client: AsyncClient, sample_task: ScheduledTask
-):
+async def test_update_task_with_none_values(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
     """Test that None values in update are ignored."""
     response = await async_client.put(
         f"/api/scheduled-tasks/{sample_task.id}",

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import get_current_user, require_admin
 from app.models.user import User
+from app.services.scheduler_service import parse_cron_expression
 from app.schemas.scheduled_task import (
     ScheduledTaskCreate,
     ScheduledTaskUpdate,
@@ -52,6 +53,15 @@ async def create_scheduled_task(
             detail=f"Task already exists for {task_data.task_type}:{task_data.target_id}",
         )
 
+    # Validate cron expression before creating the task
+    try:
+        parse_cron_expression(task_data.cron_expression)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid cron expression: {e}",
+        )
+
     # Create the task
     task = ScheduledTask(**task_data.model_dump())
     created = await repo.create(task)
@@ -61,11 +71,20 @@ async def create_scheduled_task(
         scheduler_service = request.app.state.scheduler_service
         try:
             await scheduler_service.schedule_task(created)
+        except ValueError as e:
+            # Cron validation failed during scheduling - rollback and return error
+            await repo.delete(created.id)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to schedule task: {e}",
+            )
         except Exception as e:
-            # If scheduling fails, we should still return the task but log the error
-            # Or we could return an error, but the task is already in DB.
-            # For now, let's log and continue
-            print(f"Failed to schedule new task {created.id}: {e}")
+            # Other scheduling failures - rollback and return error
+            await repo.delete(created.id)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to schedule task: {e}",
+            )
 
     return created
 
@@ -133,6 +152,16 @@ async def update_scheduled_task(
             )
         return task
 
+    # Validate cron expression if provided
+    if "cron_expression" in update_data:
+        try:
+            parse_cron_expression(update_data["cron_expression"])
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid cron expression: {e}",
+            )
+
     repo = ScheduledTaskRepository(db)
     task = await repo.update(task_id, update_data)
 
@@ -149,8 +178,18 @@ async def update_scheduled_task(
             await scheduler_service.reschedule_task(task)
         else:
             await scheduler_service.unschedule_task(task_id)
+    except ValueError as e:
+        # Cron validation failed during rescheduling
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to reschedule task: {e}",
+        )
     except Exception as e:
-        print(f"Failed to reschedule task {task_id}: {e}")
+        # Other scheduling failures
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reschedule task: {e}",
+        )
 
     return task
 
@@ -325,23 +364,21 @@ async def get_task_executions(
 
 @router.post("/validate-cron", response_model=CronValidationResponse)
 async def validate_cron_expression(request: CronValidationRequest):
-    """Validate a cron expression."""
+    """Validate a cron expression using the same parser as the scheduler."""
     try:
-        parts = request.cron_expression.strip().split()
-        is_valid = len(parts) in (5, 6, 7)
-
-        if is_valid:
-            return CronValidationResponse(
-                is_valid=True,
-                message="Cron expression is valid",
-                next_run_times=None,
-            )
-        else:
-            return CronValidationResponse(
-                is_valid=False,
-                message=f"Cron expression must have 5-7 parts (second minute hour day month weekday [year]), got {len(parts)}",
-                next_run_times=None,
-            )
+        # Use the actual parser to ensure validation matches what the scheduler accepts
+        parse_cron_expression(request.cron_expression)
+        return CronValidationResponse(
+            is_valid=True,
+            message="Cron expression is valid",
+            next_run_times=None,
+        )
+    except ValueError as e:
+        return CronValidationResponse(
+            is_valid=False,
+            message=str(e),
+            next_run_times=None,
+        )
     except Exception as e:
         return CronValidationResponse(
             is_valid=False,

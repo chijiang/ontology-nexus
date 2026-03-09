@@ -152,7 +152,22 @@ async def update_scheduled_task(
             )
         return task
 
-    # Validate cron expression if provided
+    repo = ScheduledTaskRepository(db)
+
+    # Get current task for rollback and to check existence
+    current_task = await repo.get_by_id(task_id)
+    if not current_task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+
+    # Store original values for potential rollback
+    original_values = {}
+    for key in update_data.keys():
+        original_values[key] = getattr(current_task, key, None)
+
+    # Validate cron expression if provided (before DB update)
     if "cron_expression" in update_data:
         try:
             parse_cron_expression(update_data["cron_expression"])
@@ -162,7 +177,7 @@ async def update_scheduled_task(
                 detail=f"Invalid cron expression: {e}",
             )
 
-    repo = ScheduledTaskRepository(db)
+    # Update in database
     task = await repo.update(task_id, update_data)
 
     if not task:
@@ -171,25 +186,26 @@ async def update_scheduled_task(
             detail=f"Task {task_id} not found",
         )
 
-    # Reschedule the task
+    # Reschedule the task - if this fails, rollback the DB update
     scheduler_service = request.app.state.scheduler_service
     try:
         if task.is_enabled:
             await scheduler_service.reschedule_task(task)
         else:
             await scheduler_service.unschedule_task(task_id)
-    except ValueError as e:
-        # Cron validation failed during rescheduling
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to reschedule task: {e}",
-        )
-    except Exception as e:
-        # Other scheduling failures
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to reschedule task: {e}",
-        )
+    except (ValueError, Exception) as e:
+        # Rollback database update on scheduling failure
+        await repo.update(task_id, original_values)
+        if isinstance(e, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to reschedule task: {e}",
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to reschedule task: {e}",
+            )
 
     return task
 

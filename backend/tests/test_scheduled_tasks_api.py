@@ -749,3 +749,80 @@ async def test_update_task_with_none_values(async_client: AsyncClient, admin_hea
         json={"description": None},
     )
     assert response.status_code == 200
+
+
+# ============================================================================
+# Update Scheduling Failure Rollback Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_update_task_with_invalid_cron_rolls_back(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
+    """Test that updating with an invalid cron expression rolls back the database change."""
+    original_cron = sample_task.cron_expression
+    original_name = sample_task.task_name
+
+    # Try to update with invalid cron (e.g., invalid minute value)
+    response = await async_client.put(
+        f"/api/scheduled-tasks/{sample_task.id}",
+        json={
+            "task_name": "Should Be Rolled Back",
+            "cron_expression": "99 * * * *",  # Invalid: minute must be 0-59
+        },
+    )
+    assert response.status_code == 400  # Bad Request due to invalid cron
+
+    # Verify the task was NOT updated in the database
+    get_response = await async_client.get(f"/api/scheduled-tasks/{sample_task.id}")
+    assert get_response.status_code == 200
+    data = get_response.json()
+    assert data["cron_expression"] == original_cron  # Should be unchanged
+    assert data["task_name"] == original_name  # Should be unchanged
+
+
+@pytest.mark.asyncio
+async def test_update_task_wrong_part_count_rolls_back(async_client: AsyncClient, admin_headers, sample_task: ScheduledTask):
+    """Test that updating with wrong cron part count rolls back the database change."""
+    original_cron = sample_task.cron_expression
+
+    # Try to update with 4-part cron (invalid)
+    response = await async_client.put(
+        f"/api/scheduled-tasks/{sample_task.id}",
+        json={"cron_expression": "* * * *"},  # Only 4 parts
+    )
+    assert response.status_code == 400  # Bad Request
+
+    # Verify the task was NOT updated in the database
+    get_response = await async_client.get(f"/api/scheduled-tasks/{sample_task.id}")
+    assert get_response.status_code == 200
+    data = get_response.json()
+    assert data["cron_expression"] == original_cron  # Should be unchanged
+
+
+@pytest.mark.asyncio
+async def test_create_task_with_invalid_cron_rolls_back(async_client: AsyncClient, admin_headers, db: AsyncSession):
+    """Test that creating a task with invalid cron expression rolls back the database change."""
+    invalid_crons = [
+        "* * * *",  # 4 parts
+        "99 * * * *",  # Invalid minute
+        "a b c d e",  # Non-numeric values
+    ]
+
+    for invalid_cron in invalid_crons:
+        response = await async_client.post(
+            "/api/scheduled-tasks/",
+            json={
+                "task_type": "sync",
+                "task_name": f"Invalid Cron Test {invalid_cron}",
+                "target_id": 9999,
+                "cron_expression": invalid_cron,
+                "is_enabled": False,  # Disabled to avoid scheduling attempt
+            },
+        )
+        assert response.status_code == 400, f"Expected 400 for cron: {invalid_cron}"
+
+    # Verify no tasks were created with invalid crons
+    repo = ScheduledTaskRepository(db)
+    for invalid_cron in invalid_crons:
+        task = await repo.get_by_target("sync", 9999)
+        assert task is None, f"Task should not exist for invalid cron: {invalid_cron}"

@@ -72,7 +72,8 @@ class SchedulerService:
         """
         # Configure jobstores with SQLAlchemyJobStore
         # Note: APScheduler requires synchronous URL, so we use psycopg (v3) which is already in dependencies
-        sync_db_url = settings.DATABASE_URL.replace(
+        # Use effective_database_url to respect POSTGRES_HOST overrides
+        sync_db_url = settings.effective_database_url.replace(
             "postgresql+asyncpg", "postgresql+psycopg"
         )
         jobstores = {

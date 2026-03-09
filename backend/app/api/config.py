@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import encrypt_data, decrypt_data
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin
 from app.models.user import User
 from app.models.llm_config import LLMConfig
 from app.schemas.config import (
@@ -37,7 +37,7 @@ async def get_llm_config(
 @router.put("/llm")
 async def update_llm_config(
     req: LLMConfigRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(select(LLMConfig).limit(1))
@@ -67,7 +67,7 @@ async def update_llm_config(
 @router.post("/test/llm", response_model=TestConnectionResponse)
 async def test_llm_connection(
     req: LLMConfigRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
     try:

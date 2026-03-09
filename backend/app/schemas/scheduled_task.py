@@ -74,8 +74,8 @@ class ScheduledTaskBase(BaseModel):
     def validate_cron(cls, v: str) -> str:
         """验证 Cron 表达式格式"""
         parts = v.strip().split()
-        if not 5 <= len(parts) <= 7:
-            raise ValueError("Cron expression must have 5-7 parts")
+        if len(parts) != 5:
+            raise ValueError("Cron expression must have exactly 5 parts (minute hour day month weekday)")
         return v
 
 

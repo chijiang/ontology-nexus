@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin
 from app.models.user import User
 from app.models.mcp_config import MCPConfig
 from app.schemas.mcp import MCPConfigCreate, MCPConfigUpdate, MCPConfigResponse
@@ -24,7 +24,7 @@ async def list_mcp_servers(
 @router.post("", response_model=MCPConfigResponse, status_code=status.HTTP_201_CREATED)
 async def register_mcp_server(
     req: MCPConfigCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Register a new MCP server."""
@@ -47,7 +47,7 @@ async def register_mcp_server(
 async def update_mcp_server(
     server_id: int,
     req: MCPConfigUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Update an MCP server configuration."""
@@ -69,7 +69,7 @@ async def update_mcp_server(
 @router.delete("/{server_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_mcp_server(
     server_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Remove an MCP server."""

@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.api.deps import get_current_user, require_admin
+from app.models.user import User
 from app.schemas.scheduled_task import (
     ScheduledTaskCreate,
     ScheduledTaskUpdate,
@@ -36,6 +38,7 @@ router = APIRouter(prefix="/scheduled-tasks", tags=["scheduled-tasks"])
 async def create_scheduled_task(
     task_data: ScheduledTaskCreate,
     request: Request,
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new scheduled task."""
@@ -73,6 +76,7 @@ async def list_scheduled_tasks(
     is_enabled: Optional[bool] = Query(None, description="Filter by enabled status"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List all scheduled tasks with optional filters."""
@@ -92,6 +96,7 @@ async def list_scheduled_tasks(
 @router.get("/{task_id}", response_model=ScheduledTaskResponse)
 async def get_scheduled_task(
     task_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a scheduled task by ID."""
@@ -110,6 +115,7 @@ async def update_scheduled_task(
     task_id: int,
     updates: ScheduledTaskUpdate,
     request: Request,
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Update a scheduled task."""
@@ -153,6 +159,7 @@ async def update_scheduled_task(
 async def delete_scheduled_task(
     task_id: int,
     request: Request,
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a scheduled task."""
@@ -176,6 +183,7 @@ async def delete_scheduled_task(
 async def pause_scheduled_task(
     task_id: int,
     request: Request,
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Pause a scheduled task."""
@@ -202,6 +210,7 @@ async def pause_scheduled_task(
 async def resume_scheduled_task(
     task_id: int,
     request: Request,
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Resume a paused scheduled task."""
@@ -228,6 +237,7 @@ async def resume_scheduled_task(
 async def trigger_scheduled_task(
     task_id: int,
     request: Request,
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Manually trigger a task execution.
@@ -264,6 +274,7 @@ async def trigger_scheduled_task(
 @router.get("/{task_id}/status", response_model=dict)
 async def get_scheduled_task_status(
     task_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get the current status of a scheduled task."""
@@ -290,6 +301,7 @@ async def get_task_executions(
     task_id: int,
     limit: int = Query(50, ge=1, le=1000, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get execution history for a specific task."""
@@ -316,7 +328,7 @@ async def validate_cron_expression(request: CronValidationRequest):
     """Validate a cron expression."""
     try:
         parts = request.cron_expression.strip().split()
-        is_valid = 5 <= len(parts) <= 7
+        is_valid = len(parts) == 5
 
         if is_valid:
             return CronValidationResponse(
@@ -327,7 +339,7 @@ async def validate_cron_expression(request: CronValidationRequest):
         else:
             return CronValidationResponse(
                 is_valid=False,
-                message=f"Cron expression must have 5-7 parts, got {len(parts)}",
+                message=f"Cron expression must have exactly 5 parts (minute hour day month weekday), got {len(parts)}",
                 next_run_times=None,
             )
     except Exception as e:

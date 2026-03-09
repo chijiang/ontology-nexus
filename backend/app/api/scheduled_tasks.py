@@ -5,6 +5,7 @@ This module provides REST API endpoints for managing scheduled tasks
 that support cron-based scheduling for data synchronization and rule execution.
 """
 
+import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -154,7 +155,7 @@ async def update_scheduled_task(
 
     repo = ScheduledTaskRepository(db)
 
-    # Get current task for validation
+    # Get current task for validation and potential rollback
     current_task = await repo.get_by_id(task_id)
     if not current_task:
         raise HTTPException(
@@ -207,19 +208,16 @@ async def update_scheduled_task(
     # Reschedule the task with the validated configuration
     try:
         if task.is_enabled:
-            await scheduler_service.reschedule_task(task)
+            # Use safe reschedule that rolls back scheduler state on failure
+            await scheduler_service.reschedule_task_safely(current_task, task)
         else:
             await scheduler_service.unschedule_task(task_id)
     except Exception as e:
-        # If rescheduling fails, we need to rollback the database update
-        # to maintain consistency between DB and scheduler
-        logger = logging.getLogger(__name__)
+        # If rescheduling fails, rollback the database update
         logger.error(f"Failed to reschedule task {task_id}: {e}")
 
         # Rollback database update to original values
-        original_values = {}
-        for key in update_data.keys():
-            original_values[key] = getattr(current_task, key, None)
+        original_values = {k: getattr(current_task, k, None) for k in update_data.keys()}
         await repo.update(task_id, original_values)
 
         raise HTTPException(

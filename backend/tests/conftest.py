@@ -66,19 +66,22 @@ async def setup_test_db():
     from unittest.mock import AsyncMock, MagicMock
     from datetime import datetime
 
-    mock_scheduler = AsyncMock()
-    # Configure trigger_task_manually to return a plausible TaskExecution dict/object
-    mock_scheduler.trigger_task_manually.return_value = {
-        "id": 1,
-        "task_id": 1,
-        "status": "pending",
-        "started_at": datetime.now(),
-        "retry_count": 0,
-        "is_retry": False,
-    }
-    # Make validate_task_schedule work as a sync method (not async)
-    mock_scheduler.validate_task_schedule = MagicMock()
-    app.state.scheduler_service = mock_scheduler
+    # Create a fake scheduler class with explicit sync/async methods
+    class FakeSchedulerService:
+        def __init__(self):
+            self.trigger_task_manually = AsyncMock(return_value={
+                "id": 1,
+                "task_id": 1,
+                "status": "pending",
+                "started_at": datetime.now(),
+                "retry_count": 0,
+                "is_retry": False,
+            })
+            self.validate_task_schedule = MagicMock()
+            self.reschedule_task_safely = AsyncMock()
+            self.unschedule_task = AsyncMock()
+
+    app.state.scheduler_service = FakeSchedulerService()
 
     # Create session factory
     TestSessionLocal = async_sessionmaker(

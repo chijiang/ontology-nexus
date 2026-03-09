@@ -313,32 +313,85 @@ class SchedulerService:
         # Schedule with new configuration
         return await self._schedule_task(task)
 
-    def validate_task_schedule(self, task: ScheduledTask) -> None:
-        """Validate that a task configuration is valid for scheduling.
+    async def reschedule_task_safely(self, old_task: ScheduledTask, new_task: ScheduledTask) -> str:
+        """Reschedule with automatic rollback on failure.
 
-        This method checks if the cron expression is valid. For disabled tasks,
-        only the cron expression is validated (the task won't be scheduled).
+        This method atomically replaces the old job with the new one.
+        If the new job fails to schedule, the old job configuration is restored.
+
+        Args:
+            old_task: The current task with its existing configuration
+            new_task: The new task configuration to schedule
+
+        Returns:
+            The APScheduler job ID
+
+        Raises:
+            ValueError: If the task cannot be scheduled
+            Exception: If scheduling fails (after attempting to restore old job)
+        """
+        job_id = f"task_{new_task.id}"
+
+        # Backup old job configuration if it exists
+        old_job = self.scheduler.get_job(job_id)
+        old_trigger = old_job.trigger if old_job else None
+        old_name = old_job.name if old_job else old_task.task_name
+
+        try:
+            # Validate and create new trigger
+            trigger = parse_cron_expression(new_task.cron_expression, timezone="UTC")
+            # Atomically replace existing job with new configuration
+            self.scheduler.add_job(
+                func=_job_executor_wrapper,
+                trigger=trigger,
+                id=job_id,
+                args=[new_task.id],
+                name=new_task.task_name,
+                replace_existing=True,
+            )
+            logger.info(
+                f"Safely rescheduled task {new_task.id} ({new_task.task_name}) "
+                f"with cron '{new_task.cron_expression}'"
+            )
+            return job_id
+        except Exception as e:
+            # Restore old job if it existed
+            if old_trigger is not None:
+                try:
+                    self.scheduler.add_job(
+                        func=_job_executor_wrapper,
+                        trigger=old_trigger,
+                        id=job_id,
+                        args=[old_task.id],
+                        name=old_name,
+                        replace_existing=True,
+                    )
+                    logger.info(
+                        f"Restored old scheduler job for task {old_task.id} "
+                        f"after failed reschedule attempt"
+                    )
+                except Exception as restore_error:
+                    logger.exception(
+                        f"Failed to restore old scheduler job for task {old_task.id}: {restore_error}"
+                    )
+            raise
+
+    def validate_task_schedule(self, task: ScheduledTask) -> None:
+        """Validate that a task configuration is valid.
+
+        This checks if the cron expression is valid, regardless of whether
+        the task is enabled or disabled.
 
         Args:
             task: The ScheduledTask to validate
 
         Raises:
-            ValueError: If the task configuration is invalid
+            ValueError: If the cron expression is invalid
         """
-        # For disabled tasks, only validate cron expression format
-        # For enabled tasks, also verify they can be scheduled
-        if task.is_enabled:
-            # Validate cron expression by attempting to create a trigger
-            try:
-                parse_cron_expression(task.cron_expression, timezone="UTC")
-            except Exception as e:
-                raise ValueError(f"Invalid cron expression '{task.cron_expression}': {e}")
-        else:
-            # For disabled tasks, just validate the cron format without scheduling
-            try:
-                parse_cron_expression(task.cron_expression, timezone="UTC")
-            except Exception as e:
-                raise ValueError(f"Invalid cron expression '{task.cron_expression}': {e}")
+        try:
+            parse_cron_expression(task.cron_expression, timezone="UTC")
+        except Exception as e:
+            raise ValueError(f"Invalid cron expression '{task.cron_expression}': {e}")
 
     async def _execute_scheduled_task(self, task_id: int) -> None:
         """Execute a scheduled task.

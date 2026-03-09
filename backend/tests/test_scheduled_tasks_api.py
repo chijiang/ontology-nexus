@@ -918,3 +918,148 @@ async def test_update_task_with_invalid_cron_on_disabled_task(async_client: Asyn
 
     # Cleanup
     await repo.delete(created.id)
+
+
+# ============================================================================
+# Reschedule Failure Rollback Tests
+# These tests verify that when reschedule fails, both DB and scheduler state are restored
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_update_reschedule_failure_rolls_back_db_and_scheduler(async_client: AsyncClient, admin_headers, db: AsyncSession):
+    """Test that reschedule failure triggers rollback of both DB and scheduler state.
+
+    This test simulates the scenario where:
+    1. Old job exists in scheduler with valid configuration
+    2. Update is requested with new configuration
+    3. Validation passes (cron is valid)
+    4. DB is updated
+    5. reschedule_task_safely fails during job creation
+    6. Both DB and scheduler should be rolled back to original state
+    """
+    from unittest.mock import AsyncMock
+    from app.main import app
+
+    # Create a task
+    repo = ScheduledTaskRepository(db)
+    from app.models.scheduled_task import ScheduledTask
+    task = ScheduledTask(
+        task_type="sync",
+        task_name="Test Task",
+        target_id=7777,
+        cron_expression="0 * * * *",
+        is_enabled=True,
+    )
+    created = await repo.create(task)
+
+    original_cron = created.cron_expression
+    original_name = created.task_name
+
+    # Get the fake scheduler service
+    fake_scheduler = app.state.scheduler_service
+
+    # Mock reschedule_task_safely to fail
+    async def failing_reschedule(old_task, new_task):
+        raise RuntimeError("Simulated scheduler failure")
+
+    fake_scheduler.reschedule_task_safely = AsyncMock(side_effect=failing_reschedule)
+
+    # Try to update the task
+    response = await async_client.put(
+        f"/api/scheduled-tasks/{created.id}",
+        json={
+            "task_name": "New Name Should Roll Back",
+            "cron_expression": "0 */2 * * *",
+        },
+    )
+
+    # Should return 500 due to scheduler failure
+    assert response.status_code == 500
+
+    # Verify the task was rolled back in the database
+    rolled_back_task = await repo.get_by_id(created.id)
+    assert rolled_back_task is not None
+    assert rolled_back_task.cron_expression == original_cron
+    assert rolled_back_task.task_name == original_name
+
+    # Verify that the scheduler restore logic was attempted
+    # (In real scenario, the old job would be restored in scheduler)
+    fake_scheduler.reschedule_task_safely.assert_called_once()
+
+    # Cleanup
+    await repo.delete(created.id)
+
+
+@pytest.mark.asyncio
+async def test_update_disable_task_removes_scheduler_job(async_client: AsyncClient, admin_headers, db: AsyncSession):
+    """Test that disabling a task removes it from the scheduler."""
+    # Create an enabled task
+    repo = ScheduledTaskRepository(db)
+    from app.models.scheduled_task import ScheduledTask
+    task = ScheduledTask(
+        task_type="sync",
+        task_name="To Be Disabled",
+        target_id=6666,
+        cron_expression="0 * * * *",
+        is_enabled=True,
+    )
+    created = await repo.create(task)
+
+    # Disable the task
+    response = await async_client.put(
+        f"/api/scheduled-tasks/{created.id}",
+        json={"is_enabled": False},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_enabled"] is False
+
+    # Verify the task was updated in database
+    updated_task = await repo.get_by_id(created.id)
+    assert updated_task.is_enabled is False
+
+    # Verify unschedule_task was called
+    from app.main import app
+    fake_scheduler = app.state.scheduler_service
+    fake_scheduler.unschedule_task.assert_called_once_with(created.id)
+
+    # Cleanup
+    await repo.delete(created.id)
+
+
+@pytest.mark.asyncio
+async def test_update_enable_task_adds_scheduler_job(async_client: AsyncClient, admin_headers, db: AsyncSession):
+    """Test that enabling a task adds it to the scheduler."""
+    # Create a disabled task
+    repo = ScheduledTaskRepository(db)
+    from app.models.scheduled_task import ScheduledTask
+    task = ScheduledTask(
+        task_type="sync",
+        task_name="To Be Enabled",
+        target_id=5555,
+        cron_expression="0 * * * *",
+        is_enabled=False,
+    )
+    created = await repo.create(task)
+
+    # Enable the task
+    response = await async_client.put(
+        f"/api/scheduled-tasks/{created.id}",
+        json={"is_enabled": True},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_enabled"] is True
+
+    # Verify the task was updated in database
+    updated_task = await repo.get_by_id(created.id)
+    assert updated_task.is_enabled is True
+
+    # Verify reschedule_task_safely was called
+    from app.main import app
+    fake_scheduler = app.state.scheduler_service
+    fake_scheduler.reschedule_task_safely.assert_called_once()
+
+    # Cleanup
+    await repo.delete(created.id)

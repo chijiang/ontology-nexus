@@ -1,0 +1,19 @@
+[project]
+name = "erp-emulator"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "fastapi>=0.135.1",
+    "grpcio>=1.78.0",
+    "grpcio-reflection>=1.62.3",
+    "protobuf>=7.34.0",
+    "pydantic-settings>=2.13.1",
+    "sqlalchemy",
+]
+
+[[tool.uv.index]]
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+default = true

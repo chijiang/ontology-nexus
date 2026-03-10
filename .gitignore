@@ -41,10 +41,11 @@ dev_backlog.txt
 # AI assistant
 .claude/
 CLAUDE.md
+AGENTS.md
 
 # Worktrees
 .worktrees/
 
 # data
-backend/work_ticket_emulator/t3b_sampledata_for POC.xlsx
-backend/work_ticket_emulator/sample_data.csv
+examples/data_products/work_ticket_emulator/t3b_sampledata_for POC.xlsx
+examples/data_products/work_ticket_emulator/sample_data.csv
